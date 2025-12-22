@@ -181,9 +181,9 @@ export interface MaterialMetadata {
     title?: string
     description?: string
     tags?: string[]
-    cover_image?: string
+    cover_image?: string | null
     // legacy field name
-    coverPath?: string
+    coverPath?: string | null
 }
 
 /**

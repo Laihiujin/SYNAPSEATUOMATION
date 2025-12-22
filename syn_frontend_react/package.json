@@ -52,6 +52,7 @@
     "@tanstack/react-query-devtools": "^5.90.2",
     "@tanstack/react-table": "^8.20.5",
     "ai": "^5.0.104",
+    "aria-hidden": "^1.2.6",
     "chrono-node": "^2.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -93,7 +94,7 @@
     "msw": "^2.12.2",
     "postcss": "^8.4.38",
     "shadcn": "^3.5.1",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   },
   "msw": {
     "workerDirectory": [
