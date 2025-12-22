@@ -1,11 +1,8 @@
 "use client"
 
-import Image from "next/image"
 import { Suspense, startTransition, useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
-  ClipboardList,
-  FileDown,
   Trash2,
   UploadCloud,
   FileText,
@@ -14,8 +11,6 @@ import {
   RefreshCw,
   Sparkles,
   Wand2,
-  ImageIcon,
-  Loader2
 } from "lucide-react"
 
 import {
@@ -31,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -41,26 +36,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DataTable } from "@/components/ui/data-table"
 import { fetcher } from "@/lib/api"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { backendBaseUrl } from "@/lib/env"
 import { FileUpload } from "@/components/ui/file-upload"
 import { type Material } from "@/lib/mock-data"
@@ -70,7 +54,6 @@ import { cn } from "@/lib/utils"
 import { MaterialEditorSheet } from "@/components/material-editor-sheet"
 
 function MaterialsPageContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
 
@@ -81,7 +64,7 @@ function MaterialsPageContent() {
   const [groupFilter, setGroupFilter] = useState<string>("all")
 
   // Queries
-  const { data: materialsResponse, isLoading, isFetching, refetch } = useQuery({
+  const { data: materialsResponse, refetch } = useQuery({
     queryKey: ["materials", keyword],
     queryFn: () => {
       const params = new URLSearchParams()
@@ -104,7 +87,7 @@ function MaterialsPageContent() {
   const [editingGroupName, setEditingGroupName] = useState("")
   const [uploading, setUploading] = useState(false)
 
-  // Sync State
+  // Explicit Sync State (for the button)
   const [isSyncing, setIsSyncing] = useState(false)
 
   // Edit Sheet State
@@ -127,8 +110,6 @@ function MaterialsPageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isAllSelected, setIsAllSelected] = useState(false)
 
-  const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'wmv', 'flv']
-
   const formatDuration = (seconds: unknown): string => {
     const n = typeof seconds === "number" ? seconds : Number(seconds)
     if (!Number.isFinite(n) || n <= 0) return "-"
@@ -139,9 +120,9 @@ function MaterialsPageContent() {
   }
 
   const formatResolution = (material: Material): string => {
-    const w = material.video_width
-    const h = material.video_height
-    const ar = material.aspect_ratio
+    const w = (material as any).video_width
+    const h = (material as any).video_height
+    const ar = (material as any).aspect_ratio
     if (!w || !h) return "-"
     const ratio = ar ? ` (${ar})` : ""
     return `${w}×${h}${ratio}`
@@ -149,9 +130,8 @@ function MaterialsPageContent() {
 
   const getPreviewUrl = (material: Material | null) => {
     if (!material) return ""
-    const direct = material.fileUrl || ""
+    const direct = (material as any).fileUrl || ""
     if (direct) {
-      // 已带完整路径时直接返回，否则通过后端拼接
       if (direct.startsWith("http")) return direct
       return `${backendBaseUrl}/getFile?filename=${encodeURIComponent(direct)}`
     }
@@ -170,21 +150,7 @@ function MaterialsPageContent() {
     })
   }, [materialsResponse])
 
-  // 当选中素材时，将其信息填充到编辑表单
-  useEffect(() => {
-    if (selectedMaterial) {
-      setEditForm({
-        title: selectedMaterial.title || "",
-        description: selectedMaterial.description || "",
-        tags: selectedMaterial.tags || "",
-        note: selectedMaterial.note || "",
-        group: selectedMaterial.group || "none",
-        cover_image: selectedMaterial.cover_image || ""
-      })
-    }
-  }, [selectedMaterial])
-
-  // Initialize Edit Form when material selected
+  // 当选中素材时，将其信息填充到编辑表单 (for legacy components if needed)
   useEffect(() => {
     if (selectedMaterial) {
       setEditForm({
@@ -192,16 +158,16 @@ function MaterialsPageContent() {
         description: selectedMaterial.description || "",
         tags: selectedMaterial.tags || "",
         note: selectedMaterial.note || "",
-        group: selectedMaterial.group || "",
+        group: selectedMaterial.group || "none",
         cover_image: selectedMaterial.cover_image || ""
       })
       setCoverPrompt(`为视频 "${selectedMaterial.filename}" 生成一张吸引人的封面，风格现代，高清晰度`)
     }
   }, [selectedMaterial])
 
-  // Filter Logic
+  // Filter Logic from searchParams
   useEffect(() => {
-    const statusParam = searchParams.get("status")
+    const statusParam = searchParams.get("status") as any
     if (statusParam === "pending" || statusParam === "published" || statusParam === "all") {
       setStatusFilter(statusParam)
     }
@@ -216,27 +182,20 @@ function MaterialsPageContent() {
     materials.forEach((m) => {
       if (m.group) set.add(m.group)
     })
-    return Array.from(set)
+    return Array.from(set).sort()
   }, [materials])
 
   const uploadGroupOptions = useMemo(() => {
-    return Array.from(new Set([...groupOptions, ...localGroupOptions]))
+    return Array.from(new Set([...groupOptions, ...localGroupOptions])).sort()
   }, [groupOptions, localGroupOptions])
 
   const filteredMaterials = useMemo(() => {
     return materials.filter((material) => {
-      // 移除keyword过滤，因为已在后端完成
       const matchStatus = statusFilter === "all" || material.status === statusFilter
       const matchGroup = groupFilter === "all" || (material.group || "") === groupFilter
       return matchStatus && matchGroup
     })
   }, [materials, statusFilter, groupFilter])
-
-  const pendingCount = useMemo(
-    () => materials.filter((material) => material.status === "pending").length,
-    [materials]
-  )
-  const publishedCount = materials.length - pendingCount
 
   // --- Actions ---
 
@@ -255,10 +214,8 @@ function MaterialsPageContent() {
     }
 
     try {
-      // 优先通过前端代理
       let result = await attempt(`/api/files/sync`)
       if (!result.ok) {
-        // 代理失败则直接打后端
         result = await attempt(`${backendBaseUrl}/api/v1/files/sync`)
       }
 
@@ -284,128 +241,6 @@ function MaterialsPageContent() {
     }
   }
 
-  const handleSaveEdit = async () => {
-    if (!selectedMaterial) return
-    try {
-      const response = await fetch(`/api/files/${encodeURIComponent(selectedMaterial.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editForm.title,
-          description: editForm.description,
-          tags: editForm.tags,
-          note: editForm.note,
-          group_name: editForm.group === 'none' ? null : editForm.group,
-          cover_image: editForm.cover_image
-        })
-      })
-
-      if (!response.ok) throw new Error('update failed')
-
-      toast({ variant: 'success', title: '已保存', description: '素材信息已更新' })
-      setSelectedMaterial(null)
-      await refetch()
-    } catch (error) {
-      toast({ variant: 'destructive', title: '保存失败', description: '请稍后重试' })
-    }
-  }
-
-  const handleAIGenerate = async (field: 'title' | 'desc' | 'tags') => {
-    if (!selectedMaterial) return
-    setAiGenerating(field)
-
-    try {
-      let prompt = ''
-      const filename = selectedMaterial.filename || "视频素材"
-      const baseName = filename.replace(/\.[^.]+$/, "")
-      const existingTitle = (editForm.title || "").trim()
-      const existingTags = (editForm.tags || "").trim()
-      if (field === 'title') {
-        prompt = existingTitle
-          ? `请基于「文件名」与「原标题」优化视频标题。\n\n要求：\n- 只输出标题本身，不要解释\n- 标题不超过 30 字\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n- 保留原标题核心含义，不要完全重写\n\n文件名：${filename}\n原标题：${existingTitle}`
-          : `请根据文件名生成一个短视频标题。\n\n要求：\n- 只输出标题本身，不要解释\n- 标题不超过 30 字\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n\n文件名：${filename}\n文件名(去扩展)：${baseName}`
-      } else if (field === 'desc') {
-        prompt = `请根据文件名生成一段短视频描述文案。\n\n要求：\n- 输出中文\n- 50-120 字\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n\n文件名：${filename}\n文件名(去扩展)：${baseName}`
-      } else if (field === 'tags') {
-        prompt = existingTags
-          ? `请基于「文件名」与「现有标签/关键词」生成更规范的短视频标签。\n\n要求：\n- 输出 1-4 个标签\n- 标签之间用空格分隔\n- 标签不要带 #（系统会自动加 #）\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n- 保留原有标签核心意图，不要偏题\n\n文件名：${filename}\n现有标签/关键词：${existingTags}`
-          : `请根据文件名生成短视频标签。\n\n要求：\n- 输出 1-4 个标签\n- 标签之间用空格分隔\n- 标签不要带 #（系统会自动加 #）\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n\n文件名：${filename}\n文件名(去扩展)：${baseName}`
-      }
-
-      const response = await fetch(`${backendBaseUrl}/api/v1/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          stream: false
-        })
-      })
-
-      if (!response.ok) throw new Error('AI generation failed')
-      const data = await response.json()
-      const content = data.content || data.message || ''
-
-      const normalizeTags = (value: string) => {
-        const items = value
-          .split(/[\s,，]+/)
-          .map(tag => tag.trim().replace(/^#/, ""))
-          .filter(Boolean)
-        const unique: string[] = []
-        for (const item of items) {
-          if (!unique.includes(item)) unique.push(item)
-        }
-        return unique.slice(0, 4)
-      }
-
-      if (field === 'title') {
-        setEditForm(prev => ({ ...prev, title: content.trim() }))
-      } else if (field === 'desc') {
-        setEditForm(prev => ({ ...prev, description: content.trim() }))
-      } else if (field === 'tags') {
-        const tags = normalizeTags(content.trim())
-        setEditForm(prev => ({ ...prev, tags: tags.join(" ") }))
-      }
-
-      toast({ title: "AI 生成完成", description: "内容已自动填充" })
-    } catch (error) {
-      console.error('AI generation error:', error)
-      toast({ variant: "destructive", title: "AI 生成失败", description: "请稍后重试" })
-    } finally {
-      setAiGenerating(null)
-    }
-  }
-
-  const handleGenerateCover = async () => {
-    setAiGenerating('cover')
-    try {
-      if (!selectedMaterial?.id) throw new Error("未选择素材")
-      const inferredAspect = (selectedMaterial as any).orientation === "landscape" ? "4:3" : "3:4"
-      const response = await fetch(`/api/v1/files/${encodeURIComponent(selectedMaterial.id)}/ai-cover`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform_name: "全平台",
-          aspect_ratio: inferredAspect,
-          prompt: coverPrompt.trim()
-        })
-      })
-      const data = await response.json()
-      const coverPath = data?.data?.cover_path
-      if (coverPath) {
-        setEditForm(prev => ({ ...prev, cover_image: coverPath }))
-        setCoverPrompt("")
-        toast({ title: "封面已生成", description: "AI 封面生成成功，保存后生效" })
-      } else {
-        throw new Error(data?.detail || data?.message || "封面生成失败")
-      }
-    } catch (error: any) {
-      console.error("cover generation error:", error)
-      toast({ variant: "destructive", title: "封面生成失败", description: error?.message || String(error) })
-    } finally {
-      setAiGenerating(null)
-    }
-  }
-
   const handleDelete = async (id: string) => {
     try {
       const response = await fetch(`/api/files/${encodeURIComponent(id)}`, {
@@ -419,7 +254,6 @@ function MaterialsPageContent() {
     }
   }
 
-  // Multi-select handlers
   const handleToggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
     if (newSelected.has(id)) {
@@ -444,20 +278,16 @@ function MaterialsPageContent() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return
-
     try {
       const deletePromises = Array.from(selectedIds).map(id =>
         fetch(`/api/files/${encodeURIComponent(id)}`, { method: 'DELETE' })
       )
-
       await Promise.all(deletePromises)
-
       toast({
         variant: "success",
         title: "批量删除成功",
         description: `已删除 ${selectedIds.size} 个素材`
       })
-
       setSelectedIds(new Set())
       setIsAllSelected(false)
       await refetch()
@@ -472,9 +302,6 @@ function MaterialsPageContent() {
 
   const handleUpload = async () => {
     if (!filesToUpload.length) return
-
-    // ... (Keep existing upload logic, simplified for brevity in this rewrite)
-    // Assuming the existing logic was fine, just copying the core structure
     const group = (uploadGroup === "none" ? "" : uploadGroup).trim()
     setUploading(true)
     try {
@@ -482,7 +309,6 @@ function MaterialsPageContent() {
         const formData = new FormData()
         formData.append('file', file)
         if (group) formData.append('group', group)
-
         await fetch(`/api/files/upload-save`, { method: 'POST', body: formData })
       }
       setFilesToUpload([])
@@ -682,7 +508,6 @@ function MaterialsPageContent() {
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
-                    {/* Select & Create */}
                     <div className="flex gap-3">
                       <div className="flex-1 min-w-0">
                         <Select value={uploadGroup} onValueChange={(v) => setUploadGroup(v)}>
@@ -708,7 +533,6 @@ function MaterialsPageContent() {
                       </Button>
                     </div>
 
-                    {/* New Group Input */}
                     {showNewGroup && (
                       <div className="flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
                         <Input
@@ -744,7 +568,6 @@ function MaterialsPageContent() {
                       </div>
                     )}
 
-                    {/* Group Manager List */}
                     {showGroupManager && (
                       <div className="pt-2 border-t border-white/5 space-y-3 animate-in fade-in duration-300">
                         <div className="flex items-center justify-between">
@@ -792,7 +615,6 @@ function MaterialsPageContent() {
                                               setEditingGroupName("")
                                               return
                                             }
-
                                             setGroupActionBusy(true)
                                             try {
                                               if (backendGroup) {
@@ -804,7 +626,6 @@ function MaterialsPageContent() {
                                                 if (!res.ok) throw new Error(await res.text())
                                                 await refetch()
                                               }
-
                                               setLocalGroupOptions((prev) => {
                                                 const next = prev.filter((x) => x !== from)
                                                 return next.includes(to) ? next : [to, ...next]
@@ -910,20 +731,20 @@ function MaterialsPageContent() {
         </div>
       </div>
 
-      {/* Main Content Card */}
+      {/* Filter Toolbar */}
       <Card className="flex-1 border-white/5 bg-transparent flex flex-col min-h-0 shadow-none">
         <CardHeader className="flex-shrink-0 pb-4">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
             <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
               <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
                 <TabsList className="h-9 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <TabsTrigger value="all" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black data-[state=active]:shadow-inner border border-transparent data-[state=active]:border-white/20 transition-colors">
+                  <TabsTrigger value="all" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black transition-colors">
                     全部
                   </TabsTrigger>
-                  <TabsTrigger value="pending" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black data-[state=active]:shadow-inner border border-transparent data-[state=active]:border-white/20 transition-colors">
+                  <TabsTrigger value="pending" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black transition-colors">
                     待发布
                   </TabsTrigger>
-                  <TabsTrigger value="published" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black data-[state=active]:shadow-inner border border-transparent data-[state=active]:border-white/20 transition-colors">
+                  <TabsTrigger value="published" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black transition-colors">
                     已发布
                   </TabsTrigger>
                 </TabsList>
@@ -965,11 +786,7 @@ function MaterialsPageContent() {
                   </span>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="ml-auto"
-                      >
+                      <Button size="sm" variant="destructive" className="ml-auto">
                         <Trash2 className="h-4 w-4 mr-2" />
                         批量删除
                       </Button>
@@ -977,15 +794,11 @@ function MaterialsPageContent() {
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>确认批量删除？</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          将删除 {selectedIds.size} 个素材，此操作无法撤销。
-                        </AlertDialogDescription>
+                        <AlertDialogDescription>将删除 {selectedIds.size} 个素材，此操作无法撤销。</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>取消</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleBatchDelete}>
-                          确认删除
-                        </AlertDialogAction>
+                        <AlertDialogAction onClick={handleBatchDelete}>确认删除</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -997,7 +810,7 @@ function MaterialsPageContent() {
         </CardContent>
       </Card>
 
-      {/* Edit Sheet (Sidebar) */}
+      {/* Edit Sheet */}
       <MaterialEditorSheet
         open={!!selectedMaterial}
         onOpenChange={(open) => !open && setSelectedMaterial(null)}
@@ -1005,8 +818,6 @@ function MaterialsPageContent() {
         groupOptions={groupOptions}
         onSave={async (updatedData) => {
           if (!selectedMaterial) return
-          // setEditForm(prev => ({ ...prev, ...updatedData })) // This line is removed as MaterialEditorSheet manages its own form state
-          // Call the actual save logic
           try {
             const response = await fetch(`/api/files/${encodeURIComponent(selectedMaterial.id)}`, {
               method: 'PATCH',
@@ -1021,9 +832,7 @@ function MaterialsPageContent() {
                 cover_image: updatedData.cover_image
               })
             })
-
             if (!response.ok) throw new Error('update failed')
-
             toast({ variant: 'success', title: '已保存', description: '素材信息已更新' })
             setSelectedMaterial(null)
             await refetch()

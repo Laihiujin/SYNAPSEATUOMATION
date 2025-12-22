@@ -33,11 +33,7 @@ const resolvePlatformName = (value: unknown): string => {
   return key || "未知平台"
 }
 
-const stringifyResult = (value: any) => {
-  // 不处理result字段，让它为undefined
-  // 这样可以避免JSON序列化问题
-  return undefined
-}
+
 
 const buildSummaryFromTasks = (tasks: TaskRecord[]) => {
   const summary = { scheduled: 0, success: 0, error: 0, pending: 0, total: tasks.length }
@@ -58,7 +54,17 @@ const fetchAccountsMap = async () => {
     const payload = await response.json().catch(() => ({}))
     const items = Array.isArray(payload?.items) ? payload.items : []
     const map = new Map<string, string>()
-    items.forEach((item: any) => {
+    items.forEach((item: {
+      account_id?: string | number
+      id?: string | number
+      accountId?: string | number
+      user_id?: string | number
+      userId?: string | number
+      original_name?: string
+      name?: string
+      nickname?: string
+      note?: string
+    }) => {
       const rawId = item.account_id ?? item.id ?? item.accountId
       const userId = item.user_id ?? item.userId
       if (!rawId && !userId) return
@@ -90,7 +96,7 @@ const fetchMaterialsMap = async () => {
     const payload = await response.json().catch(() => ({}))
     const items = Array.isArray(payload?.items) ? payload.items : []
     const map = new Map<string, string>()
-    items.forEach((item: any) => {
+    items.forEach((item: { id?: string | number; filename?: string }) => {
       if (item.id) map.set(String(item.id), item.filename || "未知文件")
     })
     return map

@@ -115,6 +115,7 @@ export function AIProviderSelector() {
   useEffect(() => {
     // 组件挂载时自动检测
     checkProviders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -235,7 +236,7 @@ export function AIProviderSelector() {
 
       {/* 提示信息 */}
       <div className="text-xs text-white/50 p-3 bg-white/5 rounded-lg border border-white/10">
-        💡 点击"刷新检测"按钮来检测所有 AI 提供商的连接状态和可用模型
+        💡 点击&quot;刷新检测&quot;按钮来检测所有 AI 提供商的连接状态和可用模型
       </div>
     </div>
   )

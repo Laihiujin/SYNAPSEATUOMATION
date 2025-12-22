@@ -356,24 +356,29 @@ export default function TasksPage() {
   useEffect(() => {
     setAutoPage(1)
     setSelectedTaskIds([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter])
 
   useEffect(() => {
     setAutoPage(prev => Math.min(prev, autoTotalPages))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoTotalPages])
 
   useEffect(() => {
     setManualPage(1)
     setSelectedManualIds([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualTasks.length])
 
   useEffect(() => {
     setManualPage(prev => Math.min(prev, manualTotalPages))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualTotalPages])
 
   useEffect(() => {
     setSelectedTaskIds([])
     setSelectedManualIds([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   return (
@@ -669,7 +674,9 @@ export default function TasksPage() {
                                     ? "bg-red-500/20 text-red-200"
                                     : task.status === "scheduled"
                                       ? "bg-amber-500/20 text-amber-200"
-                                      : "bg-white/10 text-white"
+                                      : task.status === "running"
+                                        ? "bg-blue-500/20 text-blue-200"
+                                        : "bg-white/10 text-white"
                               }
                             >
                               {task.status === "scheduled"
@@ -678,7 +685,9 @@ export default function TasksPage() {
                                   ? "成功"
                                   : task.status === "error"
                                     ? "失败"
-                                    : "等待中"}
+                                    : task.status === "running"
+                                      ? "运行中"
+                                      : "等待中"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -753,16 +762,16 @@ export default function TasksPage() {
                     <TableRow className="border-white/5">
                       <TableHead className="w-12">
                         <Checkbox
-	                          checked={
-	                            paginatedManualTasks.length > 0 &&
-	                            paginatedManualTasks.every((task: any) => selectedManualIds.includes(getManualId(task)))
-	                          }
-	                          onCheckedChange={(checked) => {
-	                            const pageIds = paginatedManualTasks.map((task: any) => getManualId(task)).filter(Boolean)
-	                            if (checked) {
-	                              setSelectedManualIds(Array.from(new Set([...selectedManualIds, ...pageIds])))
-	                              return
-	                            }
+                          checked={
+                            paginatedManualTasks.length > 0 &&
+                            paginatedManualTasks.every((task: any) => selectedManualIds.includes(getManualId(task)))
+                          }
+                          onCheckedChange={(checked) => {
+                            const pageIds = paginatedManualTasks.map((task: any) => getManualId(task)).filter(Boolean)
+                            if (checked) {
+                              setSelectedManualIds(Array.from(new Set([...selectedManualIds, ...pageIds])))
+                              return
+                            }
                             setSelectedManualIds(selectedManualIds.filter(id => !pageIds.includes(id)))
                           }}
                         />
@@ -776,10 +785,10 @@ export default function TasksPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-	                    {paginatedManualTasks.map((task: any, index: number) => {
-	                      const manualId = getManualId(task)
-	                      return (
-	                        <TableRow key={manualId || `manual-${index}`} className="border-white/5">
+                    {paginatedManualTasks.map((task: any, index: number) => {
+                      const manualId = getManualId(task)
+                      return (
+                        <TableRow key={manualId || `manual-${index}`} className="border-white/5">
                           <TableCell>
                             <Checkbox
                               checked={manualId ? selectedManualIds.includes(manualId) : false}

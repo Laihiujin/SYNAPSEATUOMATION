@@ -186,7 +186,7 @@ export const tasksResponseSchema = z.object({
     platform: z.string(),
     account: z.string(),
     material: z.string(),
-    status: z.enum(["pending", "success", "error", "scheduled"]),
+    status: z.enum(["pending", "success", "error", "scheduled", "running"]),
     createdAt: z.string(),
     scheduledAt: z.string().optional(),
     result: z.string().optional(),
