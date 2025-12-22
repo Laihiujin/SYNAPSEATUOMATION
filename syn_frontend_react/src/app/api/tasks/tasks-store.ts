@@ -1,7 +1,7 @@
 import { promises as fs } from "fs"
 import path from "path"
 
-export type TaskStatus = "pending" | "success" | "error" | "scheduled"
+export type TaskStatus = "pending" | "success" | "error" | "scheduled" | "running" | "cancelled"
 
 export interface TaskRecord {
   id: string

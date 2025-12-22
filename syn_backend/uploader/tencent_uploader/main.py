@@ -199,26 +199,84 @@ class TencentVideo(object):
             tencent_logger.info(f"[视频号] Uploader实现: tencent_uploader/main.py (file={__file__})")
         except Exception:
             pass
-        # 使用 Chromium (这里使用系统内浏览器，用chromium 会造成h264错误
-        # 添加代理绕过设置以解决 ERR_PROXY_CONNECTION_FAILED
-        # 添加代理绕过设置以解决 ERR_PROXY_CONNECTION_FAILED
+        # 视频号必须使用 Chrome for Testing（支持 H.265）
+        # Playwright Chromium 不支持 H.265 会导致"浏览器不支持此视频格式"错误
         browser_args = build_browser_args()
         browser_args['headless'] = HEADLESS_FLAG
-        
+
         # Inject Proxy if available
         if self.proxy:
              browser_args['proxy'] = self.proxy
              tencent_logger.info(f"Using Proxy: {self.proxy.get('server')}")
 
+        # 视频号专用：强制使用 Chrome for Testing
+        # 策略：使用相对路径定位（项目可移动）
+        # 注意：视频号必须使用 Chrome for Testing，不使用全局 LOCAL_CHROME_PATH
+        chrome_for_testing_path = None
+
+        # 优先级1: 实例化时传入的路径（可以是相对或绝对）
         if self.local_executable_path:
             candidate = Path(str(self.local_executable_path))
+            if not candidate.is_absolute():
+                # 如果是相对路径，从项目根目录开始解析
+                project_root = Path(__file__).parent.parent.parent.parent
+                candidate = project_root / candidate
+
             if candidate.is_file():
-                browser_args['executable_path'] = str(candidate)
-            else:
-                tencent_logger.warning(f"[+] 忽略无效的 executable_path: {self.local_executable_path}")
-                browser_args.pop("executable_path", None)
+                chrome_for_testing_path = candidate
+                tencent_logger.info(f"[+] 使用传入的浏览器（相对项目）")
+
+        # 优先级2: 从配置读取 Chrome for Testing 路径（支持相对路径）
+        if not chrome_for_testing_path:
+            try:
+                from config.conf import LOCAL_CHROME_PATH
+                if LOCAL_CHROME_PATH:
+                    candidate = Path(str(LOCAL_CHROME_PATH))
+
+                    # 如果配置的是相对路径，从项目根目录解析
+                    if not candidate.is_absolute():
+                        project_root = Path(__file__).parent.parent.parent.parent
+                        candidate = project_root / candidate
+
+                    if candidate.is_file():
+                        chrome_for_testing_path = candidate
+                        tencent_logger.info(f"[+] 从配置读取 Chrome for Testing")
+                    else:
+                        tencent_logger.warning(f"[+] 配置的路径无效: {LOCAL_CHROME_PATH}")
+            except Exception as e:
+                tencent_logger.warning(f"[+] 读取配置失败: {e}")
+
+        # 优先级3: 自动查找项目内的 Chrome for Testing（使用相对路径）
+        if not chrome_for_testing_path:
+            project_root = Path(__file__).parent.parent.parent.parent
+            auto_chrome_path = project_root / '.chrome-for-testing'
+
+            # 查找最新版本
+            if auto_chrome_path.exists():
+                chrome_dirs = sorted(auto_chrome_path.glob('chrome-*'), reverse=True)
+                for chrome_dir in chrome_dirs:
+                    chrome_exe = chrome_dir / 'chrome-win64' / 'chrome.exe'
+                    if chrome_exe.exists():
+                        chrome_for_testing_path = chrome_exe
+                        # 计算相对路径用于日志显示
+                        try:
+                            rel_path = chrome_exe.relative_to(project_root)
+                            tencent_logger.info(f"[+] 自动找到 Chrome for Testing: {rel_path}")
+                        except:
+                            tencent_logger.info(f"[+] 自动找到 Chrome for Testing")
+                        break
+
+        # 设置浏览器路径（Playwright 需要绝对路径）
+        if chrome_for_testing_path:
+            # 转为绝对路径给 Playwright
+            browser_args['executable_path'] = str(chrome_for_testing_path.resolve())
+            tencent_logger.success(f"[+] ✅ 最终浏览器: Chrome for Testing (支持 H.265)")
         else:
-            browser_args.pop("executable_path", None)
+            tencent_logger.error(f"[+] ❌ 未找到 Chrome for Testing！")
+            tencent_logger.error(f"[+]    视频号需要 Chrome for Testing 来支持 H.265 视频")
+            tencent_logger.error(f"[+]    请运行: python download_chrome_for_testing.py")
+            raise Exception("视频号上传需要 Chrome for Testing，但未找到可用的浏览器")
+
         browser = await playwright.chromium.launch(**browser_args)
         # 创建一个浏览器上下文，使用指定的 cookie 文件
         context = await browser.new_context(**build_context_options(storage_state=f"{self.account_file}"))
@@ -229,31 +287,26 @@ class TencentVideo(object):
         # 访问指定的 URL
         tencent_logger.info(f'[+]正在访问发布页面...')
         page.set_default_timeout(10000)
-        page.set_default_navigation_timeout(45000)
-        await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=45000, wait_until="domcontentloaded")
+        page.set_default_navigation_timeout(10000)
+        
+        # 优化1: 只要 commit 了就开始检查元素，不一定要等 domcontentloaded
+        await page.goto("https://channels.weixin.qq.com/platform/post/create", wait_until="commit")
 
         # 等待页面加载
-        # networkidle 在该站点经常不稳定/永不触发；改为等待关键 DOM 就绪
         try:
-            tencent_logger.info('[+]等待关键 DOM 元素...')
-            # 2025 Fix: input[type='file'] is hidden, so we must wait for state='attached' OR wait for the visible container
-            try:
-                # Wait for visible elements first
-                await page.wait_for_selector("span.ant-upload, div.upload-content, button.weui-desktop-btn_primary", timeout=3000)
-            except:
-                # Fallback: check if hidden input is attached (but not necessarily visible)
-                await page.wait_for_selector("input[type='file']", state="attached", timeout=10000)
-                
-            tencent_logger.success('[+]页面加载完成 (DOM Ready)')
+            tencent_logger.info('[+]快速探测核心元素...')
+            # 优化2: 使用 race 方式等待多个可能的元素，谁先到用谁
+            await page.wait_for_selector("input[type='file'], span.ant-upload, div.upload-content", timeout=15000)
+            tencent_logger.success('[+]页面核心元素已就绪')
         except Exception as e:
-            tencent_logger.error(f'[-]页面加载超时或元素未找到: {e}')
-            pass
+            tencent_logger.warning(f'[-]快速探测超时，尝试兜底检查: {e}')
             
         # 调试：打印当前页面标题和URL
         title = await page.title()
         tencent_logger.info(f'[+]页面标题: {title}, URL: {page.url}')
         try:
-            await try_close_guide(page, "channels")
+            # 优化3: 移除指南弹窗的等待，改为非阻塞异步
+            asyncio.create_task(try_close_guide(page, "channels"))
         except Exception:
             pass
 
@@ -378,7 +431,42 @@ class TencentVideo(object):
                 raise Exception("未找到文件上传元素，请检查视频号页面是否改版")
 
         await file_input.set_input_files(self.file_path)
-        tencent_logger.success('[+]文件已选择，开始上传')
+        tencent_logger.success('[+]文件已选择，等待上传确认...')
+
+        # 2025 Fix: 文件选择后，需要点击"确认上传"或类似按钮来真正触发上传
+        # 等待一小段时间让 DOM 更新
+        await page.wait_for_timeout(800)
+
+        # 查找并点击上传确认按钮
+        upload_confirm_selectors = [
+            'button:has-text("开始上传")',
+            'button:has-text("确认上传")',
+            'button:has-text("上传")',
+            'div.upload-btn button',
+            'button.upload-confirm',
+            'button.start-upload',
+            'div.ant-modal-footer button.ant-btn-primary',  # 如果有弹窗
+        ]
+
+        upload_confirmed = False
+        for confirm_selector in upload_confirm_selectors:
+            try:
+                confirm_btn = page.locator(confirm_selector)
+                if await confirm_btn.count() > 0 and await confirm_btn.first.is_visible():
+                    tencent_logger.info(f'[+]找到上传确认按钮: {confirm_selector}')
+                    await confirm_btn.first.click()
+                    upload_confirmed = True
+                    tencent_logger.success('[+]已点击上传确认按钮，开始上传')
+                    break
+            except Exception as e:
+                tencent_logger.debug(f'尝试点击 {confirm_selector} 失败: {e}')
+                continue
+
+        if not upload_confirmed:
+            tencent_logger.warning('[+]未找到明确的上传确认按钮，文件可能会自动上传（取决于页面逻辑）')
+
+        # 再等待一小段时间让上传开始
+        await page.wait_for_timeout(500)
         try:
             await try_close_guide(page, "channels")
         except Exception:
@@ -462,25 +550,66 @@ class TencentVideo(object):
                     await asyncio.sleep(0.5)
 
     async def detect_upload_status(self, page):
+        """检测视频上传状态（优化版：缩短轮询间隔，增加进度反馈）"""
+        upload_start_time = asyncio.get_event_loop().time()
+        last_log_time = upload_start_time
+        check_count = 0
+
         while True:
-            # 匹配删除按钮，代表视频上传完毕，如果不存在，代表视频正在上传，则等待
+            check_count += 1
+            current_time = asyncio.get_event_loop().time()
+            elapsed = int(current_time - upload_start_time)
+
             try:
-                # 匹配删除按钮，代表视频上传完毕
-                if "weui-desktop-btn_disabled" not in await page.get_by_role("button", name="发表").get_attribute(
-                        'class'):
-                    tencent_logger.info("  [-]视频上传完毕")
+                # 检查"发表"按钮状态
+                publish_btn = page.get_by_role("button", name="发表")
+                btn_class = await publish_btn.get_attribute('class')
+
+                if btn_class and "weui-desktop-btn_disabled" not in btn_class:
+                    tencent_logger.success(f"  [-]视频上传完毕（耗时 {elapsed} 秒）")
                     break
-                else:
-                    tencent_logger.info("  [-] 正在上传视频中...")
-                    await asyncio.sleep(2)
-                    # 出错了视频出错
-                    if await page.locator('div.status-msg.error').count() and await page.locator(
-                            'div.media-status-content div.tag-inner:has-text("删除")').count():
+
+                # 检查是否有上传错误
+                if await page.locator('div.status-msg.error').count() > 0:
+                    if await page.locator('div.media-status-content div.tag-inner:has-text("删除")').count() > 0:
                         tencent_logger.error("  [-] 发现上传出错了...准备重试")
                         await self.handle_upload_error(page)
-            except:
-                tencent_logger.info("  [-] 正在上传视频中...")
-                await asyncio.sleep(2)
+                        upload_start_time = asyncio.get_event_loop().time()  # 重置计时
+                        continue
+
+                # 尝试获取上传进度（如果页面有显示）
+                progress_text = ""
+                try:
+                    # 常见的进度显示选择器
+                    progress_selectors = [
+                        'div.upload-progress',
+                        'span.progress-text',
+                        'div.percent',
+                        'div:has-text("%")',
+                    ]
+                    for selector in progress_selectors:
+                        progress_elem = page.locator(selector).first
+                        if await progress_elem.count() > 0:
+                            progress_text = await progress_elem.inner_text()
+                            break
+                except Exception:
+                    pass
+
+                # 每 5 秒输出一次日志（避免刷屏）
+                if current_time - last_log_time >= 5:
+                    if progress_text:
+                        tencent_logger.info(f"  [-] 上传中... {progress_text} (已用 {elapsed}s, 检查 {check_count} 次)")
+                    else:
+                        tencent_logger.info(f"  [-] 上传中... (已用 {elapsed}s, 检查 {check_count} 次)")
+                    last_log_time = current_time
+
+                # 优化：缩短轮询间隔到 0.5 秒（响应更快）
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                # 出现异常时也缩短间隔
+                tencent_logger.debug(f"  [-] 状态检查异常: {e}")
+                await asyncio.sleep(0.5)
 
     async def add_title_tags(self, page):
         # 2025: selector updated to .input-editor

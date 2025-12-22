@@ -67,6 +67,7 @@ export function EnhancedAIChat() {
   const manusStream = useManusStream()
   const resetManusStream = manusStream.resetState
   const startManusStreaming = manusStream.startStreaming
+  const stopManusStreaming = manusStream.stopStreaming
   const manusLogMessageIdRef = React.useRef<string | null>(null)
   const manusLogThreadIdRef = React.useRef<string | null>(null)
   const manusLogContentRef = React.useRef<string>("")
@@ -602,11 +603,34 @@ export function EnhancedAIChat() {
           }
           break
         }
-        case "confirmation_required":
-          append(`\n**需要确认**：\`${ev.tool_name || "unknown"}\`\n`)
+        case "confirmation_required": {
+          // 在聊天中显示任务计划
+          const taskSummary = (ev as any).task_summary || {}
+          const tools = taskSummary.tools || []
+
+          append(`\n**📋 任务计划（需要确认）**\n`)
+          append(`- 目标：${taskSummary.goal || "未知"}\n`)
+          append(`- 步骤数：${taskSummary.total_steps || tools.length}\n\n`)
+
+          if (tools.length > 0) {
+            append(`**工具调用列表：**\n`)
+            tools.forEach((tool: any, idx: number) => {
+              append(`${idx + 1}. **${tool.name}**\n`)
+              if (tool.arguments && Object.keys(tool.arguments).length > 0) {
+                const argsPreview = JSON.stringify(tool.arguments, null, 2)
+                  .split('\n')
+                  .slice(0, 10)  // 只显示前10行
+                  .join('\n')
+                append(`   参数：\`\`\`json\n${argsPreview}\n\`\`\`\n`)
+              }
+            })
+          }
+
+          append(`\n_系统将自动执行上述任务..._\n`)
           break
+        }
         case "confirmation_received":
-          append(`\n**确认结果**：\`${ev.tool_name || "unknown"}\` = ${ev.approved ? "✅ 同意" : "❌ 拒绝"}\n`)
+          append(`\n**✅ 确认通过**，开始执行...\n`)
           break
         case "tool_call": {
           const name = ev.tool_name || "unknown"
@@ -947,6 +971,8 @@ export function EnhancedAIChat() {
             setInput={setInput}
             disabled={isLoading || (mode === "openmanus" && manusStream.isStreaming) || (mode === "agent" && isAgentThinking)}
             placeholder={connectionError ? `AI 连接问题: ${connectionError}` : (!isConnected ? "AI 处于离线状态，聊天可能无法响应..." : (mode === "agent" ? "描述你的任务，例如：帮我分析最近的发布数据..." : "输入消息..."))}
+            onStop={mode === "openmanus" ? stopManusStreaming : undefined}
+            showStopButton={mode === "openmanus" && manusStream.isStreaming}
           />
         </div>
       </div>

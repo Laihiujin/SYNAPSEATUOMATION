@@ -76,8 +76,7 @@ async def task_cancel(
     if not task_status:
         raise HTTPException(status_code=404, detail="任务不存在")
     current_status = (task_status.get("status") or "").lower()
-    if current_status in ("pending", "retry"):
-        raise HTTPException(status_code=400, detail="等待中的任务不允许终止")
+    # Allowed to cancel pending/retry/running tasks
     ok = tm.cancel_task(task_id, force=force)
     if ok:
         return {"success": True, "message": f"任务已取消 (force={force})"}
@@ -259,7 +258,31 @@ async def clear_pending_tasks(request: Request):
     """
     清理所有待处理（pending/retry）的任务
     """
-    raise HTTPException(status_code=400, detail="已禁用：等待中的任务不允许终止")
+    tm = _get_task_manager(request)
+
+    try:
+        # 获取所有待处理的任务
+        pending_tasks = tm.list_tasks(limit=1000, status="pending")
+        retry_tasks = tm.list_tasks(limit=1000, status="retry")
+        all_pending = pending_tasks + retry_tasks
+        deleted_count = 0
+
+        for task in all_pending:
+            task_id = task.get("task_id")
+            if task_id and hasattr(tm, 'delete_task'):
+                try:
+                    tm.delete_task(task_id)
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"删除任务 {task_id} 失败: {e}")
+
+        return {
+            "success": True,
+            "message": f"已清理 {deleted_count} 个待处理任务",
+            "deleted_count": deleted_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清理待处理任务失败: {str(e)}")
 
 
 @router.post("/clear/all")
@@ -393,10 +416,9 @@ async def batch_delete_tasks(req: BatchTaskRequest, request: Request):
             for task_id in req.task_ids:
                 try:
                     status = tm.get_task_status(task_id)
-                    if status and (status.get("status") or "").lower() in ("pending", "retry"):
-                        failed_count += 1
-                        errors.append(f"等待中的任务不允许删除: {task_id}")
-                        continue
+                    # we allow deleting tasks in any status now, 
+                    # but if it is running, cancel it first is handled in delete_task or we can do it here
+                    pass
                     # 强制从数据库删除
                     cursor.execute("DELETE FROM task_queue WHERE task_id = ?", (task_id,))
 
@@ -526,11 +548,8 @@ async def batch_cancel_tasks(
 
     for task_id in req.task_ids:
         try:
-            status = tm.get_task_status(task_id)
-            if status and (status.get("status") or "").lower() in ("pending", "retry"):
-                failed_count += 1
-                errors.append(f"等待中的任务不允许终止: {task_id}")
-                continue
+            # we allow cancelling tasks in pending/retry/running now
+            pass
             if tm.cancel_task(task_id, force=force):
                 success_count += 1
             else:

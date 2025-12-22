@@ -22,7 +22,7 @@ export function PublishModeSelector({ selected, onSelect }: PublishModeSelectorP
     const Icon = mode.icon
 
     return (
-        <div className="max-w-md">
+        <div className="w-md">
             <div
                 className={cn(
                     "relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-200",

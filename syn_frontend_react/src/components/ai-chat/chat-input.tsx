@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SendHorizontal } from "lucide-react"
+import { SendHorizontal, StopCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -10,9 +10,11 @@ interface ChatInputProps {
     setInput: (value: string) => void
     disabled?: boolean
     placeholder?: string
+    onStop?: () => void
+    showStopButton?: boolean
 }
 
-export function ChatInput({ isLoading, onSubmit, input, setInput, disabled, placeholder }: ChatInputProps) {
+export function ChatInput({ isLoading, onSubmit, input, setInput, disabled, placeholder, onStop, showStopButton }: ChatInputProps) {
     const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -55,6 +57,19 @@ export function ChatInput({ isLoading, onSubmit, input, setInput, disabled, plac
                 {/* Toolbar */}
                 <div className="flex items-center justify-end px-2 pb-2">
                     <div className="flex items-center gap-2">
+                        {/* Stop Button - 只在流式执行时显示 */}
+                        {showStopButton && onStop && (
+                            <Button
+                                size="icon"
+                                variant="destructive"
+                                className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-700 text-white"
+                                onClick={onStop}
+                            >
+                                <StopCircle className="h-4 w-4" />
+                                <span className="sr-only">停止</span>
+                            </Button>
+                        )}
+
                         {/* Send Button */}
                         <Button
                             size="icon"

@@ -263,109 +263,28 @@ class ListAssetsTool(BaseTool):
 # 发布计划工具
 # ============================================
 
-class PublishSingleVideoTool(BaseTool):
-    """单个视频发布工具"""
-
-    name: str = "publish_single_video"
-    description: str = (
-        "发布单个视频到指定平台和账号。"
-        "这是执行实际发布操作的核心工具。"
-        "支持定时发布和立即发布。"
-    )
-    parameters: dict = {
-        "type": "object",
-        "properties": {
-            "file_id": {
-                "type": "integer",
-                "description": "视频文件ID（从素材库获取）"
-            },
-            "accounts": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "账号ID列表"
-            },
-            "platform": {
-                "type": "integer",
-                "description": "平台代码: 1=小红书, 2=视频号, 3=抖音, 4=快手, 5=B站"
-            },
-            "title": {
-                "type": "string",
-                "description": "视频标题"
-            },
-            "description": {
-                "type": "string",
-                "description": "视频描述"
-            },
-            "topics": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "话题标签"
-            },
-            "scheduled_time": {
-                "type": "string",
-                "description": "定时发布时间（ISO格式），不填则立即发布"
-            }
-        },
-        "required": ["file_id", "accounts", "platform", "title"]
-    }
-
-    async def execute(
-        self,
-        file_id: int,
-        accounts: List[str],
-        platform: int,
-        title: str,
-        description: Optional[str] = "",
-        topics: Optional[List[str]] = None,
-        scheduled_time: Optional[str] = None,
-        **kwargs
-    ) -> ToolResult:
-        """发布单个视频"""
-        try:
-            publish_data = {
-                "file_ids": [file_id],
-                "accounts": accounts,
-                "platform": platform,
-                "title": title,
-                "description": description or "",
-                "topics": topics or [],
-                "scheduled_time": scheduled_time,
-            }
-
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{API_BASE_URL}/publish/batch",
-                    json=publish_data
-                )
-                response.raise_for_status()
-                result = response.json()
-
-                task_info = result.get("data", {})
-
-                output = f"✅ 发布任务已创建！\n"
-                output += f"- 任务 ID: {task_info.get('task_id')}\n"
-                output += f"- 视频: {file_id}\n"
-                output += f"- 平台: {task_info.get('platform')}\n"
-                output += f"- 账号数: {len(accounts)}\n"
-                output += f"- 状态: {task_info.get('status')}\n"
-                if scheduled_time:
-                    output += f"- 定时发布: {scheduled_time}\n"
-
-                return ToolResult(output=output)
-
-        except Exception as e:
-            return ToolResult(error=f"发布视频时出错: {str(e)}")
-
+# PublishSingleVideoTool 已弃用 - 请使用 PublishBatchVideosTool
 
 class PublishBatchVideosTool(BaseTool):
-    """批量视频发布工具"""
+    """批量视频发布工具（支持多平台差异化发布）"""
 
     name: str = "publish_batch_videos"
     description: str = (
-        "批量发布多个视频。"
-        "支持将多个视频发布到多个账号。"
-        "可以指定平台或自动根据账号平台分配。"
-        "适合大规模发布操作。"
+        "批量发布视频到多个平台和账号。\n"
+        "关键规则：\n"
+        "1. 话题标签（topics）必须恰好 4 个，不多不少\n"
+        "2. 如果要发布到多个平台/账号，应为每个平台/账号生成不同的标题和标签组合\n"
+        "3. 使用 items 参数为每个视频指定差异化的标题和标签\n"
+        "4. 平台代码: 1=小红书, 2=视频号, 3=抖音, 4=快手, 5=B站\n"
+        "\n"
+        "示例1（单平台单账号）：\n"
+        "  file_ids=[1], accounts=['acc1'], title='标题', topics=['tag1', 'tag2', 'tag3', 'tag4']\n"
+        "\n"
+        "示例2（多平台差异化）：\n"
+        "  file_ids=[1], accounts=['acc1', 'acc2'], items=[\n"
+        "    {file_id: 1, title: '抖音标题', topics: ['抖音tag1', 'tag2', 'tag3', 'tag4']},\n"
+        "    {file_id: 1, title: '小红书标题', topics: ['小红书tag1', 'tag2', 'tag3', 'tag4']}\n"
+        "  ]\n"
     )
     parameters: dict = {
         "type": "object",
@@ -373,20 +292,20 @@ class PublishBatchVideosTool(BaseTool):
             "file_ids": {
                 "type": "array",
                 "items": {"type": "integer"},
-                "description": "视频文件ID列表"
+                "description": "视频文件ID列表（从素材库获取）"
             },
             "accounts": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "账号ID列表"
+                "description": "目标账号ID列表（可跨平台）"
             },
             "platform": {
                 "type": "integer",
-                "description": "平台代码（可选）: 1=小红书, 2=视频号, 3=抖音, 4=快手, 5=B站。不填则根据账号自动分配"
+                "description": "指定单一平台代码（可选）: 1=小红书, 2=视频号, 3=抖音, 4=快手, 5=B站。不填则根据账号自动分配"
             },
             "title": {
                 "type": "string",
-                "description": "统一标题"
+                "description": "统一标题（如果未使用 items 差异化配置）"
             },
             "description": {
                 "type": "string",
@@ -395,34 +314,67 @@ class PublishBatchVideosTool(BaseTool):
             "topics": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "统一话题标签"
+                "description": "统一话题标签，必须恰好 4 个"
+            },
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "file_id": {"type": "integer"},
+                        "title": {"type": "string", "description": "该视频的专属标题"},
+                        "description": {"type": "string"},
+                        "topics": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "该视频的专属话题标签（必须 4 个）"
+                        }
+                    }
+                },
+                "description": "差异化配置：为每个视频-账号组合指定不同的标题和标签。用于多平台/多账号发布时提供差异化内容。"
             },
             "priority": {
                 "type": "integer",
-                "description": "任务优先级（1-10，数字越大优先级越高）",
+                "description": "任务优先级（1-10，数字越小优先级越高）",
                 "default": 5
             }
         },
-        "required": ["file_ids", "accounts", "title"]
+        "required": ["file_ids", "accounts"]
     }
 
     async def execute(
         self,
         file_ids: List[int],
         accounts: List[str],
-        title: str,
+        title: Optional[str] = None,
         platform: Optional[int] = None,
         description: Optional[str] = "",
         topics: Optional[List[str]] = None,
+        items: Optional[List[Dict[str, Any]]] = None,
         priority: int = 5,
         **kwargs
     ) -> ToolResult:
         """批量发布视频"""
         try:
+            # 验证话题标签数量
+            if topics and len(topics) != 4:
+                return ToolResult(
+                    error=f"❌ 话题标签必须恰好 4 个，当前提供了 {len(topics)} 个。请重新生成。"
+                )
+
+            # 如果使用 items 差异化配置，验证每个 item 的 topics
+            if items:
+                for idx, item in enumerate(items):
+                    item_topics = item.get('topics', [])
+                    if item_topics and len(item_topics) != 4:
+                        return ToolResult(
+                            error=f"❌ items[{idx}] 的话题标签必须恰好 4 个，当前提供了 {len(item_topics)} 个。"
+                        )
+
             batch_data = {
                 "file_ids": file_ids,
                 "accounts": accounts,
-                "title": title,
+                "title": title or "",
                 "description": description or "",
                 "topics": topics or [],
                 "priority": priority
@@ -430,6 +382,9 @@ class PublishBatchVideosTool(BaseTool):
 
             if platform is not None:
                 batch_data["platform"] = platform
+
+            if items is not None:
+                batch_data["items"] = items
 
             async with httpx.AsyncClient(timeout=180.0) as client:
                 response = await client.post(
@@ -449,10 +404,18 @@ class PublishBatchVideosTool(BaseTool):
                 output += f"- 视频数: {len(file_ids)}\n"
                 output += f"- 账号数: {len(accounts)}\n"
 
+                if items:
+                    output += f"- 差异化配置: 已为 {len(items)} 项视频指定专属标题/标签\n"
+
                 return ToolResult(output=output)
 
+        except httpx.HTTPStatusError as e:
+            error_detail = e.response.text[:500]
+            return ToolResult(
+                error=f"❌ 批量发布失败 (HTTP {e.response.status_code}): {error_detail}"
+            )
         except Exception as e:
-            return ToolResult(error=f"批量发布视频时出错: {str(e)}")
+            return ToolResult(error=f"❌ 批量发布视频时出错: {str(e)}")
 
 
 class UsePresetToPublishTool(BaseTool):

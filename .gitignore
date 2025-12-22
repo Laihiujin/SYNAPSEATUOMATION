@@ -117,6 +117,10 @@ syn_backend/.deps_installed
 # Playwright downloaded browsers (can be huge)
 /.playwright-browsers*/
 
+# Chrome for Testing (用于视频号 H.265 支持，约 385 MB)
+# 使用 download_chrome_for_testing.py 下载
+/.chrome-for-testing*/
+
 # Desktop Electron 构建产物
 desktop/node_modules/
 desktop/dist/

@@ -15,8 +15,9 @@ const platformDisplay: Record<string, string> = {
 const normalizeStatus = (value: unknown, hasSchedule: boolean): TaskStatus => {
   const raw = typeof value === "string" ? value.toLowerCase() : ""
   if (raw === "success" || raw === "published" || raw === "done") return "success"
-  if (raw === "error" || raw === "failed" || raw === "fail" || raw === "cancelled") return "error"
-  if (raw === "running") return hasSchedule ? "scheduled" : "pending"
+  if (raw === "error" || raw === "failed" || raw === "fail") return "error"
+  if (raw === "cancelled") return "cancelled"
+  if (raw === "running") return "running"
   if (hasSchedule) return "scheduled"
   return "pending"
 }

@@ -3,9 +3,10 @@ import os
 from pathlib import Path
 
 DEFAULT_CONTEXT_OPTS: Dict[str, Any] = {
-    # 统一地理位置权限，避免每次弹出询问框
-    "permissions": ["geolocation"],
-    "geolocation": {"longitude": 0, "latitude": 0},
+    # 禁用位置权限（不在 permissions 列表中 = 拒绝）
+    # 移除 geolocation 以禁止浏览器请求位置信息
+    # "permissions": ["geolocation"],  # 已禁用
+    # "geolocation": {"longitude": 0, "latitude": 0},  # 已禁用
     "locale": "zh-CN",
     "timezone_id": "Asia/Shanghai",
     # 忽略HTTPS错误（某些平台可能需要）
@@ -20,6 +21,7 @@ def build_context_options(**overrides: Any) -> Dict[str, Any]:
     return opts
 
 
+
 def build_browser_args() -> Dict[str, Any]:
     """
     返回 Playwright browser.launch() 的参数配置
@@ -31,6 +33,9 @@ def build_browser_args() -> Dict[str, Any]:
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
             "--disable-setuid-sandbox",
+            # 禁用地理位置相关功能
+            "--disable-features=Geolocation",
+            "--disable-geolocation",
         ],
     }
 
@@ -41,6 +46,27 @@ def build_browser_args() -> Dict[str, Any]:
             "--no-proxy-server",
             "--proxy-bypass-list=*",
         ])
+
+    # 自动配置 Chrome for Testing 路径（支持相对路径）
+    # 优先使用配置文件中的 LOCAL_CHROME_PATH
+    try:
+        from config.conf import LOCAL_CHROME_PATH, BASE_DIR
+        if LOCAL_CHROME_PATH:
+            chrome_path = Path(str(LOCAL_CHROME_PATH))
+
+            # 如果是相对路径，从项目根目录解析
+            if not chrome_path.is_absolute():
+                chrome_path = Path(BASE_DIR) / chrome_path
+
+            if chrome_path.is_file():
+                args["executable_path"] = str(chrome_path.resolve())
+                print(f"✅ 使用 Chrome for Testing（相对项目路径）")
+            else:
+                print(f"⚠️ LOCAL_CHROME_PATH 路径无效: {LOCAL_CHROME_PATH}")
+        else:
+            print("ℹ️ LOCAL_CHROME_PATH 未配置，将使用 Playwright 默认的 Chromium")
+    except Exception as e:
+        print(f"⚠️ 加载 LOCAL_CHROME_PATH 配置失败: {e}")
 
     return args
 

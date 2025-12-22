@@ -29,6 +29,7 @@ router = APIRouter(prefix="/agent", tags=["AI Agent"])
 router.include_router(config_router, prefix="")
 
 _manus_stream_lock = asyncio.Lock()
+_manus_stop_event: Optional[asyncio.Event] = None
 
 
 
@@ -133,7 +134,10 @@ async def stream_manus_execution(
     thread_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """流式执行 OpenManus Agent（SSE）"""
+    global _manus_stop_event
     try:
+        # 创建停止事件
+        _manus_stop_event = asyncio.Event()
         from ....agent.manus_agent import get_manus_agent
 
         def _sse(data: Dict[str, Any]) -> str:
@@ -257,8 +261,15 @@ async def stream_manus_execution(
             stream_step = 0
             max_steps = int(getattr(manus, "max_steps", 30) or 30)
             last_emitted_thought = ""
+            task_confirmed = False  # 标记任务是否已确认
 
             while manus.current_step < max_steps and manus.state != AgentState.FINISHED:
+                # 检查停止事件
+                if _manus_stop_event and _manus_stop_event.is_set():
+                    yield _sse({"type": "error", "error": "任务已被用户强制终止"})
+                    yield _sse({"type": "done"})
+                    break
+
                 manus.current_step += 1
                 yield _sse({"type": "thinking", "content": f"执行第 {manus.current_step} 步..."})
 
@@ -281,7 +292,44 @@ async def stream_manus_execution(
                     pass
                 tool_calls = list(getattr(manus, "tool_calls", []) or [])
 
-                # 有工具调用：先发 tool_call / confirmation，再执行 act()
+                # 有工具调用：先发plan让用户确认
+                if tool_calls and not task_confirmed:
+                    # 构建任务摘要
+                    task_summary = {
+                        "goal": goal,
+                        "total_steps": len(tool_calls),
+                        "tools": []
+                    }
+
+                    for tc in tool_calls:
+                        name = getattr(getattr(tc, "function", None), "name", None) or "unknown"
+                        args_raw = getattr(getattr(tc, "function", None), "arguments", None) or "{}"
+                        try:
+                            args_val: Any = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                        except Exception:
+                            args_val = args_raw
+
+                        task_summary["tools"].append({
+                            "name": name,
+                            "arguments": args_val
+                        })
+
+                    # 发送任务计划给前端显示
+                    yield _sse({
+                        "type": "confirmation_required",
+                        "message": "任务计划已生成，请在聊天中查看并确认",
+                        "task_summary": task_summary
+                    })
+
+                    # 自动确认（因为前端不会回传确认）
+                    yield _sse({
+                        "type": "confirmation_received",
+                        "approved": True
+                    })
+
+                    task_confirmed = True
+
+                # 有工具调用：执行工具
                 if tool_calls:
                     step_ids: list[int] = []
                     tool_names: list[str] = []
@@ -306,22 +354,6 @@ async def stream_manus_execution(
                             "tool_name": name,
                             "arguments": args_val,
                         })
-
-                        if require_confirmation:
-                            yield _sse({
-                                "type": "confirmation_required",
-                                "step": stream_step,
-                                "tool_name": name,
-                                "arguments": args_val,
-                                "message": "需要确认后才会执行该工具调用"
-                            })
-                            # 前端当前不回传确认结果，这里默认自动同意继续执行
-                            yield _sse({
-                                "type": "confirmation_received",
-                                "step": stream_step,
-                                "tool_name": name,
-                                "approved": True
-                            })
 
                     act_result = await manus.act()
                     parts = [p for p in (act_result or "").split("\n\n") if p.strip()]
@@ -383,6 +415,9 @@ async def stream_manus_execution(
     except Exception as e:
         logger.error(f"Stream failed: {e}", exc_info=True)
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+    finally:
+        # 清理停止事件
+        _manus_stop_event = None
 
 
 @router.post("/manus-stream")
@@ -400,6 +435,33 @@ async def manus_stream(request: StreamManusRequest):
             "Connection": "keep-alive",
         }
     )
+
+
+@router.post("/manus-stop")
+async def manus_stop():
+    """
+    强制停止正在运行的 OpenManus 任务
+    """
+    global _manus_stop_event
+    try:
+        if _manus_stop_event:
+            _manus_stop_event.set()
+            logger.info("已触发 OpenManus 任务停止信号")
+            return Response(
+                success=True,
+                data={"message": "停止信号已发送"}
+            )
+        else:
+            return Response(
+                success=False,
+                data={"message": "当前没有正在运行的任务"}
+            )
+    except Exception as e:
+        logger.error(f"停止 Manus 任务失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 

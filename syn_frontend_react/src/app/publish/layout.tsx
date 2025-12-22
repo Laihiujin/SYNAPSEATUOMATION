@@ -28,9 +28,6 @@ export default function PublishLayout({
     return (
         <div className="flex flex-col h-full bg-transparent text-white">
             <div className="px-6 pt-6 pb-4 border-b border-white/10 space-y-6">
-                <div className="text-xs text-white/50 p-3 bg-white/5 rounded-lg border border-white/10">
-                    💡 点击&quot;刷新检测&quot;按钮来检测所有 AI 提供商的连接状态和可用模型
-                </div>
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">发布中心</h1>

@@ -303,6 +303,15 @@ export function useManusStream() {
       // ignore
     }
     abortControllerRef.current = null
+
+    // 调用后端停止 API
+    fetch(`${API_ENDPOINTS.base || 'http://localhost:7000'}/api/v1/agent/manus-stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).catch(err => console.error('Failed to stop Manus task:', err))
+
     setState(prev => ({ ...prev, isStreaming: false }))
   }, [])
 

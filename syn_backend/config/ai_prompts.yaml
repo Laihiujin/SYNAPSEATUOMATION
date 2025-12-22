@@ -236,7 +236,7 @@ tags_generation:
       separator: ' '
       format: '#{tag}'
     bilibili:
-      max_tags: 5
+      max_tags: 4
       separator: ' '
       format: '#{tag}'
   mandatory_game_platform_tags:

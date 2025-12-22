@@ -47,7 +47,8 @@ class PlatformExplorer:
             return
             
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=PLAYWRIGHT_HEADLESS)
+            # 账号管理"跳转创作中心"功能：强制显示浏览器（便于用户操作）
+            browser = await p.chromium.launch(headless=False)
             context = await browser.new_context(storage_state=cookie_path)
             page = await context.new_page()
             

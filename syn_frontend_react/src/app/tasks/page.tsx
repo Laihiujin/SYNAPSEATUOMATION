@@ -21,6 +21,8 @@ const statusTabs = [
   { label: "全部", value: "all" },
   { label: "待执行", value: "pending" },
   { label: "定时", value: "scheduled" },
+  { label: "运行中", value: "running" },
+  { label: "被取消", value: "cancelled" },
   { label: "成功", value: "success" },
   { label: "失败", value: "error" },
 ]
@@ -143,6 +145,7 @@ export default function TasksPage() {
   // 批量删除自动任务 - 使用新的批量API
   const batchDeleteMutation = useMutation({
     mutationFn: async (taskIds: string[]) => {
+      console.log("[Tasks] Batch deleting tasks:", taskIds)
       const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,6 +174,7 @@ export default function TasksPage() {
   // 批量重试自动任务
   const batchRetryMutation = useMutation({
     mutationFn: async (taskIds: string[]) => {
+      console.log("[Tasks] Batch retrying tasks:", taskIds)
       const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/retry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,6 +228,7 @@ export default function TasksPage() {
   // 批量取消任务（支持强制取消running状态）
   const batchCancelMutation = useMutation({
     mutationFn: async ({ taskIds, force }: { taskIds: string[], force: boolean }) => {
+      console.log(`[Tasks] Batch cancelling tasks (force=${force}):`, taskIds)
       const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/cancel?force=${force}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -270,6 +275,54 @@ export default function TasksPage() {
     onError: (error: any) => {
       console.error("取消任务错误:", error)
       toast({ variant: "destructive", title: error.message || "取消失败" })
+    }
+  })
+
+  console.log("[Tasks] Current Backend URL:", backendBaseUrl)
+
+  // 单个任务删除（自动任务）
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      console.log("[Tasks] Deleting task:", taskId)
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/${taskId}`, {
+        method: "DELETE"
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.detail || "删除失败")
+      }
+      return res.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] })
+      toast({ title: data.message || "任务已删除" })
+    },
+    onError: (error: any) => {
+      console.error("删除任务错误:", error)
+      toast({ variant: "destructive", title: error.message || "删除失败" })
+    }
+  })
+
+  // 单个任务重试（自动任务）
+  const retryTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      console.log("[Tasks] Retrying task:", taskId)
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/retry/${taskId}`, {
+        method: "POST"
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.detail || "重试失败")
+      }
+      return res.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] })
+      toast({ title: data.message || "任务已开始重试" })
+    },
+    onError: (error: any) => {
+      console.error("重试任务错误:", error)
+      toast({ variant: "destructive", title: error.message || "重试失败" })
     }
   })
 
@@ -394,9 +447,8 @@ export default function TasksPage() {
                 variant="outline"
                 className="rounded-2xl border-orange-500/50 bg-orange-500/10 text-orange-200 hover:bg-orange-500/20"
                 onClick={() => {
-                  if (confirm(`确定取消选中的 ${selectedTaskIds.length} 个任务吗？\n\n注意：running状态的任务需要使用"强制取消"`)) {
-                    batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: false })
-                  }
+                  console.log("[Tasks] Batch cancel button clicked", selectedTaskIds)
+                  batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: false })
                 }}
                 disabled={batchCancelMutation.isPending}
               >
@@ -407,9 +459,8 @@ export default function TasksPage() {
                 variant="outline"
                 className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                 onClick={() => {
-                  if (confirm(`⚠️ 确定强制取消选中的 ${selectedTaskIds.length} 个任务吗？\n\n这将取消包括正在运行(running)状态的任务！`)) {
-                    batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: true })
-                  }
+                  console.log("[Tasks] Batch force cancel button clicked", selectedTaskIds)
+                  batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: true })
                 }}
                 disabled={batchCancelMutation.isPending}
               >
@@ -420,9 +471,8 @@ export default function TasksPage() {
                 variant="outline"
                 className="rounded-2xl border-blue-500/50 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
                 onClick={() => {
-                  if (confirm(`确定重试选中的 ${selectedTaskIds.length} 个失败任务吗？`)) {
-                    batchRetryMutation.mutate(selectedTaskIds)
-                  }
+                  console.log("[Tasks] Batch retry button clicked", selectedTaskIds)
+                  batchRetryMutation.mutate(selectedTaskIds)
                 }}
                 disabled={batchRetryMutation.isPending}
               >
@@ -433,9 +483,8 @@ export default function TasksPage() {
                 variant="destructive"
                 className="rounded-2xl"
                 onClick={() => {
-                  if (confirm(`确定删除选中的 ${selectedTaskIds.length} 个任务吗？`)) {
-                    batchDeleteMutation.mutate(selectedTaskIds)
-                  }
+                  console.log("[Tasks] Batch delete button clicked", selectedTaskIds)
+                  batchDeleteMutation.mutate(selectedTaskIds)
                 }}
                 disabled={batchDeleteMutation.isPending}
               >
@@ -448,26 +497,19 @@ export default function TasksPage() {
             <>
               <Button
                 variant="outline"
-                className="rounded-2xl border-yellow-500/50 bg-yellow-500/10 text-yellow-200 hover:bg-yellow-500/20"
-                onClick={() => {
-                  if (confirm("确定清理所有待处理任务吗？")) {
-                    clearTasksMutation.mutate('pending')
-                  }
-                }}
-                disabled={clearTasksMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                清理待处理
-              </Button>
-              <Button
-                variant="outline"
                 className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                 onClick={() => {
-                  if (confirm("确定清理所有失败任务吗？")) {
+                  console.log("[Tasks] Clear failed button clicked")
+                  console.log("[Tasks] clearTasksMutation:", clearTasksMutation)
+                  console.log("[Tasks] Calling clearTasksMutation('failed') - NO CONFIRM")
+                  try {
                     clearTasksMutation.mutate('failed')
+                    console.log("[Tasks] clearTasksMutation.mutate called")
+                  } catch (err) {
+                    console.error("[Tasks] Error:", err)
                   }
                 }}
-                disabled={clearTasksMutation.isPending}
+                disabled={false}
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 清理失败
@@ -476,11 +518,17 @@ export default function TasksPage() {
                 variant="outline"
                 className="rounded-2xl border-green-500/50 bg-green-500/10 text-green-200 hover:bg-green-500/20"
                 onClick={() => {
-                  if (confirm("确定清理所有成功任务吗？")) {
+                  console.log("[Tasks] Clear success button clicked")
+                  console.log("[Tasks] clearTasksMutation:", clearTasksMutation)
+                  console.log("[Tasks] Calling clearTasksMutation('success') - NO CONFIRM")
+                  try {
                     clearTasksMutation.mutate('success')
+                    console.log("[Tasks] clearTasksMutation.mutate called")
+                  } catch (err) {
+                    console.error("[Tasks] Error:", err)
                   }
                 }}
-                disabled={clearTasksMutation.isPending}
+                disabled={false}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 清理成功
@@ -492,9 +540,8 @@ export default function TasksPage() {
               variant="destructive"
               className="rounded-2xl"
               onClick={() => {
-                if (confirm(`确定删除选中的 ${selectedManualIds.length} 个人工任务吗？`)) {
-                  manualBatchDeleteMutation.mutate(selectedManualIds)
-                }
+                console.log("[Tasks] Manual batch delete clicked", selectedManualIds)
+                manualBatchDeleteMutation.mutate(selectedManualIds)
               }}
               disabled={manualBatchDeleteMutation.isPending}
             >
@@ -692,11 +739,26 @@ export default function TasksPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              {task.status === "error" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    console.log("[Tasks] Single retry clicked", task.id, task)
+                                    retryTaskMutation.mutate(task.id)
+                                  }}
+                                  disabled={retryTaskMutation.isPending}
+                                  title="重试任务"
+                                >
+                                  <RefreshCcw className="h-4 w-4 text-blue-400" />
+                                </Button>
+                              )}
                               {(task.status === "pending" || task.status === "scheduled") && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
+                                    console.log("[Tasks] Single cancel clicked", task.id, task)
                                     if (confirm("确定取消此任务吗？")) {
                                       cancelTaskMutation.mutate({ taskId: task.id, force: false })
                                     }
@@ -712,16 +774,43 @@ export default function TasksPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    if (confirm("⚠️ 确定强制取消正在运行的任务吗？")) {
+                                    console.log("[Tasks] Force cancel clicked", task.id, task)
+                                    console.log("[Tasks] cancelTaskMutation object:", cancelTaskMutation)
+                                    console.log("[Tasks] About to call mutate")
+                                    try {
                                       cancelTaskMutation.mutate({ taskId: task.id, force: true })
+                                      console.log("[Tasks] mutate called successfully")
+                                    } catch (err) {
+                                      console.error("[Tasks] Error calling mutate:", err)
                                     }
+                                    // Temporarily removed confirm for testing
+                                    // const confirmed = confirm("⚠️ 确定强制取消正在运行的任务吗？")
+                                    // console.log("[Tasks] Confirm result:", confirmed)
+                                    // if (confirmed) {
+                                    //   console.log("[Tasks] Calling cancelTaskMutation with force=true", task.id)
+                                    //   cancelTaskMutation.mutate({ taskId: task.id, force: true })
+                                    // } else {
+                                    //   console.log("[Tasks] User cancelled force cancel action")
+                                    // }
                                   }}
                                   disabled={cancelTaskMutation.isPending}
-                                  title="强制取消运行中的任务"
+                                  title="强制取消运行中的任务（测试版-无确认）"
                                 >
                                   <Ban className="h-4 w-4 text-red-400" />
                                 </Button>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  console.log("[Tasks] Single delete clicked", task.id, task)
+                                  deleteTaskMutation.mutate(task.id)
+                                }}
+                                disabled={deleteTaskMutation.isPending}
+                                title="删除记录（无确认-测试版）"
+                              >
+                                <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-400" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -825,7 +914,12 @@ export default function TasksPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => manualId && retryMutation.mutate(manualId)}
+                                onClick={() => {
+                                  console.log("[Tasks] Manual retry clicked", manualId)
+                                  if (manualId) {
+                                    retryMutation.mutate(manualId)
+                                  }
+                                }}
                                 disabled={retryMutation.isPending}
                               >
                                 <Play className="h-4 w-4 mr-1" />
@@ -835,8 +929,10 @@ export default function TasksPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  if (manualId && confirm("确定删除此任务吗？"))
+                                  console.log("[Tasks] Manual delete clicked", manualId)
+                                  if (manualId) {
                                     deleteMutation.mutate(manualId)
+                                  }
                                 }}
                                 disabled={deleteMutation.isPending}
                               >

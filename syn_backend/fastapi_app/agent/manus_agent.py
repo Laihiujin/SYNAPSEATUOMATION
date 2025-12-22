@@ -24,7 +24,6 @@ from .manus_tools import (
     CallAPITool,
     ListAccountsTool,
     ListAssetsTool,
-    PublishSingleVideoTool,
     PublishBatchVideosTool,
     UsePresetToPublishTool,
     CreatePublishPlanTool,
@@ -230,8 +229,7 @@ temperature = 0.6
                 ListFilesTool(),
                 GetFileDetailTool(),
 
-                # 发布管理工具
-                PublishSingleVideoTool(),
+                # 发布管理工具（仅保留批量发布）
                 PublishBatchVideosTool(),
                 UsePresetToPublishTool(),
                 CreatePublishPlanTool(),
