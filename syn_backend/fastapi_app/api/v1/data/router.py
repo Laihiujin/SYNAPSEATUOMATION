@@ -259,6 +259,11 @@ class CopilotWorkRequest(BaseModel):
     headers: Optional[Dict[str, Any]] = None
 
 
+class CollectRequest(BaseModel):
+    account_ids: Optional[List[str]] = Field(None, description="可选：指定账号ID列表")
+    platform: Optional[str] = Field(None, description="可选：指定平台过滤器")
+
+
 @router.get("/health")
 async def data_health():
     """健康检查"""
@@ -296,6 +301,23 @@ async def copilot_status():
 
 def _db_path() -> Path:
     return Path(settings.BASE_DIR) / "db" / "database.db"
+
+
+@router.post("/collect", summary="全量采集数据并回传到数据库")
+async def trigger_collect(payload: CollectRequest):
+    """
+    手动触发作品数据全量采集。
+    使用各平台已存 Cookie 访问助手后台，通过 Playwright/DOM/XPath 抓取数据并持久化。
+    """
+    try:
+        from myUtils.video_collector import collector
+        results = await collector.collect_all_accounts(
+            account_ids=payload.account_ids,
+            platform_filter=payload.platform
+        )
+        return {"status": "success", "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/work-ids", summary="按账号返回作品ID列表（用于 copilot/work）")

@@ -15,6 +15,7 @@ from playwright.async_api import Page, async_playwright, TimeoutError as Playwri
 
 from config.conf import PLAYWRIGHT_HEADLESS
 import re
+from myUtils.analytics_db import ensure_analytics_schema, upsert_video_analytics_by_key
 
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH = BASE_DIR / os.getenv("DB_PATH_REL", "db/database.db")
@@ -325,11 +326,26 @@ class VideoDataCollector:
                         self.save_video_data(account_id, "kuaishou", video)
                         saved_count += 1
 
-                print(f"[Kuaishou] Collected {saved_count} videos")
-                return {"success": True, "count": saved_count, "videos": videos}
+                if saved_count > 0:
+                    print(f"[Kuaishou] Collected {saved_count} videos")
+                    return {"success": True, "count": saved_count, "videos": videos}
+                
+                # Fallback to click-to-detail if no IDs found
+                print("[Kuaishou] No ids from DOM, trying click-to-detail fallback...")
+                click_videos = await self._collect_kuaishou_ids_by_click(page, max_items=30)
+                click_saved = 0
+                for video in click_videos:
+                    if video.get("video_id"):
+                        self.save_video_data(account_id, "kuaishou", video)
+                        click_saved += 1
+                
+                if click_saved > 0:
+                    return {"success": True, "count": click_saved, "videos": click_videos}
+
+                return {"success": False, "error": "No videos found"}
 
             except PlaywrightTimeoutError:
-                return {"success": False, "error": "Timeout waiting for video list (login expired or layout changed)"}
+                return {"success": False, "error": "Timeout waiting for video list"}
             except Exception as e:  # noqa: BLE001
                 print(f"[Kuaishou] Collect failed: {e}")
                 return {"success": False, "error": str(e)}
@@ -498,11 +514,11 @@ class VideoDataCollector:
                                 video_id: id,
                                 title: titleEl ? titleEl.textContent.trim() : '',
                                 cover_url: coverEl ? coverEl.src : '',
-                                views: parseInt(text('[class*="play"], [class*="view"], [data-e2e="play-count"]') || '0'),
-                                likes: parseInt(text('[class*="like"], [class*="digg"], [data-e2e="like-count"]') || '0'),
-                                comments: parseInt(text('[class*="comment"], [data-e2e="comment-count"]') || '0'),
-                                shares: parseInt(text('[class*="share"], [class*="forward"], [data-e2e="share-count"]') || '0'),
-                                publish_time: (node.querySelector('[class*="time"], .publish-time, [data-e2e="publish-time"]')?.textContent || '').trim()
+                                views: parseInt(text('[class*="play"], [class*="view"], [data-e2e="play-count"], .play-count, .view-count') || '0'),
+                                likes: parseInt(text('[class*="like"], [class*="digg"], [data-e2e="like-count"], .like-count, .digg-count') || '0'),
+                                comments: parseInt(text('[class*="comment"], [data-e2e="comment-count"], .comment-count') || '0'),
+                                shares: parseInt(text('[class*="share"], [class*="forward"], [data-e2e="share-count"], .share-count') || '0'),
+                                publish_time: (node.querySelector('[class*="time"], .publish-time, [data-e2e="publish-time"], .time')?.textContent || '').trim()
                             };
                         }).filter(v => v.video_id);
                     }
@@ -671,7 +687,25 @@ class VideoDataCollector:
 
                 if work_id and work_id not in seen_ids:
                     seen_ids.add(work_id)
-                    results.append({"video_id": work_id, "title": "", "cover_url": ""})
+                    # Try scraping stats on detail page
+                    stats = {"video_id": work_id, "title": "", "cover_url": "", "views": 0, "likes": 0, "comments": 0, "shares": 0}
+                    try:
+                        title_el = await detail_page.locator("h1, .video-title, [class*='title']").first
+                        if await title_el.count() > 0:
+                            stats["title"] = await title_el.inner_text()
+                        
+                        # Douyin detail stats often in .work-data-item or similar
+                        data_items = await detail_page.locator("[class*='work-data-item'], [class*='data-info-item']").all()
+                        for item in data_items:
+                            text = await item.inner_text()
+                            val_m = re.search(r'(\d+)', text.replace(',', ''))
+                            val = int(val_m.group(1)) if val_m else 0
+                            if "播放" in text: stats["views"] = val
+                            elif "点赞" in text: stats["likes"] = val
+                            elif "评论" in text: stats["comments"] = val
+                            elif "分享" in text: stats["shares"] = val
+                    except: pass
+                    results.append(stats)
 
             except Exception:
                 pass
@@ -760,34 +794,131 @@ class VideoDataCollector:
             finally:
                 await browser.close()
 
+    async def _collect_kuaishou_ids_by_click(self, page: Page, max_items: int = 50) -> List[Dict[str, Any]]:
+        """
+        Extract Kuaishou photoId by clicking items in management list.
+        The work detail URL usually matches:
+          https://cp.kuaishou.com/article/manage/video/detail/<photoId>
+        """
+        manage_url = "https://cp.kuaishou.com/article/manage/video"
+        photo_re = re.compile(r"/detail/([^/?#]+)")
+
+        def parse_photo_id(url: str) -> str:
+            m = photo_re.search(url or "")
+            return m.group(1) if m else ""
+
+        results: List[Dict[str, Any]] = []
+        seen_ids = set()
+
+        # Selection of work items
+        card_selectors = [
+            ".video-item",
+            ".content-item",
+            "[class*='item-wrapper']",
+            "[class*='content-card']"
+        ]
+
+        cards = None
+        for sel in card_selectors:
+            loc = page.locator(sel)
+            try:
+                if await loc.count() > 0:
+                    cards = loc
+                    break
+            except Exception:
+                continue
+
+        if cards is None:
+            return []
+
+        count = await cards.count()
+        for idx in range(min(count, max_items)):
+            detail_page = page
+            try:
+                item = cards.nth(idx)
+                await item.scroll_into_view_if_needed()
+                
+                # Try clicking the item
+                try:
+                    async with page.expect_popup(timeout=2000) as popup_info:
+                        await item.click()
+                    detail_page = await popup_info.value
+                except PlaywrightTimeoutError:
+                    await item.click()
+
+                # Poll URL for photoId
+                photo_id = ""
+                for _ in range(20):
+                    photo_id = parse_photo_id(detail_page.url)
+                    if photo_id:
+                        break
+                    await detail_page.wait_for_timeout(500)
+
+                if photo_id and photo_id not in seen_ids:
+                    seen_ids.add(photo_id)
+                    # Try to extract title/stats on the detail page if possible
+                    stats = {"video_id": photo_id, "title": "", "cover_url": "", "views": 0, "likes": 0, "comments": 0}
+                    try:
+                        title_el = await detail_page.locator("h1, .video-title, [class*='title']").first
+                        if await title_el.count() > 0:
+                            stats["title"] = await title_el.inner_text()
+                        
+                        # Kuaishou detail stats
+                        stats_el = await detail_page.locator(".data-num, [class*='data-item']").all()
+                        for idx, s_el in enumerate(stats_el):
+                            text = await s_el.inner_text()
+                            val_m = re.search(r'(\d+)', text.replace(',', ''))
+                            val = int(val_m.group(1)) if val_m else 0
+                            # Guessing order if no text labels: views, likes, comments
+                            if idx == 0: stats["views"] = val
+                            elif idx == 1: stats["likes"] = val
+                            elif idx == 2: stats["comments"] = val
+                    except: pass
+                    
+                    results.append(stats)
+
+            except Exception:
+                pass
+            finally:
+                if detail_page is not page:
+                    try: await detail_page.close()
+                    except: pass
+                # Navigation back if needed
+                if page.url != manage_url:
+                    try:
+                        await page.goto(manage_url, timeout=WAIT_TIMEOUT)
+                        await page.wait_for_load_state("networkidle")
+                    except: pass
+
+        return results
+
     def save_video_data(self, account_id: str, platform: str, video_data: Dict[str, Any]):
-        """Insert or update a single video row."""
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO video_analytics (
-                    account_id, platform, video_id, title, cover_url,
-                    publish_time, views, likes, comments, shares, favorites,
-                    collected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    account_id,
-                    platform,
-                    video_data.get("video_id"),
-                    video_data.get("title"),
-                    video_data.get("cover_url"),
-                    video_data.get("publish_time"),
-                    video_data.get("views", 0),
-                    video_data.get("likes", 0),
-                    video_data.get("comments", 0),
-                    video_data.get("shares", 0),
-                    video_data.get("favorites", 0),
-                    datetime.now().isoformat(),
-                ),
+        """Insert or update a single video row using analytics_db logic."""
+        # Map collector fields to analytics_db fields
+        data_to_save = {
+            "account_id": account_id,
+            "platform": platform,
+            "video_id": video_data.get("video_id"),
+            "title": video_data.get("title"),
+            "thumbnail": video_data.get("cover_url"),
+            "publish_date": video_data.get("publish_time"),
+            "play_count": video_data.get("views", 0),
+            "like_count": video_data.get("likes", 0),
+            "comment_count": video_data.get("comments", 0),
+            "share_count": video_data.get("shares", 0),
+            "collect_count": video_data.get("favorites", 0),
+            "raw_data": video_data
+        }
+        
+        try:
+            upsert_video_analytics_by_key(
+                DB_PATH,
+                platform=platform,
+                video_id=video_data.get("video_id"),
+                data=data_to_save
             )
-            conn.commit()
+        except Exception as e:
+            print(f"[Collector] Error saving to DB: {e}")
 
     async def collect_all_accounts(
         self,

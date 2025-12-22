@@ -406,12 +406,47 @@ function MaterialsPageContent() {
     }
   }
 
+  const deleteMaterialRequest = async (url: string, timeoutMs = 15000) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { method: "DELETE", signal: controller.signal })
+      const text = await res.text()
+      let data: any = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          data = { message: text }
+        }
+      }
+      return { ok: res.ok, status: res.status, data }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const deleteMaterialById = async (id: string) => {
+    const encoded = encodeURIComponent(id)
+    const urls = [`/api/files/${encoded}`, `${backendBaseUrl}/api/v1/files/${encoded}`]
+    let lastError: unknown = null
+
+    for (const url of urls) {
+      try {
+        const result = await deleteMaterialRequest(url)
+        if (result.ok) return
+        lastError = new Error(result.data?.message || `delete failed (${result.status})`)
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    throw lastError ?? new Error("delete failed")
+  }
+
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/files/${encodeURIComponent(id)}`, {
-        method: 'DELETE'
-      })
-      if (!response.ok) throw new Error("delete failed")
+      await deleteMaterialById(id)
       toast({ title: "素材已删除", description: "该文件将无法再用于发布任务" })
       await refetch()
     } catch (error) {
@@ -446,19 +481,36 @@ function MaterialsPageContent() {
     if (selectedIds.size === 0) return
 
     try {
-      const deletePromises = Array.from(selectedIds).map(id =>
-        fetch(`/api/files/${encodeURIComponent(id)}`, { method: 'DELETE' })
-      )
+      const ids = Array.from(selectedIds)
+      const failed: string[] = []
+      let successCount = 0
 
-      await Promise.all(deletePromises)
+      for (const id of ids) {
+        try {
+          await deleteMaterialById(id)
+          successCount += 1
+        } catch {
+          failed.push(id)
+        }
+      }
 
-      toast({
-        variant: "success",
-        title: "批量删除成功",
-        description: `已删除 ${selectedIds.size} 个素材`
-      })
+      if (successCount > 0) {
+        toast({
+          variant: "success",
+          title: "批量删除成功",
+          description: `已删除 ${successCount} 个素材`
+        })
+      }
 
-      setSelectedIds(new Set())
+      if (failed.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "批量删除失败",
+          description: `有 ${failed.length} 个素材未能删除`
+        })
+      }
+
+      setSelectedIds(new Set(failed))
       setIsAllSelected(false)
       await refetch()
     } catch (error) {

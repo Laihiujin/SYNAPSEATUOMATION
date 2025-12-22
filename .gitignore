@@ -116,3 +116,26 @@ syn_backend/.deps_installed
 
 # Playwright downloaded browsers (can be huge)
 /.playwright-browsers*/
+
+# Desktop Electron 构建产物
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+desktop/resources/
+desktop/resources-source/python-embed/
+desktop/resources-source/playwright-browsers/
+desktop/.cache/
+
+# Electron builder 缓存和临时文件
+desktop/*.log
+desktop/*.exe
+desktop/*.dmg
+desktop/*.AppImage
+desktop/*.deb
+desktop/*.rpm
+desktop/test_symlink*
+desktop/test_link*
+
+# 打包前的准备资源（保留脚本和配置）
+desktop/resources-source/*.7z
+desktop/resources-source/*.zip
