@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/playwright/python:v1.52.0-jammy
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY syn_backend/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY syn_backend /app/syn_backend
+COPY ai_service /app/ai_service
+
+RUN mkdir -p /app/syn_backend/ai_service && \
+    cp -r /app/ai_service/* /app/syn_backend/ai_service/
+
+WORKDIR /app/syn_backend
+ENV PYTHONPATH=/app/syn_backend
+
+EXPOSE 7000
+
+CMD ["uvicorn", "fastapi_app.main:app", "--host", "0.0.0.0", "--port", "7000", "--workers", "4"]

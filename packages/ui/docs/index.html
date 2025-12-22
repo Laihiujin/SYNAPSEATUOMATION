@@ -1,0 +1,227 @@
+<!DOCTYPE html><html class="default" lang="en"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>@syn/syn-react-ui</title><meta name="description" content="Documentation for @syn/syn-react-ui"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><div class="table-cell" id="tsd-search" data-base="."><div class="field"><label for="tsd-search-field" class="tsd-widget tsd-toolbar-icon search no-caption"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><use href="assets/icons.svg#icon-search"></use></svg></label><input type="text" id="tsd-search-field" aria-label="Search"/></div><div class="field"><div id="tsd-toolbar-links"></div></div><ul class="results"><li class="state loading">Preparing search index...</li><li class="state failure">The search index is not available</li></ul><a href="index.html" class="title">@syn/syn-react-ui</a></div><div class="table-cell" id="tsd-widgets"><a href="#" class="tsd-widget tsd-toolbar-icon menu no-caption" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>@syn/syn-react-ui</h1></div><div class="tsd-panel tsd-typography"><a id="md:SynapseAutomation" class="tsd-anchor"></a><h1 class="tsd-anchor-link">SynapseAutomation<a href="#md:SynapseAutomation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1><p><code>SynapseAutomation</code> 是一个强大的自动化工具，旨在帮助内容创作者和运营者高效地将视频内容一键发布到多个国内外主流社交媒体平台。
+项目实现了对 <code>抖音</code>、<code>Bilibili</code>、<code>小红书</code>、<code>快手</code>、<code>视频号</code>、<code>百家号</code> 以及 <code>TikTok</code> 等平台的视频上传、定时发布等功能。
+结合各平台 <code>uploader</code> 模块，您可以轻松配置和扩展支持的平台，并通过示例脚本快速上手。</p>
+<img src="media/tkupload.gif" alt="tiktok show" width="800"/>
+<a id="md:目录" class="tsd-anchor"></a><h2 class="tsd-anchor-link">目录<a href="#md:目录" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><ul>
+<li><a href="#md:%F0%9F%92%A1%E5%8A%9F%E8%83%BD%E7%89%B9%E6%80%A7">💡 功能特性</a></li>
+<li><a href="#md:%F0%9F%9A%80%E6%94%AF%E6%8C%81%E7%9A%84%E5%B9%B3%E5%8F%B0">🚀 支持的平台</a></li>
+<li><a href="#md:%F0%9F%92%BE%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97">💾 安装指南</a></li>
+<li><a href="#md:%F0%9F%8F%81%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B">🏁 快速开始</a></li>
+<li><a href="#md:%F0%9F%90%87%E9%A1%B9%E7%9B%AE%E8%83%8C%E6%99%AF">🐇 项目背景</a></li>
+<li><a href="#md:%F0%9F%93%83%E8%AF%A6%E7%BB%86%E6%96%87%E6%A1%A3">📃 详细文档</a></li>
+<li><a href="#md:%F0%9F%90%BE%E4%BA%A4%E6%B5%81%E4%B8%8E%E6%94%AF%E6%8C%81">🐾 交流与支持</a></li>
+<li><a href="#md:%F0%9F%A4%9D%E8%B4%A1%E7%8C%AE%E6%8C%87%E5%8D%97">🤝 贡献指南</a></li>
+<li><a href="#md:%F0%9F%93%9C%E8%AE%B8%E5%8F%AF%E8%AF%81">📜 许可证</a></li>
+<li><a href="#md:%E2%AD%90Star-History">⭐ Star History</a></li>
+</ul>
+<a id="md:💡功能特性" class="tsd-anchor"></a><h2 class="tsd-anchor-link">💡功能特性<a href="#md:💡功能特性" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><a id="md:已支持平台" class="tsd-anchor"></a><h3 class="tsd-anchor-link">已支持平台<a href="#md:已支持平台" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><ul>
+<li><strong>国内平台</strong>:
+<ul>
+<li>[x] 抖音</li>
+<li>[x] 视频号</li>
+<li>[x] Bilibili</li>
+<li>[x] 小红书</li>
+<li>[x] 快手</li>
+<li>[x] 百家号</li>
+</ul>
+</li>
+<li><strong>国外平台</strong>:
+<ul>
+<li>[x] TikTok</li>
+</ul>
+</li>
+</ul>
+<a id="md:核心功能" class="tsd-anchor"></a><h3 class="tsd-anchor-link">核心功能<a href="#md:核心功能" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><ul>
+<li>[x] 定时上传 (Cron Job / Scheduled Upload)</li>
+<li>[ ] Cookie 管理 (部分实现，持续优化中)</li>
+<li>[ ] 国外平台 Proxy 设置 (部分实现)</li>
+</ul>
+<a id="md:计划支持与开发中" class="tsd-anchor"></a><h3 class="tsd-anchor-link">计划支持与开发中<a href="#md:计划支持与开发中" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><ul>
+<li><strong>平台扩展</strong>:
+<ul>
+<li>[ ] YouTube</li>
+</ul>
+</li>
+<li><strong>功能增强</strong>:
+<ul>
+<li>[x] 更易用的版本 (GUI / CLI 交互优化)</li>
+<li>[x] API 封装</li>
+<li>[ ] Docker 部署</li>
+<li>[ ] 自动化上传 (更智能的调度策略)</li>
+<li>[ ] 多线程/异步上传优化</li>
+<li>[ ] Slack/消息推送通知</li>
+</ul>
+</li>
+</ul>
+<a id="md:20251030目前现状" class="tsd-anchor"></a><h3 class="tsd-anchor-link">2025.10.30目前现状<a href="#md:20251030目前现状" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><p>该项目本人很长一段时间没维护了，有比较大的问题也是能简单快速修复就修复掉</p>
+<p>因为我自己也在创业，每天时间都用不完</p>
+<p>目前问题主要集中在</p>
+<ol>
+<li>小红书部分，这部分是直接适用xhs这个库来实现的</li>
+<li>web 端（vue版本），这个版本是群友LeeDebug他帮忙做的（再次感谢他）</li>
+</ol>
+<p>因为我日常也在用，我用的不是web端，而是最初<code>uploader</code>文件夹里的版本，也就是文档里提到的部分<a href="https://sap-doc.nasdaddy.com/" target="_blank" class="external">https://sap-doc.nasdaddy.com/</a>
+所以这里一般遇到的问题，我都会尝试去解决，一并推送到该仓库</p>
+<p>目前能遇到的问题，基本上都比较小，可能是元素变化导致的
+在初期设计的时候，其实我已经参考了某些不可变元素去选择，极大的避免了后期因为平台页面修改导致的元素变化</p>
+<p>该项目不仅仅是技术人员，有不少是非技术的从业人员，他们是没能力修复一个简单弱小的bug
+为了能帮助更多的人，所以呼吁<strong>技术小伙伴</strong></p>
+<p>如果大家</p>
+<ul>
+<li>修复了一些bug</li>
+<li>增加一些对大家有帮助的功能</li>
+</ul>
+<p>请积极的提出pr，我会想尽可能的确认后合并的，在此感谢大家对于开源项目的支持，帮助更多的人</p>
+<p>我自己也会尽100%的力量，在自己项目稳定后，修bug，加更多的平台，开发出gradio版本（更易部署），大家谅解</p>
+<hr>
+<a id="md:🚀支持的平台" class="tsd-anchor"></a><h2 class="tsd-anchor-link">🚀支持的平台<a href="#md:🚀支持的平台" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>本项目通过各平台对应的 <code>uploader</code> 模块实现视频上传功能。您可以在 <code>examples</code> 目录下找到各个平台的使用示例脚本。</p>
+<p>每个示例脚本展示了如何配置和调用相应的 uploader。</p>
+<a id="md:💾安装指南" class="tsd-anchor"></a><h2 class="tsd-anchor-link">💾安装指南<a href="#md:💾安装指南" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><ol>
+<li>
+<p><strong>克隆项目</strong>:</p>
+<pre><code class="bash"><span class="hl-0">git</span><span class="hl-1"> </span><span class="hl-2">clone</span><span class="hl-1"> </span><span class="hl-2">https://github.com/dreammis/SynapseAutomation.git</span><br/><span class="hl-0">cd</span><span class="hl-1"> </span><span class="hl-2">SynapseAutomation</span>
+</code><button type="button">Copy</button></pre>
+
+</li>
+<li>
+<p><strong>安装依赖</strong>:
+建议在虚拟环境中安装依赖。</p>
+<pre><code class="bash"><span class="hl-0">conda</span><span class="hl-1"> </span><span class="hl-2">create</span><span class="hl-1"> </span><span class="hl-3">-n</span><span class="hl-1"> </span><span class="hl-2">SynapseAutomation</span><span class="hl-1"> </span><span class="hl-2">python=</span><span class="hl-4">3.10</span><br/><span class="hl-0">conda</span><span class="hl-1"> </span><span class="hl-2">activate</span><span class="hl-1"> </span><span class="hl-2">SynapseAutomation</span><br/><span class="hl-5"># 挂载清华镜像 or 命令行代理</span><br/><span class="hl-0">pip</span><span class="hl-1"> </span><span class="hl-2">install</span><span class="hl-1"> </span><span class="hl-3">-r</span><span class="hl-1"> </span><span class="hl-2">requirements.txt</span>
+</code><button type="button">Copy</button></pre>
+
+</li>
+<li>
+<p><strong>安装 Playwright 浏览器驱动</strong>:</p>
+<pre><code class="bash"><span class="hl-0">playwright</span><span class="hl-1"> </span><span class="hl-2">install</span><span class="hl-1"> </span><span class="hl-2">chromium</span><span class="hl-1"> </span><span class="hl-2">firefox</span>
+</code><button type="button">Copy</button></pre>
+
+<p>根据您的需求，至少需要安装 <code>chromium</code>。<code>firefox</code> 主要用于 TikTok 上传（旧版）。</p>
+</li>
+<li>
+<p><strong>修改配置文件</strong>:
+复制 <code>conf.example.py</code> 并重命名为 <code>conf.py</code>。
+在 <code>conf.py</code> 中，您需要配置以下内容：</p>
+<ul>
+<li><code>LOCAL_CHROME_PATH</code>: 本地 Chrome 浏览器的路径，比如 <code>C:\Program Files\Google\Chrome\Application\chrome.exe</code> 保存。</li>
+</ul>
+<p><strong>临时解决方案</strong></p>
+<p>需要在根目录创建 <code>cookiesFile</code> 和 <code>videoFile</code> 两个文件夹，分别是 存储cookie文件 和 存储上传文件 的文件夹</p>
+</li>
+<li>
+<p><strong>配置数据库</strong>:
+如果 db/database.db 文件不存在，您可以运行以下命令来初始化数据库：</p>
+<pre><code class="bash"><span class="hl-0">cd</span><span class="hl-1"> </span><span class="hl-2">db</span><br/><span class="hl-0">python</span><span class="hl-1"> </span><span class="hl-2">createTable.py</span>
+</code><button type="button">Copy</button></pre>
+
+<p>此命令将初始化 SQLite 数据库。</p>
+</li>
+<li>
+<p><strong>启动后端项目</strong>:</p>
+<pre><code class="bash"><span class="hl-0">python</span><span class="hl-1"> </span><span class="hl-2">syn_backend.py</span>
+</code><button type="button">Copy</button></pre>
+
+<p>后端项目将在 <code>http://localhost:5409</code> 启动。</p>
+</li>
+<li>
+<p><strong>启动前端项目</strong>:</p>
+<pre><code class="bash"><span class="hl-0">cd</span><span class="hl-1"> </span><span class="hl-2">syn_frontend_react</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">install</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">dev</span>
+</code><button type="button">Copy</button></pre>
+
+<p>前端项目将在 <code>http://localhost:5173</code> 启动，在浏览器中打开此链接即可访问。</p>
+</li>
+</ol>
+<blockquote>
+<p>非程序员用户可以参考：<a href="https://juejin.cn/post/7372114027840208911" target="_blank" class="external">新手级教程</a></p>
+</blockquote>
+<a id="md:🏁快速开始" class="tsd-anchor"></a><h2 class="tsd-anchor-link">🏁快速开始<a href="#md:🏁快速开始" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><ol>
+<li>
+<p><strong>准备 Cookie</strong>:
+大多数平台需要登录后的 Cookie 信息才能进行操作。请参照 examples 目录下各 <code>get_xxx_cookie.py</code> 脚本（例如 get_douyin_cookie.py, get_ks_cookie.py）的说明，运行脚本以生成并保存 Cookie 文件（通常在 <code>cookies/[PLATFORM]_uploader/account.json</code>）。</p>
+</li>
+<li>
+<p><strong>准备视频文件</strong>:
+将需要上传的视频文件（通常为 <code>.mp4</code> 格式）放置在 videos 目录下。
+部分平台支持视频封面，可以将封面图片（例如 <code>.png</code> 格式，与视频同名）也放在此目录。
+如果需要上传标题及标签，请在视频文件旁边创建一个同名的 <code>.txt</code> 文件，内容为标题和标签，以换行分隔。</p>
+</li>
+<li>
+<p><strong>修改并运行示例脚本</strong>:
+打开 examples 目录中您想使用的平台的上传脚本（例如 upload_video_to_douyin.py）。</p>
+<ul>
+<li>根据脚本内的注释和说明，确认 Cookie 文件路径、视频文件路径等配置是否正确。</li>
+<li>您可以修改脚本以适应您的具体需求，例如批量上传、自定义标题、标签等。</li>
+</ul>
+</li>
+<li>
+<p><strong>执行上传</strong>:
+运行修改后的示例脚本，例如：</p>
+<pre><code class="bash"><span class="hl-0">python</span><span class="hl-1"> </span><span class="hl-2">examples/upload_video_to_douyin.py</span>
+</code><button type="button">Copy</button></pre>
+
+</li>
+</ol>
+<a id="md:🐇项目背景" class="tsd-anchor"></a><h2 class="tsd-anchor-link">🐇项目背景<a href="#md:🐇项目背景" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>该项目最初是我个人用于自动化管理社交媒体视频发布的工具。我的主要发布策略是提前一天设置定时发布，因此项目中很多定时发布相关的逻辑是基于“第二天”的时间进行计算的。</p>
+<p>如果您需要立即发布或其他定制化的发布策略，欢迎研究源码或在社区提问。</p>
+<a id="md:📃详细文档" class="tsd-anchor"></a><h2 class="tsd-anchor-link">📃详细文档<a href="#md:📃详细文档" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>更详细的文档和说明，请查看：<a href="https://sap-doc.nasdaddy.com/" target="_blank" class="external">SynapseAutomation 官方文档</a></p>
+<a id="md:🐾交流与支持" class="tsd-anchor"></a><h2 class="tsd-anchor-link">🐾交流与支持<a href="#md:🐾交流与支持" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p><a href="https://www.buymeacoffee.com/hysn2001m" target="_blank" class="external">☕ Donate as u like</a> - 如果您觉得这个项目对您有帮助，可以考虑赞助。</p>
+<p>如果您也是独立开发者、技术爱好者，对 #技术变现 #AI创业 #跨境电商 #自动化工具 #视频创作 等话题感兴趣，欢迎加入社群交流。</p>
+<a id="md:creator" class="tsd-anchor"></a><h3 class="tsd-anchor-link">Creator<a href="#md:creator" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><table>
+    <td align="center">
+        <a href="https://sap-doc.nasdaddy.com/">
+            <img src="media/mp.jpg" width="200px" alt="NasDaddy公众号"/>
+            <br />
+            <sub><b>微信公众号</b></sub>
+        </a>
+        <br />
+        <a href="https://github.com/dreammis/SynapseAutomation/commits?author=dreammis" title="Code">💻</a>
+        <br />
+        关注公众号，后台回复 `上传` 获取加群方式
+    </td>
+    <td align="center">
+        <a href="https://sap-doc.nasdaddy.com/">
+            <img src="media/QR.png" width="200px" alt="赞赏码/入群引导"/>
+            <br />
+            <sub><b>交流群 (通过公众号获取)</b></sub>
+        </a>
+        <br />
+        <a href="https://sap-doc.nasdaddy.com/" title="Documentation">📖</a>
+        <br />
+        如果您觉得项目有用，可以考虑打赏支持一下
+    </td>
+</table>
+<a id="md:active-core-team" class="tsd-anchor"></a><h3 class="tsd-anchor-link">Active Core Team<a href="#md:active-core-team" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3><table>
+    <td align="center">
+        <a href="https://leedebug.github.io/">
+            <img src="media/edan-qrcode.png" width="200px" alt="Edan Lee"/>
+            <br />
+            <sub><b>Edan Lee</b></sub>
+        </a>
+        <br />
+        <a href="https://github.com/dreammis/SynapseAutomation/commits?author=LeeDebug" title="Code">💻</a>
+        <a href="https://leedebug.github.io/" title="Documentation">📖</a>
+        <br />
+        封装了 api 接口和 web 前端管理界面
+        <br />
+        （请注明来意：进群、学习、企业咨询等）
+    </td>
+</table>
+<a id="md:🤝贡献指南" class="tsd-anchor"></a><h2 class="tsd-anchor-link">🤝贡献指南<a href="#md:🤝贡献指南" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>欢迎各种形式的贡献，包括但不限于：</p>
+<ul>
+<li>提交 Bug报告 和 Feature请求。</li>
+<li>改进代码、文档。</li>
+<li>分享使用经验和教程。</li>
+</ul>
+<p>如果您希望贡献代码，请遵循以下步骤：</p>
+<ol>
+<li>Fork 本仓库。</li>
+<li>创建一个新的分支 (<code>git checkout -b feature/YourFeature</code> 或 <code>bugfix/YourBugfix</code>)。</li>
+<li>提交您的更改 (<code>git commit -m 'Add some feature'</code>)。</li>
+<li>Push到您的分支 (<code>git push origin feature/YourFeature</code>)。</li>
+<li>创建一个 Pull Request。</li>
+</ol>
+<a id="md:📜许可证" class="tsd-anchor"></a><h2 class="tsd-anchor-link">📜许可证<a href="#md:📜许可证" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>本项目暂时采用 <a href="LICENSE">MIT License</a> 开源许可证。</p>
+<a id="md:⭐star-history" class="tsd-anchor"></a><h2 class="tsd-anchor-link">⭐Star-History<a href="#md:⭐star-history" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><blockquote>
+<p>如果这个项目对您有帮助，请给一个 ⭐ Star 以表示支持！</p>
+</blockquote>
+<p><a href="https://star-history.com/#dreammis/SynapseAutomation&amp;Date" target="_blank" class="external"><img src="https://api.star-history.com/svg?repos=dreammis/SynapseAutomation&amp;type=Date" alt="Star History Chart"></a></p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="assets/icons.svg#icon-chevronDown"></use></svg>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="assets/icons.svg#icon-chevronDown"></use></svg>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#md:SynapseAutomation"><span>social-<wbr/>auto-<wbr/>upload</span></a><ul><li><a href="#md:目录"><span>目录</span></a></li><li><a href="#md:💡功能特性"><span>💡功能特性</span></a></li><li><ul><li><a href="#md:已支持平台"><span>已支持平台</span></a></li><li><a href="#md:核心功能"><span>核心功能</span></a></li><li><a href="#md:计划支持与开发中"><span>计划支持与开发中</span></a></li><li><a href="#md:20251030目前现状"><span>2025.10.30目前现状</span></a></li></ul></li><li><a href="#md:🚀支持的平台"><span>🚀支持的平台</span></a></li><li><a href="#md:💾安装指南"><span>💾安装指南</span></a></li><li><a href="#md:🏁快速开始"><span>🏁快速开始</span></a></li><li><a href="#md:🐇项目背景"><span>🐇项目背景</span></a></li><li><a href="#md:📃详细文档"><span>📃详细文档</span></a></li><li><a href="#md:🐾交流与支持"><span>🐾交流与支持</span></a></li><li><ul><li><a href="#md:creator"><span>Creator</span></a></li><li><a href="#md:active-core-team"><span>Active <wbr/>Core <wbr/>Team</span></a></li></ul></li><li><a href="#md:🤝贡献指南"><span>🤝贡献指南</span></a></li><li><a href="#md:📜许可证"><span>📜许可证</span></a></li><li><a href="#md:⭐star-history"><span>⭐<wbr/>Star-<wbr/>History</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html" class="current"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="assets/icons.svg#icon-1"></use></svg><span>@syn/syn-react-ui</span></a><ul class="tsd-small-nested-navigation" id="tsd-nav-container" data-base="."><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

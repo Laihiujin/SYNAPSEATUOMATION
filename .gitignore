@@ -1,0 +1,118 @@
+# 临时文件
+temp/
+nul
+*/nul
+_nul
+*/_nul
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+syn-env/
+synenv/
+magentic_env/
+env/
+venv/
+.venv/
+ENV/
+.venv_test/
+.venv_pw/
+
+# 测试文件（项目根目录）
+/test_*.py
+/check_*.py
+
+# 后端
+syn_backend/logs/*.log
+syn_backend/logs/*.png
+syn_backend/data.db
+syn_backend/data.db-*
+syn_backend/cookiesFile/*.json
+syn_backend/cookiesFile/backups/
+syn_backend/config/conf.py
+syn_backend/example.txt
+syn_backend/test_*.py
+syn_backend/nul
+syn_backend/syn_backend/
+syn_backend/config/syn_backend/
+
+# 视频文件
+syn_backend/videoFile/*.mp4
+*.mp4
+*.avi
+*.mov
+
+# 上传文件夹
+upload/
+synapse/
+synapseai/
+Synapseaiagent/
+
+# 前端
+node_modules/
+syn_frontend_react/node_modules/
+syn_frontend_react/.next/
+syn_frontend_react/out/
+syn_frontend_react/.env.local
+syn_frontend_react/nul
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+.agent/
+.codex/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 其他
+*.log
+.env
+*.sqlite
+*.sqlite3
+*.db
+SynapseAutomationsyn_backenddbdatabase.db
+temp_*.txt
+test_*.json
+Douyinupload.html
+
+# Root config runtime artifacts
+config/cookiesFile/*.json
+config/cookiesFile/backups/
+config/browser_profiles/
+config/conf.py
+
+# Playwright / runtime debug artifacts
+syn_backend/logs/*.html
+
+# 临时文档（保留重要的PRD和总结）
+/QRCODE_*.md
+/TEST_*.md
+/docs/archived/
+
+# 临时脚本和备份
+/cleanup.bat
+/restart_backend.bat
+/debug_*.py
+/requirements*.txt.backup
+/scripts/test_*.py
+
+# Test / runtime caches
+.pytest_cache/
+.pytest_tmp/
+logs/
+syn_backend/fastapi_app/cache/
+syn_backend/logs/
+syn_backend/videoFile/
+syn_backend/.deps_installed
+
+# Playwright downloaded browsers (can be huge)
+/.playwright-browsers*/

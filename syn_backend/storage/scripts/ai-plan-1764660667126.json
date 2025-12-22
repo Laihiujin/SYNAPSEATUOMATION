@@ -1,0 +1,69 @@
+{
+  "plan_name": "AI生成的智能发布计划",
+  "version": "1.0",
+  "tasks": [
+    {
+      "video_id": 1,
+      "account_id": "7f3e4761-cab7-11f0-9d53-00a747280720",
+      "platform": "channels",
+      "title": "AI生成标题 #1 - channels专属",
+      "description": "这是为channels平台自动生成的视频描述",
+      "tags": [
+        "AI发布",
+        "channels"
+      ],
+      "publish_at": "immediate",
+      "delay_range": [
+        60,
+        180
+      ],
+      "strategy": {
+        "avoid_duplicate": true,
+        "platform_unique": true,
+        "random_interval": true
+      }
+    },
+    {
+      "video_id": 2,
+      "account_id": "5dad0539-cb5b-11f0-84f4-00a747280720",
+      "platform": "douyin",
+      "title": "AI生成标题 #2 - douyin专属",
+      "description": "这是为douyin平台自动生成的视频描述",
+      "tags": [
+        "AI发布",
+        "douyin"
+      ],
+      "publish_at": "immediate",
+      "delay_range": [
+        60,
+        180
+      ],
+      "strategy": {
+        "avoid_duplicate": true,
+        "platform_unique": true,
+        "random_interval": true
+      }
+    },
+    {
+      "video_id": 3,
+      "account_id": "5fb28d85-ca71-11f0-aa76-00a747280720",
+      "platform": "douyin",
+      "title": "AI生成标题 #3 - douyin专属",
+      "description": "这是为douyin平台自动生成的视频描述",
+      "tags": [
+        "AI发布",
+        "douyin"
+      ],
+      "publish_at": "immediate",
+      "delay_range": [
+        60,
+        180
+      ],
+      "strategy": {
+        "avoid_duplicate": true,
+        "platform_unique": true,
+        "random_interval": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+    """访问页面抓取单个账号的用户信""
+    config = PLATFORM_CONFIGS.get(platform)
+    if not config:
+        logger.warning(f"不支持的平台: {platform}")
+        return None
+
+    try:
+        # 读取cookie文件
+        with open(cookie_file, 'r', encoding='utf-8') as f:
+            cookie_data = json.load(f)
+
+        # 转换为Playwright storage_state格式
+        if 'cookies' in cookie_data:
+            storage_state = cookie_data
+        elif 'cookie_info' in cookie_data and 'cookies' in cookie_data['cookie_info']:
+            # Bilibili格式: cookie_info.cookies - 需要添加domain
+            cookies = cookie_data['cookie_info']['cookies']
+            # 为每个cookie添加domain字段
+            for cookie in cookies:
+                if 'domain' not in cookie:
+                    cookie['domain'] = '.bilibili.com'
+                if 'path' not in cookie:
+                    cookie['path'] = '/'
+            storage_state = {'cookies': cookies}
+        else:
+            logger.error(f"Cookie格式错误: {cookie_file}")
+            return None
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(storage_state=storage_state)
+            page = await context.new_page()
+
+            try:
+                logger.info(f"访问页面: {config['url']}")
+                await page.goto(config['url'], wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(5000)  # 等待页面加载
+
+                # 检查是否跳转到登录�?                current_url = page.url
+                if 'login' in current_url.lower() or 'passport' in current_url.lower():
+                    logger.warning(f"Cookie已过�?跳转到登录页: {current_url}")
+                    return None
+
+                result = {'name': None, 'avatar': None, 'user_id': None}
+
+                # 抓取name
+                for selector in config['selectors'].get('name', []):
+                    try:
+                        elem = await page.wait_for_selector(selector, timeout=3000)
+                        if elem:
+                            text = await elem.inner_text()
+                            if text:
+                                result['name'] = text.strip().split('\n')[0]
+                                logger.info(f"获取到用户名: {result['name']}")
+                                break
+                    except:
+                        continue
+
+                # 抓取avatar
+                for selector in config['selectors'].get('avatar', []):
+                    try:
+                        elem = await page.wait_for_selector(selector, timeout=3000)
+                        if elem:
+                            avatar_url = await elem.get_attribute('src')
+                            if avatar_url:
+                                result['avatar'] = avatar_url
+                                logger.info(f"获取到头�? {avatar_url[:60]}...")
+                                break
+                    except:
+                        continue
+
+                # 抓取user_id (如果有文本选择�?
+                if 'user_id_text' in config['selectors']:
+                    try:
+                        elem = await page.wait_for_selector(config['selectors']['user_id_text'], timeout=2000)
+                        if elem:
+                            text = await elem.inner_text()
+                            if platform == 'kuaishou':
+                                match = re.search(r'快手号[:：]?\s*(\w+)', text)
+                            elif platform == 'douyin':
+                                match = re.search(r'抖音号[:：]?\s*(\d+)', text)
+                            elif platform == 'xiaohongshu':
+                                match = re.search(r'账号[:：]?\s*([\w_]+)', text)
+                            else:
+                                match = None
+
+                            if match:
+                                result['user_id'] = match.group(1)
+                                logger.info(f"获取到用户ID: {result['user_id']}")
+                    except:
+                        pass
+
+                # 抓取user_id (如果有直接选择�?
+                if 'user_id' in config['selectors'] and not result.get('user_id'):
+                    for selector in config['selectors'].get('user_id', []):
+                        try:
+                            elem = await page.wait_for_selector(selector, timeout=2000)
+                            if elem:
+                                user_id_text = await elem.inner_text()
+                                if user_id_text:
+                                    result['user_id'] = user_id_text.strip()
+                                    logger.info(f"获取到用户ID: {result['user_id']}")
+                                    break
+                        except:
+                            continue
+
+                return result
+
+            finally:
+                await browser.close()
+
+    except Exception as e:
+        logger.error(f"抓取用户信息失败: {e}")
+        return None
+
+
+async def fetch_all_user_info():
+    """抓取所有账号的用户信息"""
+    logger.info("="*70)
+    logger.info("开始抓取所有账号的用户信息")

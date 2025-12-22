@@ -1,0 +1,48 @@
+{
+  "plan_name": "测试矩阵发布计划",
+  "version": "1.0",
+  "tasks": [
+    {
+      "video_id": 1,
+      "account_id": "test_001",
+      "platform": "douyin",
+      "title": "AI生成的测试标题 #1",
+      "description": "这是AI自动生成的视频描述",
+      "tags": [
+        "测试",
+        "AI发布"
+      ],
+      "publish_at": "immediate",
+      "delay_range": [
+        60,
+        180
+      ],
+      "strategy": {
+        "avoid_duplicate": true,
+        "platform_unique": true,
+        "random_interval": true
+      }
+    },
+    {
+      "video_id": 2,
+      "account_id": "test_002",
+      "platform": "kuaishou",
+      "title": "AI生成的测试标题 #2",
+      "description": "快手平台专属文案",
+      "tags": [
+        "测试",
+        "快手"
+      ],
+      "publish_at": "immediate",
+      "delay_range": [
+        60,
+        180
+      ],
+      "strategy": {
+        "avoid_duplicate": true,
+        "platform_unique": true,
+        "random_interval": true
+      }
+    }
+  ]
+}

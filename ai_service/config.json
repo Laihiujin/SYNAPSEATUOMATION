@@ -1,0 +1,11 @@
+{
+  "current_provider": "tongyi",
+  "current_model": "qwen-turbo",
+  "providers": {
+    "tongyi": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://dashscope.aliyuncs.com/api/v1"
+    }
+  }
+}
