@@ -96,12 +96,49 @@
           <label for="pythonCmd">Python</label>
           <input id="pythonCmd" placeholder="python 或 python.exe 的绝对路径" />
         </div>
+        <div class="row">
+          <label>内置服务</label>
+          <div class="actions">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
+              <input id="startRedis" type="checkbox" />
+              Redis
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
+              <input id="startMysql" type="checkbox" />
+              MySQL/MariaDB
+            </label>
+          </div>
+        </div>
+        <div class="row">
+          <label for="redisPort">Redis Port</label>
+          <input id="redisPort" type="number" placeholder="6379" />
+        </div>
+        <div class="row">
+          <label for="mysqlPort">MySQL Port</label>
+          <input id="mysqlPort" type="number" placeholder="3306" />
+        </div>
+        <div class="row">
+          <label for="mysqlDatabase">MySQL DB</label>
+          <input id="mysqlDatabase" placeholder="synapse" />
+        </div>
+        <div class="row">
+          <label for="mysqlUser">MySQL User</label>
+          <input id="mysqlUser" placeholder="root" />
+        </div>
+        <div class="row">
+          <label for="mysqlPassword">MySQL Password</label>
+          <input id="mysqlPassword" type="password" placeholder="(可空)" />
+        </div>
         <div class="actions">
-          <button class="primary" id="start-all">一键启动（Worker + Backend）</button>
+          <button class="primary" id="start-all">一键启动（可选 Redis/MySQL + Worker + Backend）</button>
           <button class="danger" id="stop-worker">停止 Worker</button>
           <button class="danger" id="stop-backend">停止 Backend</button>
+          <button class="danger" id="stop-redis">停止 Redis</button>
+          <button class="danger" id="stop-mysql">停止 MySQL</button>
         </div>
         <div class="chips" style="margin-top: 10px;">
+          <span class="chip" id="chip-redis">Redis: unknown</span>
+          <span class="chip" id="chip-mysql">MySQL: unknown</span>
           <span class="chip" id="chip-worker">Worker: unknown</span>
           <span class="chip" id="chip-backend">Backend: unknown</span>
         </div>
@@ -115,4 +152,3 @@
     <script src="./renderer.js"></script>
   </body>
 </html>
-

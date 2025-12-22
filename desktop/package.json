@@ -6,7 +6,8 @@
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
-    "build": "electron-builder"
+    "prepare:resources": "node scripts/prepare_resources.js",
+    "build": "npm run prepare:resources && electron-builder"
   },
   "dependencies": {
     "electron": "^33.2.1"
@@ -19,6 +20,12 @@
     "productName": "SynapseAutomation",
     "files": [
       "src/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "synapse-resources"
+      }
     ],
     "directories": {
       "output": "dist"
@@ -33,4 +40,3 @@
     }
   }
 }
-

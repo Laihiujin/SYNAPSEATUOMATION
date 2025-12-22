@@ -27,5 +27,9 @@ cd desktop
 npm run build
 ```
 
-打包后的应用仍需要目标机器具备可用的 Python 环境与依赖（建议提前在该机器上完成 `syn_backend/requirements.txt` 安装与 Playwright 浏览器准备）。
+打包后的应用仍需要目标机器具备可用的 Python 环境与依赖（建议提前在该机器上完成 `syn_backend/requirements.txt` 安装）。
 
+## 内置资源（Chromium / Redis / MySQL）
+
+- Chromium（Playwright）：`npm run build` 会自动尝试把仓库根目录的 `../.playwright-browsers/` 拷贝进应用资源包，并在运行时优先使用该内置路径。
+- Redis / MySQL：可把对应二进制放入 `desktop/resources/`，构建时会一并打包；细节见 `desktop/resources/README.md`。

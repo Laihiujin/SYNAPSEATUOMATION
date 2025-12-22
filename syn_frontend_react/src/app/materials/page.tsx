@@ -94,16 +94,11 @@ function MaterialsPageContent() {
   // Upload State
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [filesToUpload, setFilesToUpload] = useState<File[]>([])
-  const [customName, setCustomName] = useState("")
-  const [description, setDescription] = useState("")
-  const [customGroup, setCustomGroup] = useState("")
-  const [uploading, setUploading] = useState(false)
-
-  // Group Management State
-  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false)
+  const [uploadGroup, setUploadGroup] = useState<string>("none")
+  const [showNewGroup, setShowNewGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
-  const [editingGroup, setEditingGroup] = useState<string | null>(null)
-  const [editGroupName, setEditGroupName] = useState("")
+  const [localGroupOptions, setLocalGroupOptions] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
 
   // Sync State
   const [isSyncing, setIsSyncing] = useState(false)
@@ -219,6 +214,10 @@ function MaterialsPageContent() {
     })
     return Array.from(set)
   }, [materials])
+
+  const uploadGroupOptions = useMemo(() => {
+    return Array.from(new Set([...groupOptions, ...localGroupOptions]))
+  }, [groupOptions, localGroupOptions])
 
   const filteredMaterials = useMemo(() => {
     return materials.filter((material) => {
@@ -472,21 +471,20 @@ function MaterialsPageContent() {
 
     // ... (Keep existing upload logic, simplified for brevity in this rewrite)
     // Assuming the existing logic was fine, just copying the core structure
-    const groupGuess = (customGroup.trim() || description.trim().split(/\s+/).find((t) => t.startsWith('#'))) as string | undefined
+    const group = (uploadGroup === "none" ? "" : uploadGroup).trim()
     setUploading(true)
     try {
       for (const file of filesToUpload) {
         const formData = new FormData()
         formData.append('file', file)
-        if (filesToUpload.length === 1 && customName.trim()) formData.append('filename', customName.trim())
-        if (description.trim()) formData.append('note', description.trim())
-        if (groupGuess) formData.append('group', customGroup.trim() || String(groupGuess).slice(1))
+        if (group) formData.append('group', group)
 
         await fetch(`/api/files/upload-save`, { method: 'POST', body: formData })
       }
       setFilesToUpload([])
-      setCustomName('')
-      setDescription('')
+      setUploadGroup("none")
+      setShowNewGroup(false)
+      setNewGroupName("")
       setUploadDialogOpen(false)
       toast({ variant: 'success', title: '上传成功' })
       await refetch()
@@ -526,15 +524,17 @@ function MaterialsPageContent() {
     {
       accessorKey: "filename",
       header: "文件名",
-      size: 320,
+      size: 420,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <div className="max-w-[150px] overflow-hidden truncate font-medium" title={row.original.filename}>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="truncate font-medium" title={row.original.title || row.original.filename}>
             {row.original.title || row.original.filename}
           </div>
-          <div className="text-xs text-white/60 max-w-[200px] truncate">
-            {row.original.filename}
-          </div>
+          {!!row.original.title && row.original.title !== row.original.filename && (
+            <div className="text-xs text-white/60 truncate" title={row.original.filename}>
+              {row.original.filename}
+            </div>
+          )}
         </div>
       ),
     },
@@ -660,27 +660,57 @@ function MaterialsPageContent() {
               </DialogHeader>
               <div className="flex-1 overflow-y-auto py-4 space-y-6">
                 <FileUpload onChange={setFilesToUpload} />
-                {/* Simplified upload form fields for brevity - functional logic is in handleUpload */}
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label>自定义名称 (仅单文件)</Label>
-                    <Input value={customName} onChange={e => setCustomName(e.target.value)} className="bg-white/5 border-white/10" />
-                  </div>
-                  <div className="grid gap-2">
                     <Label>分组</Label>
-                    <div className="flex gap-2">
-                      <Select value={customGroup} onValueChange={setCustomGroup}>
-                        <SelectTrigger className="bg-white/5 border-white/10"><SelectValue placeholder="选择分组" /></SelectTrigger>
+                    <div className="flex items-center gap-2">
+                      <Select value={uploadGroup} onValueChange={(v) => setUploadGroup(v)}>
+                        <SelectTrigger className="bg-white/5 border-white/10">
+                          <SelectValue placeholder="无分组" />
+                        </SelectTrigger>
                         <SelectContent>
-                          {groupOptions.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                          <SelectItem value="none">无分组</SelectItem>
+                          {uploadGroupOptions.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      <Input placeholder="新分组..." value={customGroup} onChange={e => setCustomGroup(e.target.value)} className="bg-white/5 border-white/10 w-[150px]" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-white/10 bg-white/5 hover:bg-white/10"
+                        onClick={() => setShowNewGroup((v) => !v)}
+                      >
+                        新建分组
+                      </Button>
                     </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>备注</Label>
-                    <Textarea value={description} onChange={e => setDescription(e.target.value)} className="bg-white/5 border-white/10" />
+
+                    {showNewGroup && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="输入新分组名称"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                          className="bg-white/5 border-white/10"
+                        />
+                        <Button
+                          type="button"
+                          className="shrink-0"
+                          onClick={() => {
+                            const name = newGroupName.trim()
+                            if (!name) return
+                            setLocalGroupOptions((prev) => (prev.includes(name) ? prev : [name, ...prev]))
+                            setUploadGroup(name)
+                            setShowNewGroup(false)
+                            setNewGroupName("")
+                          }}
+                        >
+                          使用
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

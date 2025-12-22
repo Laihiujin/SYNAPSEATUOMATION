@@ -102,12 +102,12 @@ export const FileUpload = ({
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
-                                <div className="flex justify-between w-full items-center gap-4 pr-8">
+                                <div className="flex w-full items-center gap-3 pr-8 min-w-0">
                                     <motion.p
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         layout
-                                        className="text-sm text-white/80 truncate max-w-xs"
+                                        className="text-sm text-white/80 truncate flex-1 min-w-0"
                                     >
                                         {files[0].name}
                                     </motion.p>
