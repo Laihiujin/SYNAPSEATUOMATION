@@ -50,6 +50,7 @@ export function EnhancedAIChat() {
   const [input, setInput] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [isConnected, setIsConnected] = React.useState(false)
+  const [connectionError, setConnectionError] = React.useState<string | null>(null)
 
   // AI Elements state
   const [agentThinking, setAgentThinking] = React.useState<string>("")
@@ -60,17 +61,17 @@ export function EnhancedAIChat() {
     status: "pending" | "in-progress" | "completed" | "failed"
     metadata?: Record<string, any>
   }>>([])
-	  const [showAgentPanel, setShowAgentPanel] = React.useState(true)
-	
-	  // OpenManus 流式状态
-	  const manusStream = useManusStream()
-	  const resetManusStream = manusStream.resetState
-	  const startManusStreaming = manusStream.startStreaming
-	  const manusLogMessageIdRef = React.useRef<string | null>(null)
-	  const manusLogThreadIdRef = React.useRef<string | null>(null)
-	  const manusLogContentRef = React.useRef<string>("")
-	  const manusLogSavedRef = React.useRef<boolean>(false)
-	  const manusEventCursorRef = React.useRef<number>(0)
+  const [showAgentPanel, setShowAgentPanel] = React.useState(true)
+
+  // OpenManus 流式状态
+  const manusStream = useManusStream()
+  const resetManusStream = manusStream.resetState
+  const startManusStreaming = manusStream.startStreaming
+  const manusLogMessageIdRef = React.useRef<string | null>(null)
+  const manusLogThreadIdRef = React.useRef<string | null>(null)
+  const manusLogContentRef = React.useRef<string>("")
+  const manusLogSavedRef = React.useRef<boolean>(false)
+  const manusEventCursorRef = React.useRef<number>(0)
 
   // 模型配置
   const [chatModelConfig, setChatModelConfig] = React.useState<ModelConfig | null>(null)
@@ -154,22 +155,22 @@ export function EnhancedAIChat() {
       })
       const data = await response.json()
       if (data.status === "success") {
-	        const newThread: Thread = {
-	          id: data.data.thread_id,
-	          title: data.data.title,
-	          created_at: data.data.created_at,
-	          updated_at: data.data.updated_at,
-	          message_count: 0
-	        }
-	        setThreads(prev => [newThread, ...prev])
-	        setCurrentThreadId(newThread.id)
-	        setMessages([])
-	        resetManusStream()
-	        manusLogMessageIdRef.current = null
-	        manusLogThreadIdRef.current = null
-	        manusLogContentRef.current = ""
-	        manusLogSavedRef.current = false
-	        manusEventCursorRef.current = 0
+        const newThread: Thread = {
+          id: data.data.thread_id,
+          title: data.data.title,
+          created_at: data.data.created_at,
+          updated_at: data.data.updated_at,
+          message_count: 0
+        }
+        setThreads(prev => [newThread, ...prev])
+        setCurrentThreadId(newThread.id)
+        setMessages([])
+        resetManusStream()
+        manusLogMessageIdRef.current = null
+        manusLogThreadIdRef.current = null
+        manusLogContentRef.current = ""
+        manusLogSavedRef.current = false
+        manusEventCursorRef.current = 0
         setAgentTaskQueue([])
         setAgentThinking("")
         setIsAgentThinking(false)
@@ -184,9 +185,9 @@ export function EnhancedAIChat() {
         title: "错误",
         description: "创建对话失败",
         variant: "destructive"
-	      })
-	    }
-	  }, [toast, mode, resetManusStream])
+      })
+    }
+  }, [toast, mode, resetManusStream])
 
   // 删除线程
   const handleDeleteThread = React.useCallback(async (threadId: string) => {
@@ -247,23 +248,23 @@ export function EnhancedAIChat() {
   }, [toast])
 
   // 选择线程
-	  const handleSelectThread = React.useCallback((threadId: string) => {
-	    // 切换线程时，清理运行态，避免新旧对话互相串台（尤其是 OpenManus 流式事件）
-	    resetManusStream()
-	    manusLogMessageIdRef.current = null
-	    manusLogThreadIdRef.current = null
-	    manusLogContentRef.current = ""
-	    manusLogSavedRef.current = false
-	    manusEventCursorRef.current = 0
+  const handleSelectThread = React.useCallback((threadId: string) => {
+    // 切换线程时，清理运行态，避免新旧对话互相串台（尤其是 OpenManus 流式事件）
+    resetManusStream()
+    manusLogMessageIdRef.current = null
+    manusLogThreadIdRef.current = null
+    manusLogContentRef.current = ""
+    manusLogSavedRef.current = false
+    manusEventCursorRef.current = 0
 
     // Agent 面板也清一下（避免上一轮残留）
     setAgentTaskQueue([])
     setAgentThinking("")
     setIsAgentThinking(false)
-	
-	    setCurrentThreadId(threadId)
-	    loadMessages(threadId)
-	  }, [loadMessages, resetManusStream])
+
+    setCurrentThreadId(threadId)
+    loadMessages(threadId)
+  }, [loadMessages, resetManusStream])
 
   // 保存消息到线程
   const saveMessageToThread = React.useCallback(async (
@@ -524,13 +525,13 @@ export function EnhancedAIChat() {
             timestamp: new Date()
           }])
 
-	          // 启动流式执行
-	          await startManusStreaming(
-	            value,
-	            undefined,
-	            false,  // 暂不需要确认
-	            threadId || undefined
-	          )
+          // 启动流式执行
+          await startManusStreaming(
+            value,
+            undefined,
+            false,  // 暂不需要确认
+            threadId || undefined
+          )
 
         } catch (streamError) {
           console.error("OpenManus streaming error:", streamError)
@@ -555,10 +556,10 @@ export function EnhancedAIChat() {
       if (threadId) {
         await saveMessageToThread(threadId, "assistant", errorContent)
       }
-	    } finally {
-	      setIsLoading(false)
-	    }
-	  }, [currentThreadId, messages, isLoading, mode, toast, saveMessageToThread, manusStream.isStreaming, startManusStreaming])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentThreadId, messages, isLoading, mode, toast, saveMessageToThread, manusStream.isStreaming, startManusStreaming])
 
   // OpenManus: 将流式事件写入聊天区（message 组件），而不是只显示在右侧任务面板
   React.useEffect(() => {
@@ -677,34 +678,36 @@ export function EnhancedAIChat() {
         const response = await fetch(`${API_ENDPOINTS.base || 'http://localhost:7000'}/api/v1/ai/status`)
         const data = await response.json()
         setIsConnected(data.connected || false)
+        setConnectionError(data.connection_error || null)
       } catch (error) {
         console.error("Failed to check AI status:", error)
         setIsConnected(false)
+        setConnectionError("无法连接到后端服务器")
       }
     }
 
     checkStatus()
-    const interval = setInterval(checkStatus, 30000)
+    const interval = setInterval(checkStatus, 10000)
     return () => clearInterval(interval)
   }, [loadThreads, loadModelConfigs])
 
-	  // 当 mode 切换时，重新加载线程并清空当前对话
-	  React.useEffect(() => {
-	    resetManusStream()
-	    manusLogMessageIdRef.current = null
-	    manusLogThreadIdRef.current = null
-	    manusLogContentRef.current = ""
-	    manusLogSavedRef.current = false
-	    manusEventCursorRef.current = 0
+  // 当 mode 切换时，重新加载线程并清空当前对话
+  React.useEffect(() => {
+    resetManusStream()
+    manusLogMessageIdRef.current = null
+    manusLogThreadIdRef.current = null
+    manusLogContentRef.current = ""
+    manusLogSavedRef.current = false
+    manusEventCursorRef.current = 0
 
     setAgentTaskQueue([])
     setAgentThinking("")
     setIsAgentThinking(false)
-	
-	    setCurrentThreadId(null)
-	    setMessages([])
-	    loadThreads()
-	  }, [mode, loadThreads, resetManusStream])
+
+    setCurrentThreadId(null)
+    setMessages([])
+    loadThreads()
+  }, [mode, loadThreads, resetManusStream])
 
   return (
     <div className="flex h-[85vh] w-full overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl">
@@ -746,7 +749,7 @@ export function EnhancedAIChat() {
                 )}
                 {mode === "agent" && agentModelConfig && (
                   <span className="text-xs text-purple-400/70">
-                    • Agent模型: {agentModelConfig.model_name }  {/* || agentModelConfig.provider */}
+                    • Agent模型: {agentModelConfig.model_name}  {/* || agentModelConfig.provider */}
                   </span>
                 )}
                 {mode === "openmanus" && openmanusModelConfig && (
@@ -771,13 +774,16 @@ export function EnhancedAIChat() {
             </Button>
             <Badge
               variant="outline"
-              className={`gap-1 text-xs font-normal ${isConnected
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              title={connectionError || (isConnected ? "一切系统正常" : "未配置 AI 服务")}
+              className={`gap-1 text-xs font-normal transition-all ${isConnected
+                ? connectionError
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                 : "border-white/10 bg-white/5 text-white/40"
                 }`}
             >
               <Sparkles className="h-3 w-3" />
-              {isConnected ? "在线" : "离线"}
+              {isConnected ? connectionError ? "不稳定" : "在线" : "离线"}
             </Badge>
           </div>
         </div>
@@ -843,65 +849,65 @@ export function EnhancedAIChat() {
           </div>
 
           {/* Agent Side Panel */}
-	          {(mode === "agent" || mode === "openmanus") && showAgentPanel && (
-	            <div className="w-80 border-l border-white/10 bg-black/40 backdrop-blur-sm overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
-	              <div className="p-4 space-y-4">
-	                <div className="flex items-center justify-between">
-	                  <h3 className="text-sm font-semibold text-white/90">{mode === "openmanus" ? "Manus 面板" : "Agent 面板"}</h3>
-	                  <div className="flex items-center gap-2">
-	                    {mode === "openmanus" && (
-	                      <Button
-	                        variant="ghost"
-	                        size="sm"
-	                        onClick={() => manusStream.resetState()}
-	                        className="h-7 px-2 text-xs text-white/50 hover:text-white hover:bg-white/10"
-	                      >
-	                        清空
-	                      </Button>
-	                    )}
-	                    {mode === "agent" && (
-	                      <Button
-	                        variant="ghost"
-	                        size="sm"
-	                        onClick={() => {
-	                          setAgentTaskQueue([])
-	                          setAgentThinking("")
-	                          setIsAgentThinking(false)
-	                        }}
-	                        className="h-7 px-2 text-xs text-white/50 hover:text-white hover:bg-white/10"
-	                      >
-	                        清空
-	                      </Button>
-	                    )}
-	                    <Button
-	                      variant="ghost"
-	                      size="icon"
-	                      className="h-6 w-6 text-white/40 hover:text-white/60"
-	                      onClick={() => setShowAgentPanel(false)}
-	                    >
-	                      ×
-	                    </Button>
-	                  </div>
-	                </div>
+          {(mode === "agent" || mode === "openmanus") && showAgentPanel && (
+            <div className="w-80 border-l border-white/10 bg-black/40 backdrop-blur-sm overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white/90">{mode === "openmanus" ? "Manus 面板" : "Agent 面板"}</h3>
+                  <div className="flex items-center gap-2">
+                    {mode === "openmanus" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => manusStream.resetState()}
+                        className="h-7 px-2 text-xs text-white/50 hover:text-white hover:bg-white/10"
+                      >
+                        清空
+                      </Button>
+                    )}
+                    {mode === "agent" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAgentTaskQueue([])
+                          setAgentThinking("")
+                          setIsAgentThinking(false)
+                        }}
+                        className="h-7 px-2 text-xs text-white/50 hover:text-white hover:bg-white/10"
+                      >
+                        清空
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-white/40 hover:text-white/60"
+                      onClick={() => setShowAgentPanel(false)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
 
-	                {/* 任务面板：只放“状态 + 队列”，详细过程放到聊天区 */}
-	                {mode === "openmanus" && (
-	                  <>
-	                    {/* 思考过程 */}
-	                    {manusStream.currentThinking && (
-	                      <AgentReasoning content={manusStream.currentThinking} isThinking={manusStream.isStreaming} />
-	                    )}
-	 
-	                    {/* 任务队列 */}
-	                    {manusStream.tasks.length > 0 && (
-	                      <AgentTaskQueue
+                {/* 任务面板：只放“状态 + 队列”，详细过程放到聊天区 */}
+                {mode === "openmanus" && (
+                  <>
+                    {/* 思考过程 */}
+                    {manusStream.currentThinking && (
+                      <AgentReasoning content={manusStream.currentThinking} isThinking={manusStream.isStreaming} />
+                    )}
+
+                    {/* 任务队列 */}
+                    {manusStream.tasks.length > 0 && (
+                      <AgentTaskQueue
                         tasks={manusStream.tasks}
                         title="工具调用队列"
-	                        collapsible={true}
-	                      />
-	                    )}
-	                  </>
-	                )}
+                        collapsible={true}
+                      />
+                    )}
+                  </>
+                )}
 
                 {/* Agent 模式的原有显示 */}
                 {mode === "agent" && (
@@ -934,14 +940,14 @@ export function EnhancedAIChat() {
 
         {/* Input Area */}
         <div className="bg-black pb-4 pt-2">
-	          <ChatInput
-	            isLoading={isLoading || (mode === "openmanus" && manusStream.isStreaming) || (mode === "agent" && isAgentThinking)}
-	            onSubmit={handleSubmit}
-	            input={input}
-	            setInput={setInput}
-	            disabled={!isConnected}
-	            placeholder={mode === "agent" ? "描述你的任务，例如：帮我分析最近的发布数据..." : "输入消息..."}
-	          />
+          <ChatInput
+            isLoading={isLoading || (mode === "openmanus" && manusStream.isStreaming) || (mode === "agent" && isAgentThinking)}
+            onSubmit={handleSubmit}
+            input={input}
+            setInput={setInput}
+            disabled={isLoading || (mode === "openmanus" && manusStream.isStreaming) || (mode === "agent" && isAgentThinking)}
+            placeholder={connectionError ? `AI 连接问题: ${connectionError}` : (!isConnected ? "AI 处于离线状态，聊天可能无法响应..." : (mode === "agent" ? "描述你的任务，例如：帮我分析最近的发布数据..." : "输入消息..."))}
+          />
         </div>
       </div>
     </div>
