@@ -474,6 +474,56 @@ async def update_file_metadata(
     )
 
 
+class GroupRenameRequest(BaseModel):
+    from_name: str = Field(..., description="原分组名")
+    to_name: str = Field(..., description="新分组名")
+
+
+class GroupDeleteRequest(BaseModel):
+    name: str = Field(..., description="待删除分组名")
+
+
+@router.get(
+    "/groups",
+    response_model=Response,
+    summary="获取分组列表",
+)
+async def list_groups(
+    db=Depends(get_db),
+    service: FileService = Depends(get_file_service),
+):
+    groups = await service.list_groups(db)
+    return Response(success=True, data={"groups": groups})
+
+
+@router.post(
+    "/groups/rename",
+    response_model=Response,
+    summary="重命名分组（批量）",
+)
+async def rename_group(
+    req: GroupRenameRequest,
+    db=Depends(get_db),
+    service: FileService = Depends(get_file_service),
+):
+    updated = await service.rename_group(db, req.from_name, req.to_name)
+    return Response(success=True, message="分组重命名成功", data={"updated": updated})
+
+
+@router.post(
+    "/groups/delete",
+    response_model=Response,
+    summary="删除分组（批量）",
+)
+async def delete_group(
+    req: GroupDeleteRequest,
+    db=Depends(get_db),
+    service: FileService = Depends(get_file_service),
+):
+    updated = await service.delete_group(db, req.name)
+    return Response(success=True, message="分组已删除", data={"updated": updated})
+
+
 @router.post(
     "/sync",
     response_model=Response,

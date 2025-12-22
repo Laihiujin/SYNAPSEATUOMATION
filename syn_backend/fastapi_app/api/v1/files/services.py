@@ -972,6 +972,85 @@ class FileService:
         logger.info(f"File record updated: ID {file_id}")
         return True
 
+    async def list_groups(self, db) -> list[str]:
+        """List distinct non-empty group names."""
+        if mysql_enabled():
+            warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
+            with sa_connection() as conn:
+                rows = conn.execute(
+                    text(
+                        "SELECT DISTINCT group_name "
+                        "FROM file_records "
+                        "WHERE group_name IS NOT NULL AND group_name != '' "
+                        "ORDER BY group_name"
+                    )
+                ).all()
+            return [r[0] for r in rows if r and r[0]]
+
+        cursor = db.cursor()
+        self._ensure_file_record_columns(cursor, db)
+        cursor.execute(
+            "SELECT DISTINCT group_name FROM file_records "
+            "WHERE group_name IS NOT NULL AND group_name != '' "
+            "ORDER BY group_name"
+        )
+        return [r[0] for r in cursor.fetchall() if r and r[0]]
+
+    async def rename_group(self, db, from_name: str, to_name: str) -> int:
+        """Rename a group in bulk; returns number of affected rows."""
+        from_name = (from_name or "").strip()
+        to_name = (to_name or "").strip()
+        if not from_name:
+            raise BadRequestException("from_name 不能为空")
+        if not to_name:
+            raise BadRequestException("to_name 不能为空")
+        if from_name == to_name:
+            return 0
+
+        if mysql_enabled():
+            warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
+            with sa_connection() as conn:
+                res = conn.execute(
+                    text("UPDATE file_records SET group_name = :to WHERE group_name = :from"),
+                    {"from": from_name, "to": to_name},
+                )
+                conn.commit()
+                return int(getattr(res, "rowcount", 0) or 0)
+
+        cursor = db.cursor()
+        self._ensure_file_record_columns(cursor, db)
+        cursor.execute(
+            "UPDATE file_records SET group_name = ? WHERE group_name = ?",
+            (to_name, from_name),
+        )
+        db.commit()
+        return int(cursor.rowcount or 0)
+
+    async def delete_group(self, db, name: str) -> int:
+        """Delete a group in bulk (set group_name=NULL); returns number of affected rows."""
+        name = (name or "").strip()
+        if not name:
+            raise BadRequestException("name 不能为空")
+
+        if mysql_enabled():
+            warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
+            with sa_connection() as conn:
+                res = conn.execute(
+                    text("UPDATE file_records SET group_name = NULL WHERE group_name = :name"),
+                    {"name": name},
+                )
+                conn.commit()
+                return int(getattr(res, "rowcount", 0) or 0)
+
+        cursor = db.cursor()
+        self._ensure_file_record_columns(cursor, db)
+        cursor.execute(
+            "UPDATE file_records SET group_name = NULL WHERE group_name = ?",
+            (name,),
+        )
+        db.commit()
+        return int(cursor.rowcount or 0)
+
     async def delete_file(self, db, file_id: int) -> bool:
         """Delete file and record (atomic operation)"""
         if mysql_enabled():

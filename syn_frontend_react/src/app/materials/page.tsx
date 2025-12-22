@@ -98,6 +98,10 @@ function MaterialsPageContent() {
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [localGroupOptions, setLocalGroupOptions] = useState<string[]>([])
+  const [showGroupManager, setShowGroupManager] = useState(false)
+  const [groupActionBusy, setGroupActionBusy] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<string | null>(null)
+  const [editingGroupName, setEditingGroupName] = useState("")
   const [uploading, setUploading] = useState(false)
 
   // Sync State
@@ -653,34 +657,47 @@ function MaterialsPageContent() {
                 上传素材
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl h-[90vh] max-h-[800px] border-white/10 bg-black text-white flex flex-col">
+            <DialogContent className="max-w-2xl max-h-[80vh] border-white/10 bg-black text-white flex flex-col">
               <DialogHeader>
                 <DialogTitle>上传素材</DialogTitle>
                 <DialogDescription>支持批量上传视频文件，自动提取元数据。</DialogDescription>
               </DialogHeader>
-              <div className="flex-1 overflow-y-auto py-4 space-y-6">
+              <div className="flex-1 overflow-y-auto py-3 space-y-4">
                 <FileUpload onChange={setFilesToUpload} />
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label>分组</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>分组</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-white/60 hover:text-white hover:bg-white/10"
+                        onClick={() => setShowGroupManager((v) => !v)}
+                      >
+                        {showGroupManager ? "收起管理" : "管理分组"}
+                      </Button>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <Select value={uploadGroup} onValueChange={(v) => setUploadGroup(v)}>
-                        <SelectTrigger className="bg-white/5 border-white/10">
-                          <SelectValue placeholder="无分组" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">无分组</SelectItem>
-                          {uploadGroupOptions.map((g) => (
-                            <SelectItem key={g} value={g}>
-                              {g}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex-1 min-w-0">
+                        <Select value={uploadGroup} onValueChange={(v) => setUploadGroup(v)}>
+                          <SelectTrigger className="h-11 bg-white/5 border-white/10">
+                            <SelectValue placeholder="无分组" className="truncate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">无分组</SelectItem>
+                            {uploadGroupOptions.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-white/10 bg-white/5 hover:bg-white/10"
+                        className="h-11 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10"
                         onClick={() => setShowNewGroup((v) => !v)}
                       >
                         新建分组
@@ -697,7 +714,7 @@ function MaterialsPageContent() {
                         />
                         <Button
                           type="button"
-                          className="shrink-0"
+                          className="shrink-0 h-11 rounded-2xl"
                           onClick={() => {
                             const name = newGroupName.trim()
                             if (!name) return
@@ -709,6 +726,134 @@ function MaterialsPageContent() {
                         >
                           使用
                         </Button>
+                      </div>
+                    )}
+
+                    {showGroupManager && (
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                        {uploadGroupOptions.length === 0 ? (
+                          <div className="text-xs text-white/50">暂无分组</div>
+                        ) : (
+                          uploadGroupOptions.map((g) => {
+                            const backendGroup = groupOptions.includes(g)
+                            const isEditing = editingGroup === g
+                            return (
+                              <div key={g} className="flex items-center gap-2">
+                                {isEditing ? (
+                                  <>
+                                    <Input
+                                      value={editingGroupName}
+                                      onChange={(e) => setEditingGroupName(e.target.value)}
+                                      className="h-10 bg-black/40 border-white/10"
+                                    />
+                                    <Button
+                                      type="button"
+                                      className="h-10 rounded-2xl"
+                                      disabled={groupActionBusy}
+                                      onClick={async () => {
+                                        const to = editingGroupName.trim()
+                                        const from = g.trim()
+                                        if (!to || to === from) {
+                                          setEditingGroup(null)
+                                          setEditingGroupName("")
+                                          return
+                                        }
+
+                                        setGroupActionBusy(true)
+                                        try {
+                                          if (backendGroup) {
+                                            const res = await fetch("/api/files/groups/rename", {
+                                              method: "POST",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ from, to }),
+                                            })
+                                            if (!res.ok) throw new Error(await res.text())
+                                            await refetch()
+                                          }
+
+                                          setLocalGroupOptions((prev) => {
+                                            const next = prev.filter((x) => x !== from)
+                                            return next.includes(to) ? next : [to, ...next]
+                                          })
+                                          setUploadGroup((cur) => (cur === from ? to : cur))
+                                        } catch (e) {
+                                          toast({ variant: "destructive", title: "分组重命名失败", description: String(e) })
+                                        } finally {
+                                          setGroupActionBusy(false)
+                                          setEditingGroup(null)
+                                          setEditingGroupName("")
+                                        }
+                                      }}
+                                    >
+                                      保存
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="h-10 rounded-2xl text-white/70 hover:text-white hover:bg-white/10"
+                                      onClick={() => {
+                                        setEditingGroup(null)
+                                        setEditingGroupName("")
+                                      }}
+                                    >
+                                      取消
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 min-w-0 truncate text-sm text-white/90" title={g}>
+                                      {g}
+                                      {backendGroup ? "" : <span className="ml-2 text-xs text-white/40">(本地)</span>}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="h-9 px-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10"
+                                      onClick={() => {
+                                        setEditingGroup(g)
+                                        setEditingGroupName(g)
+                                      }}
+                                    >
+                                      编辑
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      className="h-9 px-2 rounded-xl text-red-300 hover:text-red-200 hover:bg-red-500/10"
+                                      disabled={groupActionBusy}
+                                      onClick={async () => {
+                                        if (!confirm(`确认删除分组：${g} ？（该分组下的素材将变为无分组）`)) return
+
+                                        setGroupActionBusy(true)
+                                        try {
+                                          if (backendGroup) {
+                                            const res = await fetch("/api/files/groups/delete", {
+                                              method: "POST",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ name: g }),
+                                            })
+                                            if (!res.ok) throw new Error(await res.text())
+                                            await refetch()
+                                          }
+
+                                          setLocalGroupOptions((prev) => prev.filter((x) => x !== g))
+                                          setUploadGroup((cur) => (cur === g ? "none" : cur))
+                                          setGroupFilter((cur) => (cur === g ? "all" : cur))
+                                        } catch (e) {
+                                          toast({ variant: "destructive", title: "删除分组失败", description: String(e) })
+                                        } finally {
+                                          setGroupActionBusy(false)
+                                        }
+                                      }}
+                                    >
+                                      删除
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })
+                        )}
                       </div>
                     )}
                   </div>
