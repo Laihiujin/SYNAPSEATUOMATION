@@ -490,38 +490,95 @@ async def sync_files(
     """
     scanned = 0
     added = 0
-
-    cursor = db.cursor()
-    cursor.execute("SELECT filename FROM file_records")
-    existing = {row["filename"] for row in cursor.fetchall()}
+    dedup_deleted = 0
+    normalized_paths = 0
 
     video_dir = Path(settings.VIDEO_FILES_DIR)
     video_dir.mkdir(parents=True, exist_ok=True)
 
+    video_extensions = {".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
+
+    cursor = db.cursor()
+
+    cursor.execute("""
+        SELECT id, filename, file_path
+        FROM file_records
+        WHERE file_path IS NOT NULL AND file_path != ''
+        ORDER BY id ASC
+    """)
+    rows = [dict(r) for r in cursor.fetchall()]
+
+    # Normalize legacy absolute `file_path` and deduplicate sync artifacts.
+    for r in rows:
+        file_id = r.get("id")
+        stored = r.get("file_path")
+        if not file_id or not stored:
+            continue
+        try:
+            p = Path(str(stored))
+            if p.is_absolute() and video_dir in p.parents and (video_dir / p.name).exists():
+                cursor.execute("UPDATE file_records SET file_path = ? WHERE id = ?", (p.name, file_id))
+                normalized_paths += 1
+                r["file_path"] = p.name
+        except Exception:
+            continue
+
+    by_key: dict[str, list[dict]] = {}
+    for r in rows:
+        key = Path(str(r.get("file_path") or "")).name
+        if not key:
+            continue
+        by_key.setdefault(key, []).append(r)
+
+    delete_ids: list[int] = []
+    for key, group_rows in by_key.items():
+        if len(group_rows) <= 1:
+            continue
+        keep = next((x for x in group_rows if (x.get("filename") or "") != key), group_rows[0])
+        for x in group_rows:
+            if x.get("id") != keep.get("id") and (x.get("filename") or "") == key:
+                delete_ids.append(int(x["id"]))
+
+    if normalized_paths or delete_ids:
+        if delete_ids:
+            cursor.executemany("DELETE FROM file_records WHERE id = ?", [(i,) for i in delete_ids])
+            dedup_deleted = len(delete_ids)
+        db.commit()
+
+    existing_paths = set(by_key.keys())
+
     for file_path in video_dir.iterdir():
         if not file_path.is_file():
             continue
+        if file_path.name.startswith("."):
+            continue
+        if file_path.suffix.lower() not in video_extensions:
+            continue
+
         scanned += 1
-        if file_path.name in existing:
+        if file_path.name in existing_paths:
             continue
 
         filesize_mb = file_path.stat().st_size / (1024 * 1024)
         await service.save_file_record(
             db=db,
             filename=file_path.name,
-            file_path=file_path.name,  # ⚠️ 只存储文件名，便于跨机器迁移
+            file_path=file_path.name,  # 只存储文件名，便于跨机器迁移
             filesize_mb=round(filesize_mb, 2),
             note=None,
-            group_name=None
+            group_name=None,
         )
         added += 1
+        existing_paths.add(file_path.name)
 
     return Response(
         success=True,
         message="同步完成",
         data={
             "scanned": scanned,
-            "added": added
+            "added": added,
+            "dedup_deleted": dedup_deleted,
+            "normalized_paths": normalized_paths,
         }
     )
 
@@ -564,7 +621,7 @@ async def get_file_stats(
 
 
 @router.post(
-    "/sync",
+    "/sync/legacy",
     response_model=Response,
     summary="同步磁盘文件",
     description="""

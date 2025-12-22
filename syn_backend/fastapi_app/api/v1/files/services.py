@@ -260,10 +260,46 @@ class FileService:
 
     def _probe_duration_seconds(self, file_path: str) -> Optional[float]:
         """Compatibility wrapper; prefer `_probe_video_metadata` for full info."""
-        return probe_video_metadata(file_path).get("duration")
+        resolved = self._resolve_video_path(file_path)
+        if not resolved:
+            return None
+        return probe_video_metadata(resolved).get("duration")
 
     def _probe_video_metadata(self, file_path: str) -> dict:
-        return probe_video_metadata(file_path)
+        resolved = self._resolve_video_path(file_path)
+        if not resolved:
+            return {}
+        return probe_video_metadata(resolved)
+
+    def _resolve_video_path(self, file_path: str | None) -> Optional[str]:
+        if not file_path:
+            return None
+
+        raw = str(file_path).strip()
+        if not raw:
+            return None
+
+        try:
+            resolved = resolve_video_file(raw)
+            if resolved and Path(resolved).exists():
+                return resolved
+        except Exception:
+            pass
+
+        try:
+            candidate = self.video_dir / Path(raw).name
+            if candidate.exists():
+                return str(candidate)
+        except Exception:
+            pass
+
+        try:
+            if Path(raw).exists():
+                return raw
+        except Exception:
+            pass
+
+        return None
 
     def _ensure_file_record_columns_mysql(self, conn) -> None:
         """
@@ -449,17 +485,18 @@ class FileService:
 
             # Best-effort 修复缺失/异常的 filesize、duration（避免前端出现 NaN / 不显示时长）
             try:
-                file_path = row_dict.get("file_path")
-                if file_path and isinstance(file_path, str) and Path(file_path).exists():
+                stored_path = row_dict.get("file_path")
+                resolved_path = self._resolve_video_path(stored_path) if isinstance(stored_path, str) else None
+                if resolved_path and Path(resolved_path).exists():
                     filesize = row_dict.get("filesize")
                     if not isinstance(filesize, (int, float)) or (isinstance(filesize, float) and (math.isnan(filesize) or not math.isfinite(filesize))) or filesize <= 0:
-                        corrected = Path(file_path).stat().st_size / (1024 * 1024)
+                        corrected = Path(resolved_path).stat().st_size / (1024 * 1024)
                         row_dict["filesize"] = corrected
                         cursor.execute("UPDATE file_records SET filesize = ? WHERE id = ?", (corrected, row_dict["id"]))
                         db.commit()
 
                     if row_dict.get("duration") is None:
-                        meta = self._probe_video_metadata(file_path)
+                        meta = self._probe_video_metadata(resolved_path)
                         duration = meta.get("duration")
                         if duration:
                             row_dict["duration"] = duration
@@ -467,7 +504,7 @@ class FileService:
                             db.commit()
 
                     if row_dict.get("video_width") is None or row_dict.get("video_height") is None:
-                        meta = self._probe_video_metadata(file_path)
+                        meta = self._probe_video_metadata(resolved_path)
                         w, h = meta.get("width"), meta.get("height")
                         ar, ori = meta.get("aspect_ratio"), meta.get("orientation")
                         if w and h:

@@ -234,29 +234,100 @@ export function MaterialEditorContent({
 	            if (field === 'title') {
 	                const userInput = editForm.title?.trim()
 	                if (userInput) {
-	                    // 用户已填写内容，使用其作为基础进行润色
-	                    prompt = `请基于「文件名」与「原标题」优化视频标题，使其更吸引人、更符合短视频平台特点。\n\n要求：\n- 只输出标题本身，不要解释\n- 标题不超过 30 字\n- 如原标题/文件名包含英文词，请翻译为中文（专有名词可保留原文并加中文释义）\n- 保留原标题核心含义，不要完全重写\n\n文件名：${filename}\n原标题：${userInput}`
+	                    // 用户已填写内容，必须深度二创重构
+	                    prompt = `你是专业的短视频标题二创专家。请对用户输入的标题进行深度重构改写。
+
+⚠️ 严禁行为：
+- ❌ 严禁直接复制或仅改动1-2个字
+- ❌ 严禁使用表情符号
+- ❌ 严禁使用引号包裹
+- ❌ 禁止营销敏感词：领取、金币、福利、礼包、首充
+
+✅ 二创要求：
+- 必须用完全不同的句式和视角重新表达
+- 提炼核心亮点，加入悬念、惊喜、好奇等情感元素
+- 长度控制在10-27字之间
+- 符合短视频平台调性
+
+文件名参考：${filename}
+用户输入标题：${userInput}
+
+只输出二创后的标题，不要任何解释。`
 	                } else {
 	                    // 用户未填写，根据文件名生成
-	                    prompt = `请根据文件名生成一个短视频标题。\n\n要求：\n- 只输出标题本身，不要解释\n- 标题不超过 30 字\n- 如果包含英文词，请翻译为中文（专有名词可保留原文并加中文释义）\n\n文件名：${filename}\n文件名(去扩展)：${baseName}`
+	                    prompt = `你是专业的短视频标题创作专家。请根据文件名生成吸引人的标题。
+
+要求：
+- 提炼文件名中的核心亮点
+- 加入悬念或情感元素
+- 长度10-27字
+- 不使用表情符号和引号
+- 如有英文请翻译（专有名词可保留）
+
+文件名：${filename}
+
+只输出标题，不要解释。`
 	                }
 	            } else if (field === 'desc') {
                 const userInput = editForm.description?.trim()
                 if (userInput) {
-                    // 用户已填写内容，使用其作为基础进行润色
-                    prompt = `请根据以下用户提供的要求或草稿，生成一段专业、吸引人的短视频描述文案。要求：\n1. 严格遵循用户的要求和意图\n2. 适合抖音等短视频平台\n3. 不要添加表情符号\n4. 只返回文案内容，不要其他说明\n\n用户要求/草稿：\n${userInput}`
+                    // 用户已填写内容，必须深度二创
+                    prompt = `你是专业的短视频文案二创大师。请将用户的描述改写成引人入胜的文案。
+
+⚠️ 严禁行为：
+- ❌ 严禁照抄用户输入
+- ❌ 严禁仅改动几个字
+- ❌ 严禁使用Emoji
+- ❌ 禁止营销词：领取、金币、福利、礼包、首充
+
+✅ 二创要求：
+- 将内容改写成故事化、场景化表达
+- 用疑问、惊叹、悬念引发好奇心
+- 结构：开头抓眼球 → 中间展开 → 结尾引导互动
+- 标点规范，不要空格分隔
+
+用户描述：
+${userInput}
+
+只返回文案，不要其他说明。`
                 } else {
                     // 用户未填写，根据文件名生成
-                    prompt = `为视频"${filename}"生成一段吸引人的描述文案，包含2-3个相关话题标签，适合抖音等短视频平台。只返回文案内容。`
+                    prompt = `为视频"${filename}"生成吸引人的描述文案，要求故事化表达，2-3个话题标签，适合抖音等短视频平台。不要表情符号。`
                 }
 	            } else if (field === 'tags') {
 	                const userInput = editForm.tags?.trim()
 	                if (userInput) {
-	                    // 用户已填写内容，使用其作为基础进行优化
-	                    prompt = `请基于「文件名」与「现有标签/关键词」生成更规范的短视频标签。\n\n要求：\n- 输出 1-4 个标签\n- 标签之间用空格分隔\n- 标签不要带 #（系统会自动加 #）\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n- 保留原有标签核心意图，不要偏题\n\n文件名：${filename}\n现有标签/关键词：${userInput}`
+	                    // 用户已填写内容，必须深度提炼扩展
+	                    prompt = `你是话题标签二创专家。请从用户输入中提炼精准且有流量的标签。
+
+⚠️ 严禁行为：
+- ❌ 严禁直接照搬用户标签
+- ❌ 严禁只改个别字
+- ❌ 严禁使用Emoji
+- ❌ 禁止营销词：领取、金币、福利、礼包、首充
+
+✅ 二创要求：
+- 从用户输入提炼核心主题
+- 扩展为精准的长尾关键词
+- 游戏相关时包含：芒果斗地主、开运麻将、乐鸿捕鱼
+- 输出1-4个标签，空格分隔，不带#
+
+文件名：${filename}
+用户输入标签：${userInput}
+
+只输出标签列表（空格分隔，不带#），不要解释。`
 	                } else {
 	                    // 用户未填写，根据文件名生成
-	                    prompt = `请根据文件名生成短视频标签。\n\n要求：\n- 输出 1-4 个标签\n- 标签之间用空格分隔\n- 标签不要带 #（系统会自动加 #）\n- 如包含英文词请翻译为中文（专有名词可保留原文并加中文释义）\n\n文件名：${filename}\n文件名(去扩展)：${baseName}`
+	                    prompt = `请根据文件名生成短视频标签。
+
+要求：
+- 输出1-4个标签，空格分隔
+- 不带#（系统会自动加）
+- 如有英文请翻译（专有名词可保留）
+
+文件名：${filename}
+
+只输出标签，不要解释。`
 	                }
 	            }
 
@@ -364,6 +435,14 @@ export function MaterialEditorContent({
 
     return (
         <div className={cn("flex flex-col h-full", className)}>
+            {!hideFooter && (
+                <div className="px-6 py-4 border-b border-white/10 bg-[#0A0A0A] flex justify-end">
+                    <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (mode === 'create' ? "确认发布" : "保存更改")}
+                    </Button>
+                </div>
+            )}
+
             <ScrollArea className="flex-1 px-6 py-6">
                 <div className="space-y-8 pb-10">
 
@@ -385,13 +464,13 @@ export function MaterialEditorContent({
 	                                    value={editForm.filename}
 	                                    onChange={e => setEditForm(prev => ({ ...prev, filename: e.target.value }))}
 	                                    className="bg-white/5 border-white/10"
-	                                    placeholder="例如：我的素材.mp4"
+	                                    placeholder=""
 	                                />
 	                            </div>
 
 	                            <div className="grid gap-2">
 	                                <div className="flex justify-between items-center">
-	                                    <Label>视频标题</Label>
+	                                    <Label>标题</Label>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -407,13 +486,13 @@ export function MaterialEditorContent({
                                     value={editForm.title}
                                     onChange={e => setEditForm(prev => ({ ...prev, title: e.target.value }))}
                                     className="bg-white/5 border-white/10 font-medium"
-                                    placeholder="输入吸引人的标题..."
+                                    placeholder="输入想要的标题"
                                 />
                             </div>
 
-                            <div className="grid gap-2">
+                            {/* <div className="grid gap-2">
                                 <div className="flex justify-between items-center">
-                                    <Label>描述 / 脚本</Label>
+                                    <Label>描述</Label>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -431,11 +510,11 @@ export function MaterialEditorContent({
                                     className="bg-white/5 border-white/10 min-h-[100px]"
                                     placeholder="输入视频描述或脚本..."
                                 />
-                            </div>
+                            </div> */}
 
                             <div className="grid gap-2">
                                 <div className="flex justify-between items-center">
-                                    <Label>标签 (Tags)</Label>
+                                    <Label>标签</Label>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -451,7 +530,7 @@ export function MaterialEditorContent({
                                     value={editForm.tags}
                                     onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
                                     className="bg-white/5 border-white/10"
-                                    placeholder="vlog, 生活, 分享 (用逗号分隔)"
+                                    placeholder="输入想要的标签"
                                 />
                             </div>
 
@@ -611,23 +690,13 @@ export function MaterialEditorContent({
                                         setReferenceImage(file)
                                     }}
                                 />
-                            </div>
-                            <p className="text-xs text-white/40 leading-relaxed">
-                                * 封面将作为独立图片文件保存，并在发布时作为 `thumbnail_path` 上传（不覆盖视频预览/不改原视频）。
-                            </p>
+                            </div>                           
                         </div>
                     </div>
 
                 </div>
             </ScrollArea>
 
-            {!hideFooter && (
-                <div className="px-6 py-4 border-t border-white/10 bg-[#0A0A0A] flex justify-end">
-                    <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (mode === 'create' ? "确认发布" : "保存更改")}
-                    </Button>
-                </div>
-            )}
         </div>
     )
 }
