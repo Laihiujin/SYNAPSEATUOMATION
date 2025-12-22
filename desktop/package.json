@@ -1,0 +1,36 @@
+{
+  "name": "synapseautomation-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Electron shell to start/stop SynapseAutomation backend + worker",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron": "^33.2.1"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.synapseautomation.desktop",
+    "productName": "SynapseAutomation",
+    "files": [
+      "src/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}
+

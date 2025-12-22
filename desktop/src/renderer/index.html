@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SynapseAutomation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0b;
+        --panel: #111111;
+        --border: rgba(255, 255, 255, 0.12);
+        --muted: rgba(255, 255, 255, 0.65);
+        --text: rgba(255, 255, 255, 0.92);
+        --accent: #19c37d;
+        --danger: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        color: var(--text);
+      }
+      .wrap { padding: 18px; display: grid; grid-template-rows: auto auto 1fr; gap: 14px; height: 100vh; }
+      .title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .title h1 { margin: 0; font-size: 16px; letter-spacing: .2px; }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .row { display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+      label { font-size: 12px; color: var(--muted); }
+      input {
+        width: 100%;
+        padding: 9px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        outline: none;
+      }
+      input:focus { border-color: rgba(25, 195, 125, 0.6); box-shadow: 0 0 0 3px rgba(25, 195, 125, 0.12); }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        padding: 9px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      button.primary { border-color: rgba(25, 195, 125, 0.45); background: rgba(25, 195, 125, 0.14); }
+      button.danger { border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.12); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .log {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        overflow: auto;
+        height: 100%;
+      }
+      .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .chip {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 5px 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .chip.ok { border-color: rgba(25, 195, 125, 0.45); color: rgba(25, 195, 125, 0.9); }
+      .chip.bad { border-color: rgba(239, 68, 68, 0.55); color: rgba(239, 68, 68, 0.95); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="title">
+        <h1>SynapseAutomation 桌面控制台</h1>
+        <div class="actions">
+          <button id="open-ui">打开 Web UI</button>
+          <button id="open-docs">打开 API Docs</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <label for="projectRoot">Project Root</label>
+          <input id="projectRoot" placeholder="例如：E:\\SynapseAutomation" />
+        </div>
+        <div class="row">
+          <label for="pythonCmd">Python</label>
+          <input id="pythonCmd" placeholder="python 或 python.exe 的绝对路径" />
+        </div>
+        <div class="actions">
+          <button class="primary" id="start-all">一键启动（Worker + Backend）</button>
+          <button class="danger" id="stop-worker">停止 Worker</button>
+          <button class="danger" id="stop-backend">停止 Backend</button>
+        </div>
+        <div class="chips" style="margin-top: 10px;">
+          <span class="chip" id="chip-worker">Worker: unknown</span>
+          <span class="chip" id="chip-backend">Backend: unknown</span>
+        </div>
+      </div>
+
+      <div class="panel" style="min-height: 0;">
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
+

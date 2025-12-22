@@ -54,8 +54,13 @@ async def cookie_auth(account_file):
 
         try:
             # 访问指定的 URL
-            await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=30000)
-            await page.wait_for_load_state("networkidle", timeout=15000)
+            page.set_default_timeout(30000)
+            page.set_default_navigation_timeout(45000)
+            await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=45000, wait_until="domcontentloaded")
+            try:
+                await page.wait_for_selector("div.upload-content, input[type='file'], div.input-editor", timeout=30000)
+            except Exception:
+                pass
 
             # 检查是否有登录相关的元素（说明cookie失效）
             login_indicators = [
@@ -218,10 +223,16 @@ class TencentVideo(object):
         page = await context.new_page()
         # 访问指定的 URL
         tencent_logger.info(f'[+]正在访问发布页面...')
-        await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=60000)
+        page.set_default_timeout(60000)
+        page.set_default_navigation_timeout(90000)
+        await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=90000, wait_until="domcontentloaded")
 
         # 等待页面加载
-        await page.wait_for_load_state("networkidle", timeout=15000)
+        # networkidle 在该站点经常不稳定/永不触发；改为等待关键 DOM 就绪
+        try:
+            await page.wait_for_selector("div.upload-content, input[type='file'], div.input-editor", timeout=60000)
+        except Exception:
+            pass
         try:
             await try_close_guide(page, "channels")
         except Exception:
@@ -248,18 +259,31 @@ class TencentVideo(object):
             'input[id*="file"]',  # id包含file
         ]
 
-        file_input = None
-        for selector in file_input_selectors:
-            try:
-                locator = page.locator(selector)
-                count = await locator.count()
-                if count > 0:
-                    file_input = locator.first
-                    tencent_logger.info(f'[+]找到文件上传元素: {selector} (共{count}个)')
-                    break
-            except Exception as e:
-                tencent_logger.debug(f'选择器 {selector} 失败: {e}')
-                continue
+        scopes = [("page", page)]
+        try:
+            for idx, frame in enumerate(page.frames):
+                if frame == page.main_frame:
+                    continue
+                scopes.append((f"frame[{idx}]", frame))
+        except Exception:
+            pass
+
+        async def _find_file_input():
+            for selector in file_input_selectors:
+                for scope_name, scope in scopes:
+                    try:
+                        locator = scope.locator(selector)
+                        count = await locator.count()
+                        if count > 0:
+                            return locator.first, scope_name, selector, count
+                    except Exception as e:
+                        tencent_logger.debug(f'选择器 {selector} @ {scope_name} 失败: {e}')
+                        continue
+            return None, None, None, 0
+
+        file_input, scope_name, matched_selector, count = await _find_file_input()
+        if file_input:
+            tencent_logger.info(f'[+]找到文件上传元素({scope_name}): {matched_selector} (共{count}个)')
 
         if not file_input:
             tencent_logger.warning('[+]未找到隐藏的文件上传input，尝试点击上传按钮触发')
@@ -282,29 +306,28 @@ class TencentVideo(object):
 
             button_clicked = False
             for btn_selector in upload_button_selectors:
-                try:
-                    btn = page.locator(btn_selector)
-                    if await btn.count() > 0:
-                        tencent_logger.info(f'[+]尝试点击上传按钮: {btn_selector}')
-                        await btn.first.click()
-                        await page.wait_for_timeout(1000)  # 等待1秒
-
-                        # 点击后重新查找file input
-                        for selector in file_input_selectors:
-                            try:
-                                locator = page.locator(selector)
-                                if await locator.count() > 0:
-                                    file_input = locator.first
-                                    tencent_logger.success(f'[+]点击按钮后找到文件上传元素: {selector}')
-                                    button_clicked = True
-                                    break
-                            except:
-                                continue
-                        if button_clicked:
+                clicked = False
+                for click_scope_name, click_scope in scopes:
+                    try:
+                        btn = click_scope.locator(btn_selector)
+                        if await btn.count() > 0:
+                            tencent_logger.info(f'[+]尝试点击上传按钮({click_scope_name}): {btn_selector}')
+                            await btn.first.click()
+                            clicked = True
                             break
-                except Exception as e:
-                    tencent_logger.debug(f'点击按钮 {btn_selector} 失败: {e}')
+                    except Exception as e:
+                        tencent_logger.debug(f'点击按钮 {btn_selector} @ {click_scope_name} 失败: {e}')
+                        continue
+
+                if not clicked:
                     continue
+
+                await page.wait_for_timeout(1000)  # 等待1秒
+                file_input, scope_name, matched_selector, _count = await _find_file_input()
+                if file_input:
+                    tencent_logger.success(f'[+]点击按钮后找到文件上传元素({scope_name}): {matched_selector}')
+                    button_clicked = True
+                    break
 
             if not file_input:
                 tencent_logger.error('[+]未找到文件上传元素，进行截图和HTML调试')
@@ -373,7 +396,7 @@ class TencentVideo(object):
                 publish_buttion = page.locator('div.form-btns button:has-text("发表")')
                 if await publish_buttion.count():
                     await publish_buttion.click()
-                await page.wait_for_url("https://channels.weixin.qq.com/platform/post/list", timeout=5000)
+                await page.wait_for_url("https://channels.weixin.qq.com/platform/post/list", timeout=60000)
                 tencent_logger.success("  [-]视频发布成功")
                 break
             except Exception as e:

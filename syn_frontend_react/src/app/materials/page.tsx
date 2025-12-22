@@ -653,15 +653,13 @@ function MaterialsPageContent() {
                 上传素材
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl h-[90vh] max-h-[800px] border-white/10 bg-[#0A0A0A] text-white flex flex-col">
+            <DialogContent className="max-w-2xl h-[90vh] max-h-[800px] border-white/10 bg-black text-white flex flex-col">
               <DialogHeader>
                 <DialogTitle>上传素材</DialogTitle>
                 <DialogDescription>支持批量上传视频文件，自动提取元数据。</DialogDescription>
               </DialogHeader>
               <div className="flex-1 overflow-y-auto py-4 space-y-6">
-                <div className="border border-dashed border-white/10 bg-white/5 rounded-xl p-1">
-                  <FileUpload onChange={setFilesToUpload} />
-                </div>
+                <FileUpload onChange={setFilesToUpload} />
                 {/* Simplified upload form fields for brevity - functional logic is in handleUpload */}
                 <div className="grid gap-4">
                   <div className="grid gap-2">
