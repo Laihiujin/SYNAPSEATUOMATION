@@ -2,7 +2,10 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import asyncio
+import json
 import os
+import re
+import yaml
 from fastapi.responses import StreamingResponse
 from fastapi_app.core.config import settings
 from fastapi_app.db.runtime import mysql_enabled, sa_connection
@@ -108,6 +111,145 @@ def get_ai_config(service_type: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"读取AI配置失败: {e}")
         return None
+
+
+_PROMPTS_CACHE: Dict[str, Any] = {"mtime": None, "data": None}
+
+
+def _load_ai_prompts_config() -> Dict[str, Any]:
+    config_path = settings.BASE_DIR / "config" / "ai_prompts.yaml"
+    if not config_path.exists():
+        return {}
+    try:
+        mtime = config_path.stat().st_mtime
+        cached = _PROMPTS_CACHE.get("data")
+        if cached is not None and _PROMPTS_CACHE.get("mtime") == mtime:
+            return cached
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        _PROMPTS_CACHE["data"] = data
+        _PROMPTS_CACHE["mtime"] = mtime
+        return data
+    except Exception as e:
+        print(f"[AI Router] Failed to load prompts config: {e}")
+        return {}
+
+
+def _extract_user_text(messages: List[Dict[str, Any]], fallback: Optional[str]) -> str:
+    if fallback:
+        text = str(fallback).strip()
+        if text:
+            return text
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            content = msg.get("content")
+            if content:
+                return str(content)
+    return ""
+
+
+def _safe_regex_search(pattern: str, text: str) -> bool:
+    try:
+        return re.search(pattern, text, re.I) is not None
+    except re.error:
+        return False
+
+
+def _match_any_regex(patterns: List[str], text: str) -> bool:
+    for pattern in patterns:
+        if pattern and _safe_regex_search(pattern, text):
+            return True
+    return False
+
+
+def _resolve_intent_hard_rules(user_text: str, routing_config: Dict[str, Any]) -> Optional[str]:
+    hard_rules = routing_config.get("hard_rules") or {}
+    intent_by_regex = hard_rules.get("intent_by_regex") or []
+    anti_generate_regex = hard_rules.get("anti_generate_regex") or []
+
+    generate_regexes = []
+    for rule in intent_by_regex:
+        intent = (rule.get("intent") or "").strip()
+        regex = rule.get("regex")
+        if intent.startswith("generate_") and regex:
+            generate_regexes.append(regex)
+
+    if _match_any_regex(anti_generate_regex, user_text) and not _match_any_regex(generate_regexes, user_text):
+        return "chat"
+
+    for rule in intent_by_regex:
+        regex = rule.get("regex")
+        if regex and _safe_regex_search(regex, user_text):
+            intent = rule.get("intent")
+            if intent:
+                return intent
+    return None
+
+
+def _parse_intent_json(content: str) -> Optional[Dict[str, Any]]:
+    if not content:
+        return None
+    try:
+        return json.loads(content)
+    except Exception:
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            try:
+                return json.loads(content[start : end + 1])
+            except Exception:
+                return None
+    return None
+
+
+async def _resolve_intent_by_llm(
+    client,
+    model_name: str,
+    routing_prompt: str,
+    user_text: str,
+    allowed_intents: set,
+    default_intent: str,
+) -> str:
+    if not routing_prompt or not user_text:
+        return default_intent
+    response = await client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {"role": "system", "content": routing_prompt},
+            {"role": "user", "content": user_text},
+        ],
+        stream=False,
+        temperature=0,
+        max_tokens=200,
+    )
+    content = response.choices[0].message.content or ""
+    data = _parse_intent_json(content)
+    intent = (data or {}).get("intent")
+    if intent in allowed_intents:
+        return intent
+    return default_intent
+
+
+def _get_system_prompt_for_intent(config: Dict[str, Any], intent: str) -> str:
+    key_map = {
+        "chat": "chat_assistant",
+        "generate_title": "title_generation",
+        "generate_description": "description_generation",
+        "generate_tags": "tags_generation",
+        "generate_cover": "cover_generation",
+        "troubleshoot": "chat_assistant",
+        "plan": "chat_assistant",
+    }
+    section_key = key_map.get(intent, "chat_assistant")
+    section = config.get(section_key, {}) if isinstance(config, dict) else {}
+    return section.get("system_prompt", "")
+
+
+def _apply_system_prompt(messages: List[Dict[str, Any]], system_prompt: str) -> List[Dict[str, Any]]:
+    if not system_prompt:
+        return messages
+    cleaned = [msg for msg in messages if msg.get("role") != "system"]
+    return [{"role": "system", "content": system_prompt}] + cleaned
 
 
 class ChatRequest(BaseModel):
@@ -223,6 +365,7 @@ async def chat(request: ChatRequest):
             api_key=config['api_key'],
             base_url=config.get('base_url', 'https://api.siliconflow.cn/v1')
         )
+        model_name = config.get('model_name', 'deepseek-ai/DeepSeek-V3')
 
         # 构建消息列表
         messages = []
@@ -237,11 +380,42 @@ async def chat(request: ChatRequest):
         if not messages:
             raise HTTPException(status_code=400, detail="Message content is required")
 
+        prompts_config = _load_ai_prompts_config()
+        routing_config = prompts_config.get("routing", {}) if prompts_config else {}
+        hard_rules = routing_config.get("hard_rules") or {}
+        default_intent = hard_rules.get("default_intent", "chat")
+        user_text = _extract_user_text(messages, request.message)
+
+        intent = None
+        if user_text:
+            intent = _resolve_intent_hard_rules(user_text, routing_config)
+
+        if not intent:
+            intent_by_regex = hard_rules.get("intent_by_regex") or []
+            allowed_intents = {rule.get("intent") for rule in intent_by_regex if rule.get("intent")}
+            allowed_intents.add(default_intent)
+            allowed_intents.add("chat")
+            routing_prompt = routing_config.get("intent_router_prompt", "")
+            intent = await _resolve_intent_by_llm(
+                client,
+                model_name,
+                routing_prompt,
+                user_text,
+                allowed_intents,
+                default_intent,
+            )
+
+        if not intent:
+            intent = default_intent
+
+        system_prompt = _get_system_prompt_for_intent(prompts_config, intent)
+        messages = _apply_system_prompt(messages, system_prompt)
+
         # 调用模型
         if not request.stream:
             # 非流式响应
             response = await client.chat.completions.create(
-                model=config.get('model_name', 'deepseek-ai/DeepSeek-V3'),
+                model=model_name,
                 messages=messages,
                 stream=False
             )
@@ -256,7 +430,7 @@ async def chat(request: ChatRequest):
             async def generate():
                 try:
                     stream = await client.chat.completions.create(
-                        model=config.get('model_name', 'deepseek-ai/DeepSeek-V3'),
+                        model=model_name,
                         messages=messages,
                         stream=True
                     )

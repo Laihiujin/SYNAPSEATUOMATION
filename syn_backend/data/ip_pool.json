@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "id": "560ae612-b2aa-498b-a033-7684a2a1daa2",
+    "ip": "127.0.0.1",
+    "port": 0,
+    "protocol": "direct",
+    "username": "",
+    "password": "",
+    "ip_type": "residential",
+    "status": "available",
+    "bound_account_ids": [],
+    "max_bindings": 15,
+    "country": "CN",
+    "region": null,
+    "city": null,
+    "isp": null,
+    "success_count": 0,
+    "fail_count": 0,
+    "total_used": 0,
+    "last_used_at": null,
+    "last_check_at": "2025-12-22T18:35:42.108351",
+    "created_at": "2025-12-22T18:35:39.031470",
+    "updated_at": "2025-12-22T18:35:42.109386",
+    "note": null,
+    "provider": null
+  }
+]

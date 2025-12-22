@@ -1,5 +1,16 @@
+const normalizeDateInput = (value: Date | string | number): Date => {
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)
+    if (trimmed.includes("T") && !hasTimezone) {
+      return new Date(`${trimmed}Z`)
+    }
+  }
+  return new Date(value)
+}
+
 export function formatBeijingDateTime(date: Date | string | number = new Date()): string {
-  const d = new Date(date)
+  const d = normalizeDateInput(date)
   return d.toLocaleString("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",

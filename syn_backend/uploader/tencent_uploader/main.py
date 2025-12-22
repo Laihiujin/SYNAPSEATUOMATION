@@ -54,46 +54,51 @@ async def cookie_auth(account_file):
 
         try:
             # 访问指定的 URL
-            page.set_default_timeout(30000)
-            page.set_default_navigation_timeout(45000)
-            await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=45000, wait_until="domcontentloaded")
+            page.set_default_timeout(20000)
+            page.set_default_navigation_timeout(30000)
+            await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=30000, wait_until="domcontentloaded")
+            
+            # 2025 Fix: 使用与 upload() 中一致的逻辑
+            # 优先看是否有上传入口（attached 即可）
             try:
-                await page.wait_for_selector("div.upload-content, input[type='file'], div.input-editor", timeout=30000)
-            except Exception:
+                # 给一点点时间等待 DOM 渲染
+                await page.wait_for_selector("input[type='file'], span.ant-upload", state="attached", timeout=5000)
+            except:
                 pass
 
-            # 检查是否有登录相关的元素（说明cookie失效）
+            # 检查是否有发布页面的关键元素（只要有上传入口，就说明登录成功）
+            # input[type="file"] 即使隐藏也算有效
+            if await page.locator('input[type="file"]').count() > 0 or await page.locator('.input-editor').count() > 0:
+                tencent_logger.success("[+] 检测到上传入口/编辑框，Cookie有效")
+                await context.close()
+                await browser.close()
+                return True
+
+            # 检查是否有登录相关的特有元素（说明确实在登录页）
             login_indicators = [
                 'div.login-container',
-                'button:has-text("登录")',
-                'text=扫码登录',
-                'text=请先登录',
-                'canvas',  # 登录二维码
+                '.login-qrcode',
+                'div:has-text("请扫码登录")',
+                'canvas',  # 登录二维码通常是 canvas
             ]
 
             for indicator in login_indicators:
                 if await page.locator(indicator).count() > 0:
-                    tencent_logger.error("[+] 检测到登录页面，cookie已失效")
+                    tencent_logger.error("[+] 检测到登录页面特有元素，cookie已失效")
                     await context.close()
                     await browser.close()
                     return False
 
-            # 检查是否有发布页面的关键元素（说明cookie有效）
-            publish_indicators = [
-                'input[type="file"]',  # 上传文件按钮
-                'div.input-editor',     # 标题输入框
-                'button:has-text("发表")',  # 发表按钮
-            ]
+            # 如果检测到 "登录" 文本，但也可能在首页顶部，所以我们要更谨慎
+            # 只有在没有发现任何发布页元素的情况下，看到这类文本才认为失效
+            if await page.locator('button:has-text("登录"), text=请先登录').count() > 0:
+                 tencent_logger.warning("[+] 检测到登录引导文本且无发布元素，cookie可能失效")
+                 await context.close()
+                 await browser.close()
+                 return False
 
-            for indicator in publish_indicators:
-                if await page.locator(indicator).count() > 0:
-                    tencent_logger.success("[+] cookie 有效")
-                    await context.close()
-                    await browser.close()
-                    return True
-
-            # 如果既没有登录页面也没有发布页面的元素，认为cookie失效
-            tencent_logger.warning("[+] 未检测到预期页面元素，cookie可能失效")
+            # 兜底：如果啥都没看到
+            tencent_logger.warning("[+] 未检测到预期页面元素，保守判断为失效")
             await context.close()
             await browser.close()
             return False
@@ -223,40 +228,64 @@ class TencentVideo(object):
         page = await context.new_page()
         # 访问指定的 URL
         tencent_logger.info(f'[+]正在访问发布页面...')
-        page.set_default_timeout(60000)
-        page.set_default_navigation_timeout(90000)
-        await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=90000, wait_until="domcontentloaded")
+        page.set_default_timeout(10000)
+        page.set_default_navigation_timeout(45000)
+        await page.goto("https://channels.weixin.qq.com/platform/post/create", timeout=45000, wait_until="domcontentloaded")
 
         # 等待页面加载
         # networkidle 在该站点经常不稳定/永不触发；改为等待关键 DOM 就绪
         try:
-            await page.wait_for_selector("div.upload-content, input[type='file'], div.input-editor", timeout=60000)
-        except Exception:
+            tencent_logger.info('[+]等待关键 DOM 元素...')
+            # 2025 Fix: input[type='file'] is hidden, so we must wait for state='attached' OR wait for the visible container
+            try:
+                # Wait for visible elements first
+                await page.wait_for_selector("span.ant-upload, div.upload-content, button.weui-desktop-btn_primary", timeout=3000)
+            except:
+                # Fallback: check if hidden input is attached (but not necessarily visible)
+                await page.wait_for_selector("input[type='file']", state="attached", timeout=10000)
+                
+            tencent_logger.success('[+]页面加载完成 (DOM Ready)')
+        except Exception as e:
+            tencent_logger.error(f'[-]页面加载超时或元素未找到: {e}')
             pass
+            
+        # 调试：打印当前页面标题和URL
+        title = await page.title()
+        tencent_logger.info(f'[+]页面标题: {title}, URL: {page.url}')
         try:
             await try_close_guide(page, "channels")
         except Exception:
             pass
 
         # 检查是否需要登录（cookie可能已过期）
-        if "login" in page.url.lower() or await page.locator('text=登录').count() > 0:
-            tencent_logger.error("[+] 检测到需要登录，cookie可能已过期")
-            await page.screenshot(path='logs/channels_need_login.png', full_page=True)
-            raise Exception("Cookie已过期，需要重新登录")
+        # 2025 Fix: "登录" text might appear in header even when logged in.
+        should_check_login = True
+        
+        # Determine if we strongly believe we are logged in (upload input found)
+        upload_input_found = await page.locator("input[type='file']").count() > 0
+        
+        if upload_input_found:
+             tencent_logger.success("[+] 检测到上传入口，Cookie有效 (Skipping strict login check)")
+             should_check_login = False
+        
+        if should_check_login:
+             is_login_url = "login" in page.url.lower()
+             login_text_exists = await page.locator('.login-container, .login-qrcode, div:has-text("请扫码登录")').count() > 0
+             
+             if is_login_url or login_text_exists:
+                 tencent_logger.error("[+] 检测到需要登录，cookie可能已过期")
+                 await page.screenshot(path='logs/channels_need_login.png', full_page=True)
+                 raise Exception("Cookie已过期，需要重新登录")
 
         tencent_logger.info(f'[+]正在上传-------{self.title}.mp4')
 
-        # 尝试多个文件上传选择器（更新为2024年最新选择器）
+        # 尝试多个文件上传选择器（更新为2025年最新选择器）
         file_input_selectors = [
-            'input[type="file"]',  # 最通用的选择器
-            'input[accept*="video"]',  # 接受视频的input
-            'input[accept*=".mp4"]',  # 接受mp4的input
-            'input[name="file"]',  # name属性为file
-            '.upload-area input[type="file"]',  # 上传区域内的file input
-            '.file-upload input',  # 文件上传区域
-            '[data-testid="file-input"]',  # data-testid属性
-            'input[id*="upload"]',  # id包含upload
-            'input[id*="file"]',  # id包含file
+            'input[type="file"]',  # universal file input (most reliable)
+            'div.ant-upload input[type="file"]',
+            'span.ant-upload input[type="file"]',
+            'input[accept*="video"]',
+            'input[name="file"]',
         ]
 
         scopes = [("page", page)]
@@ -393,12 +422,35 @@ class TencentVideo(object):
     async def click_publish(self, page):
         while True:
             try:
-                publish_buttion = page.locator('div.form-btns button:has-text("发表")')
-                if await publish_buttion.count():
-                    await publish_buttion.click()
-                await page.wait_for_url("https://channels.weixin.qq.com/platform/post/list", timeout=60000)
-                tencent_logger.success("  [-]视频发布成功")
-                break
+                # 2025修正：优先使用 primary class 按钮
+                publish_button = page.locator('button.weui-desktop-btn_primary:has-text("发表")')
+                if await publish_button.count() == 0:
+                    # Fallback
+                    publish_button = page.locator('div.form-btns button:has-text("发表")')
+                
+                if await publish_button.count():
+                    await publish_button.dispatch_event('click') # 有时候click()会被拦截，尝试dispatch click
+                    try:
+                        await publish_button.click(timeout=1000)
+                    except:
+                        pass
+                
+                # 检查是否出现成功跳转或列表页
+                try:
+                    await page.wait_for_url("**/platform/post/list", timeout=3000)
+                    tencent_logger.success("  [-]视频发布成功")
+                    break
+                except:
+                    pass
+                
+                # 再次检查URL
+                current_url = page.url
+                if "platform/post/list" in current_url:
+                    tencent_logger.success("  [-]视频发布成功")
+                    break
+                else:
+                    tencent_logger.info("  [-] 视频目前 URL: " + current_url)
+                    await asyncio.sleep(0.5)
             except Exception as e:
                 current_url = page.url
                 if "https://channels.weixin.qq.com/platform/post/list" in current_url:
@@ -431,7 +483,8 @@ class TencentVideo(object):
                 await asyncio.sleep(2)
 
     async def add_title_tags(self, page):
-        await page.locator("div.input-editor").click()
+        # 2025: selector updated to .input-editor
+        await page.locator(".input-editor").click()
         await page.keyboard.type(self.title)
         await page.keyboard.press("Enter")
         for index, tag in enumerate(self.tags, start=1):
@@ -447,28 +500,46 @@ class TencentVideo(object):
             await collection_elements.first.click()
 
     async def add_original(self, page):
-        if await page.get_by_label("视频为原创").count():
-            await page.get_by_label("视频为原创").check()
-        # 检查 "我已阅读并同意 《视频号原创声明使用条款》" 元素是否存在
-        label_locator = await page.locator('label:has-text("我已阅读并同意 《视频号原创声明使用条款》")').is_visible()
-        if label_locator:
-            await page.get_by_label("我已阅读并同意 《视频号原创声明使用条款》").check()
-            await page.get_by_role("button", name="声明原创").click()
-        # 2023年11月20日 wechat更新: 可能新账号或者改版账号，出现新的选择页面
-        if await page.locator('div.label span:has-text("声明原创")').count() and self.category:
-            # 因处罚无法勾选原创，故先判断是否可用
-            if not await page.locator('div.declare-original-checkbox input.ant-checkbox-input').is_disabled():
-                await page.locator('div.declare-original-checkbox input.ant-checkbox-input').click()
-                if not await page.locator(
-                        'div.declare-original-dialog label.ant-checkbox-wrapper.ant-checkbox-wrapper-checked:visible').count():
-                    await page.locator('div.declare-original-dialog input.ant-checkbox-input:visible').click()
-            if await page.locator('div.original-type-form > div.form-label:has-text("原创类型"):visible').count():
-                await page.locator('div.form-content:visible').click()  # 下拉菜单
-                await page.locator(
-                    f'div.form-content:visible ul.weui-desktop-dropdown__list li.weui-desktop-dropdown__list-ele:has-text("{self.category}")').first.click()
-                await page.wait_for_timeout(1000)
-            if await page.locator('button:has-text("声明原创"):visible').count():
-                await page.locator('button:has-text("声明原创"):visible').click()
+        # 2025修正：原创选项可能不存在（由于账号权限或UI改版），增加存在性检查
+        try:
+            # 方式1: Label check
+            if await page.get_by_label("视频为原创").is_visible():
+                await page.get_by_label("视频为原创").check()
+
+            # 方式2: 显式文本查找
+            original_checkbox = page.locator('.weui-desktop-form__check-label:has-text("视频为原创")')
+            if await original_checkbox.count() > 0:
+                # check inside input
+                checkbox_input = original_checkbox.locator('input[type="checkbox"]')
+                if await checkbox_input.count() > 0 and not await checkbox_input.is_checked():
+                     await original_checkbox.click()
+            
+            # 检查 "我已阅读并同意 《视频号原创声明使用条款》" 元素是否存在
+            terms_label = page.locator('label:has-text("我已阅读并同意 《视频号原创声明使用条款》")')
+            if await terms_label.is_visible():
+                # 勾选条款
+                checkbox = terms_label.locator('input[type="checkbox"]')
+                if not await checkbox.is_checked():
+                    await terms_label.click()
+                # 点击声明
+                declare_btn = page.get_by_role("button", name="声明原创")
+                if await declare_btn.is_visible():
+                    await declare_btn.click()
+
+            # 兼容旧版本/弹窗逻辑
+            if await page.locator('div.label span:has-text("声明原创")').count() and self.category:
+                if not await page.locator('div.declare-original-checkbox input.ant-checkbox-input').is_disabled():
+                    await page.locator('div.declare-original-checkbox input.ant-checkbox-input').click()
+                    if not await page.locator('div.declare-original-dialog label.ant-checkbox-wrapper.ant-checkbox-wrapper-checked:visible').count():
+                         await page.locator('div.declare-original-dialog input.ant-checkbox-input:visible').click()
+                if await page.locator('div.original-type-form > div.form-label:has-text("原创类型"):visible').count():
+                    await page.locator('div.form-content:visible').click()
+                    await page.locator(f'div.form-content:visible ul.weui-desktop-dropdown__list li.weui-desktop-dropdown__list-ele:has-text("{self.category}")').first.click()
+                    await page.wait_for_timeout(1000)
+                if await page.locator('button:has-text("声明原创"):visible').count():
+                    await page.locator('button:has-text("声明原创"):visible').click()
+        except Exception as e:
+            tencent_logger.warning(f"[-] 声明原创步骤出现异常(可能是非原创账号/UI变动)，跳过: {e}")
 
     async def main(self):
         async with async_playwright() as playwright:

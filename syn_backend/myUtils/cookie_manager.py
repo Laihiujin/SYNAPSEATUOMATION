@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import sys
@@ -437,7 +437,7 @@ class CookieManager:
             print(f"✅ [CookieManager] 账号状态更新为valid (UserID: {user_id})")
         else:
             status = account_details.get("status") or "valid"
-        last_checked = account_details.get("last_checked") or datetime.utcnow().isoformat()
+        last_checked = account_details.get("last_checked") or datetime.now(timezone.utc).isoformat()
         avatar = account_details.get("avatar")
         original_name = account_details.get("original_name")
         user_id = account_details.get("user_id")
@@ -533,7 +533,7 @@ class CookieManager:
         with self.lock, sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "UPDATE cookie_accounts SET status = ?, last_checked = ? WHERE account_id = ?",
-                (status, datetime.utcnow().isoformat(), account_id),
+                (status, datetime.now(timezone.utc).isoformat(), account_id),
             )
             conn.commit()
         return cursor.rowcount > 0

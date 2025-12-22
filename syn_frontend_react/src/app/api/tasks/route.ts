@@ -59,7 +59,21 @@ const fetchAccountsMap = async () => {
     const items = Array.isArray(payload?.items) ? payload.items : []
     const map = new Map<string, string>()
     items.forEach((item: any) => {
-      if (item.id) map.set(String(item.id), item.name || item.nickname || "未命名账号")
+      const rawId = item.account_id ?? item.id ?? item.accountId
+      const userId = item.user_id ?? item.userId
+      if (!rawId && !userId) return
+      const displayName =
+        item.original_name ||
+        item.name ||
+        item.nickname ||
+        item.note ||
+        `账号 ${rawId ?? userId ?? ""}`
+      if (rawId) {
+        map.set(String(rawId), String(displayName))
+      }
+      if (userId) {
+        map.set(String(userId), String(displayName))
+      }
     })
     return map
   } catch (e) {

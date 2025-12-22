@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation"
 import { PublishModeSelector, PublishMode } from "./components/PublishModeSelector"
+import { useEffect } from "react"
 
 export default function PublishLayout({
     children,
@@ -11,15 +12,17 @@ export default function PublishLayout({
     const router = useRouter()
     const pathname = usePathname()
 
-    // 确定当前激活的模式
-    const activeMode: PublishMode = pathname.includes("/matrix") ? "matrix" : "single"
+    // 如果访问 /publish 根路径，自动跳转到矩阵发布
+    useEffect(() => {
+        if (pathname === "/publish" || pathname === "/publish/") {
+            router.push("/publish/matrix")
+        }
+    }, [pathname, router])
+
+    const activeMode: PublishMode = "matrix"
 
     const handleModeChange = (mode: PublishMode) => {
-        if (mode === "matrix") {
-            router.push("/publish/matrix")
-        } else {
-            router.push("/publish/single")
-        }
+        router.push("/publish/matrix")
     }
 
     return (
@@ -34,7 +37,7 @@ export default function PublishLayout({
                     </div>
                 </div>
 
-                <div className="max-w-2xl">
+                <div className="2xl">
                     <PublishModeSelector
                         selected={activeMode}
                         onSelect={handleModeChange}

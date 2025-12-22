@@ -72,6 +72,12 @@ async def task_cancel(
         force: 是否强制取消（默认False，仅取消pending/retry任务；True时可取消running任务）
     """
     tm = _get_task_manager(request)
+    task_status = tm.get_task_status(task_id)
+    if not task_status:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    current_status = (task_status.get("status") or "").lower()
+    if current_status in ("pending", "retry"):
+        raise HTTPException(status_code=400, detail="等待中的任务不允许终止")
     ok = tm.cancel_task(task_id, force=force)
     if ok:
         return {"success": True, "message": f"任务已取消 (force={force})"}
@@ -253,50 +259,7 @@ async def clear_pending_tasks(request: Request):
     """
     清理所有待处理（pending/retry）的任务
     """
-    tm = _get_task_manager(request)
-
-    try:
-        # 直接从数据库删除，不依赖 list_tasks
-        import sqlite3
-        from pathlib import Path
-
-        db_path = tm.db_path
-        print(f"[DEBUG] 数据库路径: {db_path}")
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-
-            # 先查询有多少待处理任务
-            cursor.execute("""
-                SELECT task_id, status FROM task_queue
-                WHERE status IN ('pending', 'retry')
-            """)
-            pending_tasks = cursor.fetchall()
-            print(f"[DEBUG] 找到 {len(pending_tasks)} 个待处理任务")
-
-            for task_id, status in pending_tasks:
-                print(f"[DEBUG] 任务: {task_id}, 状态: {status}")
-
-            # 强制删除
-            cursor.execute("""
-                DELETE FROM task_queue
-                WHERE status IN ('pending', 'retry')
-            """)
-            deleted_count = cursor.rowcount
-            conn.commit()
-
-            print(f"[DEBUG] 成功删除 {deleted_count} 个任务")
-
-        return {
-            "success": True,
-            "message": f"已清理 {deleted_count} 个待处理任务",
-            "deleted_count": deleted_count
-        }
-    except Exception as e:
-        print(f"[DEBUG] 清理任务总异常: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"清理任务失败: {str(e)}")
+    raise HTTPException(status_code=400, detail="已禁用：等待中的任务不允许终止")
 
 
 @router.post("/clear/all")
@@ -305,6 +268,8 @@ async def clear_all_tasks(request: Request):
     清理所有任务（包括成功、失败、待处理等所有状态）- 强制删除
     """
     tm = _get_task_manager(request)
+    if tm.list_tasks(limit=1, status="pending") or tm.list_tasks(limit=1, status="retry"):
+        raise HTTPException(status_code=400, detail="存在等待中的任务，不允许清理")
 
     try:
         import sqlite3
@@ -427,6 +392,11 @@ async def batch_delete_tasks(req: BatchTaskRequest, request: Request):
 
             for task_id in req.task_ids:
                 try:
+                    status = tm.get_task_status(task_id)
+                    if status and (status.get("status") or "").lower() in ("pending", "retry"):
+                        failed_count += 1
+                        errors.append(f"等待中的任务不允许删除: {task_id}")
+                        continue
                     # 强制从数据库删除
                     cursor.execute("DELETE FROM task_queue WHERE task_id = ?", (task_id,))
 
@@ -556,6 +526,11 @@ async def batch_cancel_tasks(
 
     for task_id in req.task_ids:
         try:
+            status = tm.get_task_status(task_id)
+            if status and (status.get("status") or "").lower() in ("pending", "retry"):
+                failed_count += 1
+                errors.append(f"等待中的任务不允许终止: {task_id}")
+                continue
             if tm.cancel_task(task_id, force=force):
                 success_count += 1
             else:
@@ -572,4 +547,3 @@ async def batch_cancel_tasks(
         "failed_count": failed_count,
         "errors": errors if errors else None
     }
-

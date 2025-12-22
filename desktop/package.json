@@ -3,16 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "description": "Electron shell to start/stop SynapseAutomation backend + worker",
+  "author": "SynapseAutomation Team",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
     "prepare:resources": "node scripts/prepare_resources.js",
     "build": "npm run prepare:resources && electron-builder"
   },
-  "dependencies": {
-    "electron": "^33.2.1"
-  },
   "devDependencies": {
+    "electron": "^33.2.1",
     "electron-builder": "^25.1.8"
   },
   "build": {
@@ -24,7 +23,35 @@
     "extraResources": [
       {
         "from": "resources",
-        "to": "synapse-resources"
+        "to": "synapse-resources",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../syn_backend",
+        "to": "synapse-resources/syn_backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/*.pyo",
+          "!**/.pytest_cache/**",
+          "!**/node_modules/**",
+          "!**/.git/**",
+          "!**/logs/**",
+          "!**/temp/**",
+          "!**/cache/**"
+        ]
+      },
+      {
+        "from": "../syn_frontend_react",
+        "to": "synapse-resources/syn_frontend_react",
+        "filter": [
+          "**/*",
+          "!**/node_modules/**",
+          "!**/.git/**",
+          "!**/.next/cache/**",
+          "!**/coverage/**"
+        ]
       }
     ],
     "directories": {
@@ -35,8 +62,26 @@
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "signDlls": false,
+      "sign": null,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SynapseAutomation",
+      "include": "build/installer.nsh",
+      "perMachine": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }
 }

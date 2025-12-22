@@ -349,6 +349,7 @@ class PublishService:
                         "file_id": file_id,
                         "video_path": portable_path,
                         "account_id": account['account_id'],
+                        "account_name": account.get("original_name") or account.get("name") or account.get("account_id"),
                         "cookie_file": account['cookie_file'],
                         "platform": platform,
                         "title": formatted_metadata.get("title", final_title),

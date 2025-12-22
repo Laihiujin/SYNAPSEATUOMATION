@@ -2,12 +2,17 @@
 echo Forcefully killing all Python processes on port 7000...
 
 REM Method 1: Kill by port using PowerShell
-powershell -Command "Get-NetTCPConnection -LocalPort 7000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 7000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
 
 REM Wait a moment
 timeout /t 2 /nobreak >nul
 
-REM Method 2: Kill all python.exe processes (nuclear option)
+REM Method 2: Kill Celery workers by window title or command line
+echo Killing Celery workers...
+taskkill /F /FI "WINDOWTITLE eq Celery Worker" /T >nul 2>&1
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'celery' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+
+REM Method 3: Kill all python.exe processes (nuclear option)
 echo Killing all python.exe processes...
 taskkill /F /IM python.exe >nul 2>&1
 

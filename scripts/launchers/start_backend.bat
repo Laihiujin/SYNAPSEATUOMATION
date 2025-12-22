@@ -42,13 +42,15 @@ if not defined ENABLE_OCR_RESCUE set "ENABLE_OCR_RESCUE=1"
 if not defined ENABLE_SELENIUM_RESCUE set "ENABLE_SELENIUM_RESCUE=1"
 if not defined ENABLE_SELENIUM_DEBUG set "ENABLE_SELENIUM_DEBUG=1"
 if not defined PLAYWRIGHT_AUTO_INSTALL set "PLAYWRIGHT_AUTO_INSTALL=1"
+if not defined START_CELERY set "START_CELERY=1"
+if not defined FORCE_CELERY set "FORCE_CELERY=0"
 echo [CONFIG] Playwright path: %PLAYWRIGHT_BROWSERS_PATH%
 echo [CONFIG] OCR rescue: %ENABLE_OCR_RESCUE%  Selenium rescue: %ENABLE_SELENIUM_RESCUE%  Selenium debug: %ENABLE_SELENIUM_DEBUG%
 echo.
 
 pushd "%BACKEND_DIR%"
 
-echo [1/5] Checking Python environment...
+echo [1/7] Checking Python environment...
 %PY% --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python cannot run
@@ -59,7 +61,7 @@ if errorlevel 1 (
 echo OK Python environment normal
 echo.
 
-echo [2/5] Ensuring Playwright Chromium...
+echo [2/7] Ensuring Playwright Chromium...
 %PY% -c "from utils.playwright_bootstrap import ensure_playwright_chromium_installed as f; r=f(auto_install=True); print('Chromium:', r.chromium_executable or 'N/A'); import sys; sys.exit(0 if r.installed else 1)"
 if errorlevel 1 (
     echo [ERROR] Playwright Chromium not ready
@@ -70,7 +72,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [3/5] Checking environment configuration...
+echo [3/7] Checking environment configuration...
 if not exist ".env" (
     echo [WARNING] .env file not found
     if exist ".env.example" (
@@ -83,7 +85,7 @@ if not exist ".env" (
 )
 echo.
 
-echo [4/5] Checking database files...
+echo [4/7] Checking database files...
 if not exist "db\database.db" (
     echo [WARNING] Main database file not found
 )
@@ -96,8 +98,32 @@ REM Magentic-UI disabled
 echo [SKIP] Magentic-UI not started at this time
 echo.
 
+echo [5/7] Checking Redis connectivity...
+set "REDIS_CHECK=FAIL"
+for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "try { $r = Test-NetConnection -ComputerName localhost -Port 6379 -WarningAction SilentlyContinue; if ($r.TcpTestSucceeded) { 'OK' } else { 'FAIL' } } catch { 'FAIL' }"`) do set "REDIS_CHECK=%%A"
+if /I "%REDIS_CHECK%"=="OK" (
+    echo OK Redis reachable on localhost:6379
+) else (
+    echo [WARNING] Redis not reachable on localhost:6379
+    if "%FORCE_CELERY%"=="1" (
+        echo [FORCE] FORCE_CELERY=1, will start Celery anyway
+    ) else (
+        set "START_CELERY=0"
+    )
+)
+echo.
+
+echo [6/7] Starting Celery Worker...
+if "%START_CELERY%"=="1" (
+    start "Celery Worker" %PY% -m celery -A fastapi_app.tasks.celery_app.celery_app worker -l info
+    echo OK Celery worker launched
+) else (
+    echo [SKIP] START_CELERY=%START_CELERY%
+)
+echo.
+
 echo ========================================
-echo   [5/5] Starting FastAPI Service (Port: 7000)
+echo   [7/7] Starting FastAPI Service (Port: 7000)
 echo ========================================
 echo.
 echo Access URLs:

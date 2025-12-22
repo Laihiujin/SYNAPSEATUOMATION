@@ -30,6 +30,13 @@ function writeSettings(patch) {
 }
 
 function guessProjectRoot() {
+  // 打包后优先使用内置的 syn_backend
+  const bundledBackend = path.join(bundledResourcesDir(), "syn_backend");
+  if (fs.existsSync(bundledBackend)) {
+    return path.dirname(bundledBackend);
+  }
+
+  // 开发模式：查找开发环境的 syn_backend
   const candidates = [
     path.resolve(__dirname, "..", ".."),
     process.cwd(),
@@ -44,11 +51,23 @@ function buildEnv(projectRoot) {
   const env = { ...process.env };
   env.PYTHONUTF8 = env.PYTHONUTF8 || "1";
   env.PYTHONIOENCODING = env.PYTHONIOENCODING || "utf-8";
+
+  // Playwright browsers path
   const bundledBrowsers = path.join(bundledResourcesDir(), "playwright-browsers");
   const fallbackBrowsers = path.join(projectRoot, ".playwright-browsers");
   env.PLAYWRIGHT_BROWSERS_PATH =
     env.PLAYWRIGHT_BROWSERS_PATH ||
     (fs.existsSync(bundledBrowsers) ? bundledBrowsers : fallbackBrowsers);
+
+  // SQLite database paths (使用用户数据目录)
+  const userDataPath = app.getPath("userData");
+  const dbDir = path.join(userDataPath, "database");
+  fs.mkdirSync(dbDir, { recursive: true });
+
+  env.DATABASE_PATH = env.DATABASE_PATH || path.join(dbDir, "main.db");
+  env.COOKIE_DB_PATH = env.COOKIE_DB_PATH || path.join(dbDir, "cookies.db");
+  env.AI_LOGS_DB_PATH = env.AI_LOGS_DB_PATH || path.join(dbDir, "ai_logs.db");
+
   env.MANUS_API_BASE_URL = env.MANUS_API_BASE_URL || "http://localhost:7000/api/v1";
   env.ENABLE_OCR_RESCUE = env.ENABLE_OCR_RESCUE || "1";
   env.ENABLE_SELENIUM_RESCUE = env.ENABLE_SELENIUM_RESCUE || "1";
@@ -72,14 +91,20 @@ function resolveRedisServer() {
   ]);
 }
 
-function resolveMysqlServer() {
-  const dir = bundledResourcesDir();
-  return firstExisting([
-    path.join(dir, "mysql", "bin", "mariadbd.exe"),
-    path.join(dir, "mysql", "bin", "mysqld.exe"),
-    path.join(dir, "mysql", "bin", "mariadbd"),
-    path.join(dir, "mysql", "bin", "mysqld"),
-  ]);
+function resolvePythonCmd(userSetting) {
+  // 1. 用户自定义设置
+  if (userSetting && userSetting.trim()) {
+    return userSetting.trim();
+  }
+
+  // 2. 检查内置 Python（如果有打包）
+  const bundledPython = path.join(bundledResourcesDir(), "python", "python.exe");
+  if (fs.existsSync(bundledPython)) {
+    return bundledPython;
+  }
+
+  // 3. 使用系统 Python
+  return "python";
 }
 
 function ensureDir(p) {
@@ -142,6 +167,8 @@ const processes = {
   worker: null,
   redis: null,
   mysql: null,
+  celery: null,
+  frontend: null,
 };
 
 function emitLog(source, message) {
@@ -151,8 +178,8 @@ function emitLog(source, message) {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 980,
-    height: 700,
+    width: 1400,
+    height: 900,
     backgroundColor: "#0b0b0b",
     webPreferences: {
       contextIsolation: true,
@@ -161,7 +188,8 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  // 启动时先显示加载页面
+  win.loadFile(path.join(__dirname, "renderer", "loading.html"));
   return win;
 }
 
@@ -208,6 +236,8 @@ ipcMain.handle("service:status", () => {
     worker: !!processes.worker && !processes.worker.killed,
     redis: !!processes.redis && !processes.redis.killed,
     mysql: !!processes.mysql && !processes.mysql.killed,
+    celery: !!processes.celery && !processes.celery.killed,
+    frontend: !!processes.frontend && !processes.frontend.killed,
   };
 });
 
@@ -226,7 +256,7 @@ ipcMain.handle("service:stop", (_evt, which) => {
 
 ipcMain.handle("service:startAll", async (_evt, opts) => {
   const projectRoot = (opts?.projectRoot || "").trim();
-  const pythonCmd = (opts?.pythonCmd || "python").trim();
+  const pythonCmd = resolvePythonCmd(opts?.pythonCmd);
   const startRedis = !!opts?.startRedis;
   const startMysql = !!opts?.startMysql;
   const redisPort = Number(opts?.redisPort || 6379);
@@ -241,6 +271,7 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
   }
 
   const backendDir = path.join(projectRoot, "syn_backend");
+  const frontendDir = path.join(projectRoot, "syn_frontend_react");
   const env = buildEnv(projectRoot);
 
   if (startRedis && !processes.redis) {
@@ -325,6 +356,38 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
 
   await waitForHttpOk("http://127.0.0.1:7001/health", 30000);
 
+  // 启动 Celery Worker（如果 Redis 已启动或配置了 REDIS_URL）
+  if (!processes.celery && (processes.redis || env.REDIS_URL)) {
+    emitLog("celery", "[info] 启动 Celery Worker...\n");
+
+    // 设置 Celery 环境变量
+    const celeryEnv = { ...env };
+    if (!celeryEnv.CELERY_BROKER_URL && !celeryEnv.REDIS_URL) {
+      celeryEnv.REDIS_URL = `redis://127.0.0.1:${redisPort}/0`;
+    }
+
+    processes.celery = spawnService({
+      name: "celery",
+      cmd: pythonCmd,
+      args: [
+        "-m",
+        "celery",
+        "-A",
+        "fastapi_app.tasks.celery_app",
+        "worker",
+        "--loglevel=info",
+        "--pool=solo",  // Windows 兼容模式
+      ],
+      cwd: backendDir,
+      env: celeryEnv,
+      onLog: emitLog,
+    });
+
+    // 给 Celery Worker 一些启动时间
+    await new Promise((r) => setTimeout(r, 2000));
+    emitLog("celery", "[info] Celery Worker 已启动\n");
+  }
+
   if (!processes.backend) {
     processes.backend = spawnService({
       name: "backend",
@@ -334,6 +397,44 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
       env,
       onLog: emitLog,
     });
+  }
+
+  // 启动前端 Next.js 服务
+  if (!processes.frontend && fs.existsSync(frontendDir)) {
+    emitLog("frontend", "[info] 启动 Next.js 前端服务...\n");
+
+    // 检查是否需要安装依赖
+    const nodeModulesPath = path.join(frontendDir, "node_modules");
+    if (!fs.existsSync(nodeModulesPath)) {
+      emitLog("frontend", "[info] 检测到未安装依赖，正在安装 npm packages...\n");
+      const npmInstall = spawnService({
+        name: "frontend",
+        cmd: process.platform === "win32" ? "npm.cmd" : "npm",
+        args: ["install"],
+        cwd: frontendDir,
+        env,
+        onLog: emitLog,
+      });
+      await new Promise((r) => npmInstall.on("exit", r));
+    }
+
+    processes.frontend = spawnService({
+      name: "frontend",
+      cmd: process.platform === "win32" ? "npm.cmd" : "npm",
+      args: ["run", "dev"],
+      cwd: frontendDir,
+      env: { ...env, PORT: "3000" },
+      onLog: emitLog,
+    });
+
+    // 等待前端启动
+    await waitForHttpOk("http://127.0.0.1:3000", 60000);
+
+    // 加载前端页面到 Electron 窗口
+    if (mainWindow) {
+      mainWindow.loadURL("http://127.0.0.1:3000");
+      emitLog("frontend", "[info] 前端已加载到 Electron 窗口\n");
+    }
   }
 
   return { ok: true };

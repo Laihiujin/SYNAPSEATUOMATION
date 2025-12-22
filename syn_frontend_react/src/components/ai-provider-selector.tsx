@@ -43,7 +43,7 @@ export function AIProviderSelector() {
           }
 
           try {
-            const response = await fetch("http://localhost:5000/api/ai/health-check", {
+            const response = await fetch("/api/v1/ai/health-check", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
             })
@@ -85,7 +85,7 @@ export function AIProviderSelector() {
       const successProviders = updatedProviders.filter((p) => p.status === "success")
       if (successProviders.length > 0) {
         try {
-          const modelsResponse = await fetch("http://localhost:5000/api/ai/models")
+          const modelsResponse = await fetch("/api/v1/ai/models")
           const modelsData = await modelsResponse.json()
 
           if (modelsData.providers) {

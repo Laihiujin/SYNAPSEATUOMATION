@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { fetcher } from "@/lib/api"
+import { backendBaseUrl } from "@/lib/env"
 import { tasksResponseSchema, type TasksResponse } from "@/lib/schemas"
 import { formatBeijingDateTime } from "@/lib/time"
 import { useToast } from "@/components/ui/use-toast"
@@ -54,7 +55,7 @@ export default function TasksPage() {
   const { data: manualTasksRes, isLoading: manualLoading } = useQuery({
     queryKey: ["manual-tasks"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/manual-tasks/list")
+      const res = await fetch(`${backendBaseUrl}/api/v1/manual-tasks/list`)
       if (!res.ok) throw new Error("Failed to fetch manual tasks")
       return res.json()
     },
@@ -65,7 +66,7 @@ export default function TasksPage() {
   const { data: manualStatsRes } = useQuery({
     queryKey: ["manual-tasks-stats"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/manual-tasks/stats")
+      const res = await fetch(`${backendBaseUrl}/api/v1/manual-tasks/stats`)
       if (!res.ok) throw new Error("Failed to fetch stats")
       return res.json()
     },
@@ -74,7 +75,7 @@ export default function TasksPage() {
   // 重试人工任务
   const retryMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      const res = await fetch(`/api/v1/manual-tasks/${taskId}/retry`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/manual-tasks/${taskId}/retry`, {
         method: "POST"
       })
       if (!res.ok) throw new Error("Failed to retry task")
@@ -93,7 +94,7 @@ export default function TasksPage() {
   // 删除人工任务
   const deleteMutation = useMutation({
     mutationFn: async (taskId: string) => {
-      const res = await fetch(`/api/v1/manual-tasks/${taskId}`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/manual-tasks/${taskId}`, {
         method: "DELETE"
       })
       if (!res.ok) throw new Error("Failed to delete task")
@@ -114,7 +115,7 @@ export default function TasksPage() {
     mutationFn: async (taskIds: string[]) => {
       const results = await Promise.allSettled(
         taskIds.map(id =>
-          fetch(`/api/v1/manual-tasks/${id}`, { method: "DELETE" })
+          fetch(`${backendBaseUrl}/api/v1/manual-tasks/${id}`, { method: "DELETE" })
             .then(res => res.ok ? res.json() : Promise.reject(new Error(`删除失败: ${id}`)))
         )
       )
@@ -142,7 +143,7 @@ export default function TasksPage() {
   // 批量删除自动任务 - 使用新的批量API
   const batchDeleteMutation = useMutation({
     mutationFn: async (taskIds: string[]) => {
-      const res = await fetch(`/api/v1/tasks/batch/delete`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_ids: taskIds })
@@ -170,7 +171,7 @@ export default function TasksPage() {
   // 批量重试自动任务
   const batchRetryMutation = useMutation({
     mutationFn: async (taskIds: string[]) => {
-      const res = await fetch(`/api/v1/tasks/batch/retry`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/retry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_ids: taskIds })
@@ -198,7 +199,7 @@ export default function TasksPage() {
   // 清理任务
   const clearTasksMutation = useMutation({
     mutationFn: async (type: 'pending' | 'failed' | 'success' | 'all') => {
-      const res = await fetch(`/api/v1/tasks/clear/${type}`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/clear/${type}`, {
         method: "POST"
       })
       if (!res.ok) {
@@ -223,7 +224,7 @@ export default function TasksPage() {
   // 批量取消任务（支持强制取消running状态）
   const batchCancelMutation = useMutation({
     mutationFn: async ({ taskIds, force }: { taskIds: string[], force: boolean }) => {
-      const res = await fetch(`/api/v1/tasks/batch/cancel?force=${force}`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/batch/cancel?force=${force}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_ids: taskIds })
@@ -251,7 +252,7 @@ export default function TasksPage() {
   // 单个任务取消
   const cancelTaskMutation = useMutation({
     mutationFn: async ({ taskId, force }: { taskId: string, force: boolean }) => {
-      const res = await fetch(`/api/v1/tasks/cancel/${taskId}?force=${force}`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/tasks/cancel/${taskId}?force=${force}`, {
         method: "POST"
       })
       if (!res.ok) {
