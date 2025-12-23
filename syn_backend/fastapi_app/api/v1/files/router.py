@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, s
 from typing import Optional
 from fastapi_app.db.session import main_db_pool
 from fastapi_app.schemas.file import (
-    FileResponse, FileListResponse, FileStatsResponse, FileUpdate,
+    FileResponse, FileListResponse, FileStatsResponse, FileUpdate, FileRenameRequest,
     AIMetadataGenerateRequest, AIMetadataGenerateResponse,
     TranscribeAudioRequest, TranscribeAudioResponse
 )
@@ -448,6 +448,59 @@ async def upload_and_save(
         if isinstance(e, (BadRequestException, NotFoundException)):
             raise
         raise HTTPException(status_code=500, detail=f"操作失败: {str(e)}")
+
+
+@router.patch(
+    "/{file_id}/rename",
+    response_model=Response,
+    summary="重命名文件",
+    description="""
+    重命名文件（同步修改数据库和磁盘文件名）
+
+    功能：
+    - 修改数据库中的 filename 和 file_path
+    - 同步修改磁盘上的物理文件名
+    - 支持选择是否同步修改磁盘文件
+    - 自动检查文件名冲突
+
+    参数：
+    - new_filename: 新文件名（必须包含扩展名）
+    - update_disk_file: 是否同步修改磁盘文件（默认 true）
+    """
+)
+async def rename_file(
+    file_id: int,
+    rename_request: FileRenameRequest,
+    db=Depends(get_db),
+    service: FileService = Depends(get_file_service)
+):
+    """重命名文件（同步数据库和磁盘）"""
+    try:
+        success = await service.rename_file(
+            db,
+            file_id,
+            rename_request.new_filename,
+            rename_request.update_disk_file
+        )
+
+        if not success:
+            raise NotFoundException(f"文件不存在: ID {file_id}")
+
+        return Response(
+            success=True,
+            message="文件重命名成功",
+            data={
+                "id": file_id,
+                "new_filename": rename_request.new_filename,
+                "disk_updated": rename_request.update_disk_file
+            }
+        )
+
+    except (NotFoundException, BadRequestException):
+        raise
+    except Exception as e:
+        logger.error(f"Rename file error: {e}")
+        raise HTTPException(status_code=500, detail=f"重命名失败: {str(e)}")
 
 
 @router.patch(

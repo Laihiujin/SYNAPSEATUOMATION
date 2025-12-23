@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent.parent))
 
 from ..task_manager import task_manager
+from myUtils.fast_cookie_validator import FastCookieValidator
 
 
 logger = logging.getLogger(__name__)
@@ -98,15 +99,15 @@ async def api_verify_cookie(request: TencentVerifyCookieRequest):
     验证视频号Cookie是否有效
     """
     try:
-        # 延迟导入，避免模块加载时引入 playwright 开销
-        from uploader.tencent_uploader.main import cookie_auth
-
-        is_valid = await cookie_auth(request.account_file)
-
+        validator = FastCookieValidator()
+        result = await validator.validate_cookie_fast("channels", account_file=request.account_file)
+        is_valid = result.get("status") == "valid"
+        if result.get("status") in ("error", "network_error"):
+            return {"success": False, "data": result, "message": result.get("error", "Cookie验证失败")}
         return {
             "success": True,
-            "data": {"is_valid": is_valid},
-            "message": "Cookie有效" if is_valid else "Cookie已失效"
+            "data": {"is_valid": is_valid, **result},
+            "message": "Cookie有效" if is_valid else "Cookie已失效",
         }
 
     except Exception as e:

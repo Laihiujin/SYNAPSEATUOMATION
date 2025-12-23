@@ -819,11 +819,31 @@ function MaterialsPageContent() {
         onSave={async (updatedData) => {
           if (!selectedMaterial) return
           try {
+            // 检查文件名是否改变
+            const filenameChanged = updatedData.filename && updatedData.filename !== selectedMaterial.filename
+
+            // 如果文件名改变，使用重命名 API
+            if (filenameChanged) {
+              const renameResponse = await fetch(`/api/files/${encodeURIComponent(selectedMaterial.id)}/rename`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  new_filename: updatedData.filename,
+                  update_disk_file: updatedData.updateDiskFile !== false // 默认 true
+                })
+              })
+
+              if (!renameResponse.ok) {
+                const errorData = await renameResponse.json().catch(() => ({}))
+                throw new Error(errorData.detail || '文件重命名失败')
+              }
+            }
+
+            // 更新其他元数据
             const response = await fetch(`/api/files/${encodeURIComponent(selectedMaterial.id)}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                filename: updatedData.filename,
                 title: updatedData.title,
                 description: updatedData.description,
                 tags: updatedData.tags,
@@ -833,11 +853,20 @@ function MaterialsPageContent() {
               })
             })
             if (!response.ok) throw new Error('update failed')
-            toast({ variant: 'success', title: '已保存', description: '素材信息已更新' })
+
+            toast({
+              variant: 'success',
+              title: '已保存',
+              description: filenameChanged ? '素材信息和文件名已更新' : '素材信息已更新'
+            })
             setSelectedMaterial(null)
             await refetch()
-          } catch (error) {
-            toast({ variant: 'destructive', title: '保存失败', description: '请稍后重试' })
+          } catch (error: any) {
+            toast({
+              variant: 'destructive',
+              title: '保存失败',
+              description: error.message || '请稍后重试'
+            })
           }
         }}
       />

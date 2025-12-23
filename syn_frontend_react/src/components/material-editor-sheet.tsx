@@ -107,6 +107,8 @@ export function MaterialEditorContent({
         scheduleTime: undefined as Date | undefined
     })
 
+    const [updateDiskFile, setUpdateDiskFile] = useState(true)
+
     useEffect(() => {
         if (initialData) {
             setEditForm(prev => ({ ...prev, ...initialData }))
@@ -424,7 +426,8 @@ ${userInput}
         try {
             await onSave({
                 ...editForm,
-                group: editForm.group === 'none' ? '' : editForm.group
+                group: editForm.group === 'none' ? '' : editForm.group,
+                updateDiskFile // 传递磁盘更新标志
             })
         } catch (error) {
             console.error(error)
@@ -458,14 +461,31 @@ ${userInput}
 	                        <div className="grid gap-5">
 	                            <div className="grid gap-2">
 	                                <div className="flex justify-between items-center">
-	                                    <Label>文件名（仅修改显示，不改磁盘文件）</Label>
+	                                    <Label>文件名</Label>
+	                                    <div className="flex items-center gap-2">
+	                                        <input
+	                                            type="checkbox"
+	                                            id="update-disk-file"
+	                                            checked={updateDiskFile}
+	                                            onChange={(e) => setUpdateDiskFile(e.target.checked)}
+	                                            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-primary focus:ring-2 focus:ring-primary cursor-pointer"
+	                                        />
+	                                        <label htmlFor="update-disk-file" className="text-xs text-white/60 cursor-pointer">
+	                                            同步修改磁盘文件名
+	                                        </label>
+	                                    </div>
 	                                </div>
 	                                <Input
 	                                    value={editForm.filename}
 	                                    onChange={e => setEditForm(prev => ({ ...prev, filename: e.target.value }))}
 	                                    className="bg-white/5 border-white/10"
-	                                    placeholder=""
+	                                    placeholder="输入文件名（含扩展名）"
 	                                />
+	                                <p className="text-xs text-white/40">
+	                                    {updateDiskFile
+	                                        ? "✓ 将同时修改数据库和磁盘文件名"
+	                                        : "仅修改显示名称，不改变磁盘文件"}
+	                                </p>
 	                            </div>
 
 	                            <div className="grid gap-2">

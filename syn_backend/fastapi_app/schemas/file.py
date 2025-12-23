@@ -44,6 +44,12 @@ class FileUpdate(BaseModel):
     ai_tags: Optional[str] = None
 
 
+class FileRenameRequest(BaseModel):
+    """Schema for renaming file (both database and disk)"""
+    new_filename: str = Field(..., description="新文件名（含扩展名）")
+    update_disk_file: bool = Field(True, description="是否同步修改磁盘文件名")
+
+
 class FileResponse(FileBase):
     """Schema for file response"""
     id: int

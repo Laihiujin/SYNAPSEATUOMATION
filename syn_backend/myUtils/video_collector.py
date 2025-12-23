@@ -15,7 +15,9 @@ from playwright.async_api import Page, async_playwright, TimeoutError as Playwri
 
 from config.conf import PLAYWRIGHT_HEADLESS
 import re
+from loguru import logger
 from myUtils.analytics_db import ensure_analytics_schema, upsert_video_analytics_by_key
+from myUtils.functional_route_manager import functional_route_manager
 
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH = BASE_DIR / os.getenv("DB_PATH_REL", "db/database.db")
@@ -112,8 +114,136 @@ class VideoDataCollector:
             conn.commit()
             print("[Collector] Database initialized")
 
-    async def collect_douyin_data_api(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
-        """Collect Douyin videos via creator API (faster and layout-independent)."""
+    async def _recover_id_by_clicking(self, page: Page, item_selector: str, index: int, platform: str) -> Optional[str]:
+        """通过点击元素并在详情页提取 ID"""
+        try:
+            items = await page.query_selector_all(item_selector)
+            if index < len(items):
+                item = items[index]
+                async with page.expect_popup() as popup_info:
+                    await item.click()
+                detail_page = await popup_info.value
+                await detail_page.wait_for_load_state("networkidle")
+                url = detail_page.url
+                video_id = None
+                if platform == "kuaishou":
+                    m = re.search(r"photoId=([\w-]+)", url) or re.search(r"short-video/([\w-]+)", url)
+                    if m: video_id = m.group(1)
+                elif platform == "douyin":
+                    m = re.search(r"work-detail/(\d+)", url) or re.search(r"video/(\d+)", url)
+                    if m: video_id = m.group(1)
+                
+                await detail_page.close()
+                return video_id
+        except Exception as e:
+            logger.warning(f"Failed to recover ID by clicking: {e}")
+        return None
+
+    def _proximity_match_and_recover(self, account_id: str, platform: str, scraped_video: Dict[str, Any]):
+        """
+        近似对比与 ID 回收逻辑。
+        对比维度：标题、预览图、发布时间、标签。
+        """
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                title = scraped_video.get("title", "").strip()
+                publish_time_str = scraped_video.get("publish_time", "")
+                video_id = scraped_video.get("video_id")
+                scraped_tags = scraped_video.get("tags", [])
+                
+                if not video_id:
+                    return
+
+                # 查找匹配的任务 (24小时内或待处理的)
+                query = """
+                SELECT * FROM publish_tasks 
+                WHERE platform = ? AND account_id = ? AND (video_id IS NULL OR video_id = '')
+                AND status IN ('pending', 'success', 'publishing')
+                ORDER BY created_at DESC LIMIT 50
+                """
+                cursor.execute(query, (platform, account_id))
+                tasks = cursor.fetchall()
+
+                best_match = None
+                for task in tasks:
+                    task_title = (task["title"] or "").strip()
+                    task_tags = json.loads(task["tags"]) if task["tags"] else []
+                    
+                    # 1. 标题完全匹配或高度相似
+                    if title and task_title:
+                        if title == task_title or title in task_title or task_title in title:
+                            best_match = task
+                            break
+                    
+                    # 2. 标签匹配 (如果有)
+                    if scraped_tags and task_tags:
+                        overlap = set(scraped_tags) & set(task_tags)
+                        if len(overlap) >= 1: # 至少有一个标签相同
+                            # 这里可以进一步结合标题或时间
+                            if not title or not task_title or (title[:5] == task_title[:5]):
+                                best_match = task
+                                break
+
+                if best_match:
+                    task_id = best_match["task_id"]
+                    cursor.execute(
+                        "UPDATE publish_tasks SET video_id = ?, status = 'success', published_at = ? WHERE task_id = ?",
+                        (video_id, publish_time_str, task_id)
+                    )
+                    logger.info(f"Recovered video_id {video_id} for platform {platform} matching task {task_id}")
+                    conn.commit()
+                    
+                    # 同时尝试同步到 manual_tasks (如果 task_id 对应)
+                    # ...
+        except Exception as e:
+            logger.error(f"Error in proximity matching: {e}")
+
+    def save_video_data(self, account_id: str, platform: str, video: Dict[str, Any]):
+        """Save video data and trigger recovery."""
+        # 原有的保存逻辑
+        collected_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO video_analytics (
+                    account_id, platform, video_id, title, cover_url, 
+                    publish_time, views, likes, comments, shares, favorites, collected_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(account_id, video_id) DO UPDATE SET
+                    title=excluded.title,
+                    cover_url=excluded.cover_url,
+                    views=excluded.views,
+                    likes=excluded.likes,
+                    comments=excluded.comments,
+                    shares=excluded.shares,
+                    favorites=excluded.favorites,
+                    collected_at=excluded.collected_at
+                """,
+                (
+                    account_id,
+                    platform,
+                    video.get("video_id", ""),
+                    video.get("title", ""),
+                    video.get("cover_url", ""),
+                    video.get("publish_time", ""),
+                    video.get("views", 0),
+                    video.get("likes", 0),
+                    video.get("comments", 0),
+                    video.get("shares", 0),
+                    video.get("favorites", 0),
+                    collected_at,
+                ),
+            )
+            conn.commit()
+        
+        # 触发 ID 回收
+        self._proximity_match_and_recover(account_id, platform, video)
+
+    async def collect_kuaishou_data(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
         cookies = self._load_cookie_list(cookie_file)
         if not cookies:
             return {"success": False, "error": "Cookie file not found or invalid"}
@@ -295,30 +425,57 @@ class VideoDataCollector:
                 if "login" in page.url:
                     return {"success": False, "error": "Login expired"}
 
-                await page.wait_for_selector(".video-item, .content-item", timeout=WAIT_TIMEOUT)
+                # 执行关闭引导路由
+                await functional_route_manager.execute_close_guides(page, "kuaishou")
 
+                await page.wait_for_selector(".video-item", timeout=WAIT_TIMEOUT)
+
+                # 获取视频列表
                 videos = await self._collect_with_scroll(
                     page,
                     """
                     () => {
-                        const items = document.querySelectorAll('.video-item, .content-item');
-                        return Array.from(items).map(item => {
-                            const titleEl = item.querySelector('.title, .video-title');
+                        const items = document.querySelectorAll('.video-item');
+                        return Array.from(items).map((item, index) => {
+                            const title = item.querySelector('.video-item__detail__row__title')?.innerText || '';
+                            const stats = Array.from(item.querySelectorAll('.video-item__detail__row__label')).map(l => l.innerText);
+                            const time = item.querySelector('.video-item__detail__row__time')?.innerText || '';
                             return {
-                                video_id: item.getAttribute('data-id') || '',
-                                title: titleEl ? titleEl.textContent.trim() : '',
-                                cover_url: item.querySelector('img')?.src || '',
-                                views: parseInt(item.querySelector('[data-type="view"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                likes: parseInt(item.querySelector('[data-type="like"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                comments: parseInt(item.querySelector('[data-type="comment"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                publish_time: item.querySelector('.publish-time, .time')?.textContent.trim() || ''
+                                index,
+                                title,
+                                views: parseInt(stats[0] || '0'),
+                                likes: parseInt(stats[1] || '0'),
+                                comments: parseInt(stats[2] || '0'),
+                                publish_time: time
                             };
                         });
                     }
                     """,
-                    max_rounds=40,
-                    wait_ms=1200,
                 )
+
+                # 增强型采集：如果缺少 ID，尝试通过点击回收
+                for video in videos:
+                    try:
+                        # 点击视频卡片以跳转详情页获取 ID
+                        selectors = [".video-item", ".video-item__detail__row__title"]
+                        # 这里我们简单的通过位置点击
+                        items = await page.query_selector_all(".video-item")
+                        if video["index"] < len(items):
+                            item = items[video["index"]]
+                            # 开启新页面监听以防止主页面跳转
+                            async with page.expect_popup() as popup_info:
+                                await item.click()
+                            detail_page = await popup_info.value
+                            await detail_page.wait_for_load_state("networkidle")
+                            # 从 URL 中提取 ID (e.g., .../detail?photoId=X or .../short-video/X)
+                            url = detail_page.url
+                            m = re.search(r"photoId=([\w-]+)", url) or re.search(r"short-video/([\w-]+)", url)
+                            if m:
+                                video["video_id"] = m.group(1)
+                                logger.info(f"Successfully recovered photoId: {video['video_id']}")
+                            await detail_page.close()
+                    except Exception as e:
+                        logger.warning(f"Failed to recover ID for video {video.get('title')}: {e}")
 
                 saved_count = 0
                 for video in videos:
@@ -464,86 +621,47 @@ class VideoDataCollector:
                 if "login" in page.url or "passport" in page.url:
                     return {"success": False, "error": "Login expired"}
 
-                # Wait for either legacy table rows or new card layout / detail links
+                # 执行关闭引导路由
+                await functional_route_manager.execute_close_guides(page, "douyin")
+
                 await page.wait_for_selector(
                     "a[href*='/creator-micro/work-management/work-detail/'], "
                     "div[class*='video-card-info'], "
-                    ".video-card-info-aglKIQ, "
-                    "[data-row-key], [data-id], .semi-table-row, .video-item, .video-card, .video-card-wrapper",
+                    "[data-row-key], [data-id], .semi-table-row",
                     timeout=WAIT_TIMEOUT,
                 )
 
-                # First try: parse work-detail links directly (stable across class changes)
-                videos = await self._collect_with_scroll(
-                    page,
-                    """
-                    () => {
-                        const out = [];
-                        const re = /\\/creator-micro\\/work-management\\/work-detail\\/(\\d+)/;
-                        const links = document.querySelectorAll("a[href*='/creator-micro/work-management/work-detail/']");
-                        for (const a of links) {
-                            const href = a.getAttribute("href") || "";
-                            const m = href.match(re);
-                            if (!m) continue;
-                            const card = a.closest("div") || a.parentElement;
-                            const titleEl = card ? card.querySelector("[class*='title'], .card-title, .video-title") : null;
-                            const coverEl = card ? card.querySelector("img") : null;
-                            out.push({
-                                video_id: m[1],
-                                title: titleEl ? titleEl.textContent.trim() : "",
-                                cover_url: coverEl ? coverEl.src : "",
-                                views: 0,
-                                likes: 0,
-                                comments: 0,
-                                shares: 0,
-                                publish_time: ""
-                            });
-                        }
-                        if (out.length) return out;
+                # 优先使用功能路由抓取 (DY_VIDEO_LIST)
+                videos = await functional_route_manager.run_scraper(page, "douyin", "DY_VIDEO_LIST")
 
-                        const nodes = document.querySelectorAll('[data-row-key], [data-id], .semi-table-row, .video-item, .video-card, .video-card-wrapper');
-                        return Array.from(nodes).map(node => {
-                            const id = node.getAttribute('data-row-key') || node.getAttribute('data-id') || node.getAttribute('data-aweme-id') || '';
-                            const titleEl = node.querySelector('.title-container, .video-title, [class*="title"], .card-title');
-                            const coverEl = node.querySelector('img');
-                            const text = (selector) => {
-                                const el = node.querySelector(selector);
-                                return el ? el.textContent.replace(/[^0-9]/g, '') : '';
-                            };
-                            return {
-                                video_id: id,
-                                title: titleEl ? titleEl.textContent.trim() : '',
-                                cover_url: coverEl ? coverEl.src : '',
-                                views: parseInt(text('[class*="play"], [class*="view"], [data-e2e="play-count"], .play-count, .view-count') || '0'),
-                                likes: parseInt(text('[class*="like"], [class*="digg"], [data-e2e="like-count"], .like-count, .digg-count') || '0'),
-                                comments: parseInt(text('[class*="comment"], [data-e2e="comment-count"], .comment-count') || '0'),
-                                shares: parseInt(text('[class*="share"], [class*="forward"], [data-e2e="share-count"], .share-count') || '0'),
-                                publish_time: (node.querySelector('[class*="time"], .publish-time, [data-e2e="publish-time"], .time')?.textContent || '').trim()
-                            };
-                        }).filter(v => v.video_id);
-                    }
-                    """,
-                    scroll_script="""
+                if not videos:
+                    # 备选提取逻辑
+                    videos = await self._collect_with_scroll(
+                        page,
+                        """
                         () => {
-                            const tableBody = document.querySelector('.semi-table-body, .semi-table-virtual-list');
-                            if (tableBody) {
-                                tableBody.scrollTop = tableBody.scrollHeight;
-                            }
-                            window.scrollTo(0, document.body.scrollHeight);
+                            const nodes = document.querySelectorAll('[data-row-key], [data-id], .semi-table-row, [class*="video-card"]');
+                            return Array.from(nodes).map(node => {
+                                const id = node.getAttribute('data-row-key') || node.getAttribute('data-id') || '';
+                                const titleEl = node.querySelector('[class*="title"], .video-title');
+                                return {
+                                    video_id: id,
+                                    title: titleEl ? titleEl.textContent.trim() : '',
+                                    views: 0, likes: 0, comments: 0
+                                };
+                            } ).filter(v => v.title);
                         }
-                    """,
-                    max_rounds=50,
-                    wait_ms=1000,
-                )
+                        """
+                    )
 
                 saved_count = 0
                 for video in videos:
-                    if video.get("video_id"):
+                    if video.get("title"):
                         self.save_video_data(account_id, "douyin", video)
                         saved_count += 1
 
                 if saved_count > 0:
-                    print(f"[Douyin] Collected {saved_count} videos")
+                    print(f"[Douyin] Page collect finished: {saved_count} videos")
                     return {"success": True, "count": saved_count, "videos": videos}
 
                 # Fallback: click each video card to navigate to work-detail page and extract ID from URL.
@@ -892,33 +1010,6 @@ class VideoDataCollector:
 
         return results
 
-    def save_video_data(self, account_id: str, platform: str, video_data: Dict[str, Any]):
-        """Insert or update a single video row using analytics_db logic."""
-        # Map collector fields to analytics_db fields
-        data_to_save = {
-            "account_id": account_id,
-            "platform": platform,
-            "video_id": video_data.get("video_id"),
-            "title": video_data.get("title"),
-            "thumbnail": video_data.get("cover_url"),
-            "publish_date": video_data.get("publish_time"),
-            "play_count": video_data.get("views", 0),
-            "like_count": video_data.get("likes", 0),
-            "comment_count": video_data.get("comments", 0),
-            "share_count": video_data.get("shares", 0),
-            "collect_count": video_data.get("favorites", 0),
-            "raw_data": video_data
-        }
-        
-        try:
-            upsert_video_analytics_by_key(
-                DB_PATH,
-                platform=platform,
-                video_id=video_data.get("video_id"),
-                data=data_to_save
-            )
-        except Exception as e:
-            print(f"[Collector] Error saving to DB: {e}")
 
     async def collect_all_accounts(
         self,

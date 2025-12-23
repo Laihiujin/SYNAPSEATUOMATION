@@ -1051,6 +1051,135 @@ class FileService:
         db.commit()
         return int(cursor.rowcount or 0)
 
+    async def rename_file(self, db, file_id: int, new_filename: str, update_disk: bool = True) -> bool:
+        """
+        重命名文件（同步数据库和磁盘）
+
+        Args:
+            db: 数据库连接
+            file_id: 文件ID
+            new_filename: 新文件名（含扩展名）
+            update_disk: 是否同步修改磁盘文件名
+
+        Returns:
+            bool: 是否成功
+        """
+        # 清理新文件名，防止路径遍历攻击
+        safe_new_filename = Path(new_filename.strip()).name
+        if not safe_new_filename:
+            raise BadRequestException("文件名不能为空")
+
+        if mysql_enabled():
+            warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
+            with sa_connection() as conn:
+                # 查询现有文件信息
+                row = conn.execute(
+                    text("SELECT id, filename, file_path FROM file_records WHERE id = :id"),
+                    {"id": file_id},
+                ).mappings().first()
+
+                if not row:
+                    return False
+
+                old_filename = row.get("filename")
+                old_file_path = row.get("file_path")
+
+                # 如果需要同步修改磁盘文件
+                if update_disk and old_file_path:
+                    old_path = self._resolve_video_path(old_file_path)
+                    if old_path and Path(old_path).exists():
+                        old_full_path = Path(old_path)
+                        new_full_path = old_full_path.parent / safe_new_filename
+
+                        # 检查目标文件是否已存在
+                        if new_full_path.exists() and new_full_path != old_full_path:
+                            raise BadRequestException(f"目标文件已存在: {safe_new_filename}")
+
+                        try:
+                            # 重命名磁盘文件
+                            old_full_path.rename(new_full_path)
+                            logger.info(f"File renamed on disk: {old_full_path} -> {new_full_path}")
+
+                            # 更新数据库中的 file_path（只存储文件名）
+                            conn.execute(
+                                text("UPDATE file_records SET filename = :filename, file_path = :file_path WHERE id = :id"),
+                                {"filename": safe_new_filename, "file_path": safe_new_filename, "id": file_id},
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to rename file on disk: {e}")
+                            raise BadRequestException(f"重命名文件失败: {str(e)}")
+                    else:
+                        # 文件不存在，仅更新数据库
+                        conn.execute(
+                            text("UPDATE file_records SET filename = :filename WHERE id = :id"),
+                            {"filename": safe_new_filename, "id": file_id},
+                        )
+                else:
+                    # 仅更新数据库中的 filename（显示名称）
+                    conn.execute(
+                        text("UPDATE file_records SET filename = :filename WHERE id = :id"),
+                        {"filename": safe_new_filename, "id": file_id},
+                    )
+
+                conn.commit()
+                logger.info(f"File record renamed (MySQL): ID {file_id}, old: {old_filename}, new: {safe_new_filename}")
+                return True
+
+        # SQLite 路径
+        cursor = db.cursor()
+        self._ensure_file_record_columns(cursor, db)
+
+        # 查询现有文件信息
+        cursor.execute("SELECT filename, file_path FROM file_records WHERE id = ?", (file_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            return False
+
+        old_filename = self._row_get(row, "filename")
+        old_file_path = self._row_get(row, "file_path")
+
+        # 如果需要同步修改磁盘文件
+        if update_disk and old_file_path:
+            old_path = self._resolve_video_path(old_file_path)
+            if old_path and Path(old_path).exists():
+                old_full_path = Path(old_path)
+                new_full_path = old_full_path.parent / safe_new_filename
+
+                # 检查目标文件是否已存在
+                if new_full_path.exists() and new_full_path != old_full_path:
+                    raise BadRequestException(f"目标文件已存在: {safe_new_filename}")
+
+                try:
+                    # 重命名磁盘文件
+                    old_full_path.rename(new_full_path)
+                    logger.info(f"File renamed on disk: {old_full_path} -> {new_full_path}")
+
+                    # 更新数据库中的 file_path（只存储文件名）
+                    cursor.execute(
+                        "UPDATE file_records SET filename = ?, file_path = ? WHERE id = ?",
+                        (safe_new_filename, safe_new_filename, file_id)
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to rename file on disk: {e}")
+                    raise BadRequestException(f"重命名文件失败: {str(e)}")
+            else:
+                # 文件不存在，仅更新数据库
+                cursor.execute(
+                    "UPDATE file_records SET filename = ? WHERE id = ?",
+                    (safe_new_filename, file_id)
+                )
+        else:
+            # 仅更新数据库中的 filename（显示名称）
+            cursor.execute(
+                "UPDATE file_records SET filename = ? WHERE id = ?",
+                (safe_new_filename, file_id)
+            )
+
+        db.commit()
+        logger.info(f"File record renamed: ID {file_id}, old: {old_filename}, new: {safe_new_filename}")
+        return True
+
     async def delete_file(self, db, file_id: int) -> bool:
         """Delete file and record (atomic operation)"""
         if mysql_enabled():

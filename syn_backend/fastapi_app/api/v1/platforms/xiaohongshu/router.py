@@ -8,6 +8,7 @@ from typing import List, Optional
 import logging
 
 from ..task_manager import task_manager
+from myUtils.fast_cookie_validator import FastCookieValidator
 
 logger = logging.getLogger(__name__)
 
@@ -100,11 +101,15 @@ async def api_verify_cookie(request: XiaohongshuVerifyCookieRequest):
         Cookie有效性验证结果
     """
     try:
-        logger.warning("[XiaohongshuAPI] Cookie验证功能待实现")
+        validator = FastCookieValidator()
+        result = await validator.validate_cookie_fast("xiaohongshu", account_file=request.account_file)
+        is_valid = result.get("status") == "valid"
+        if result.get("status") in ("error", "network_error"):
+            return {"success": False, "data": result, "message": result.get("error", "Cookie验证失败")}
         return {
             "success": True,
-            "data": {"is_valid": False},
-            "message": "Cookie验证功能待实现"
+            "data": {"is_valid": is_valid, **result},
+            "message": "Cookie有效" if is_valid else "Cookie已失效",
         }
 
     except Exception as e:
