@@ -17,6 +17,7 @@ from loguru import logger
 from fastapi_app.tasks.celery_app import celery_app
 from fastapi_app.tasks.task_state_manager import task_state_manager
 from fastapi_app.tasks.concurrency_controller import concurrency_controller, ConcurrencyLimitException
+from fastapi_app.core.timezone_utils import now_beijing_naive, now_beijing_iso
 
 
 class CallbackTask(Task):
@@ -29,7 +30,7 @@ class CallbackTask(Task):
             task_id=task_id,
             status="success",
             result=retval,
-            completed_at=datetime.now()
+            completed_at=now_beijing_naive()
         )
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
@@ -41,7 +42,7 @@ class CallbackTask(Task):
             task_id=task_id,
             status="failed",
             error_message=error_msg,
-            completed_at=datetime.now()
+            completed_at=now_beijing_naive()
         )
 
         # 检查是否需要短信验证（转入人工任务）
@@ -109,7 +110,7 @@ def publish_single_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
     task_state_manager.update_task_state(
         task_id=task_id,
         status="running",
-        started_at=datetime.now()
+        started_at=now_beijing_naive()
     )
 
     # 提取并发控制参数
@@ -190,7 +191,7 @@ def publish_batch_task(self, batch_data: Dict[str, Any]) -> Dict[str, Any]:
     task_state_manager.update_task_state(
         task_id=task_id,
         status="running",
-        started_at=datetime.now()
+        started_at=now_beijing_naive()
     )
 
     # 提交所有子任务到 Celery
@@ -240,7 +241,7 @@ def _update_material_status(task_data: Dict):
                 """UPDATE file_records
                    SET status = ?, published_at = ?, last_platform = ?, last_accounts = ?
                    WHERE id = ?""",
-                ('published', datetime.now().isoformat(), platform, account_id, file_id)
+                ('published', now_beijing_iso(), platform, account_id, file_id)
             )
             db.commit()
             logger.info(f"[Celery] Updated material status: file_id={file_id}")

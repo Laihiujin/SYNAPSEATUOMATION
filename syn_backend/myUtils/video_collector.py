@@ -6,21 +6,33 @@ import asyncio
 import os
 import sqlite3
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
 from playwright.async_api import Page, async_playwright, TimeoutError as PlaywrightTimeoutError
-
-from config.conf import PLAYWRIGHT_HEADLESS
-import re
 from loguru import logger
+
+try:
+    from fastapi_app.core.config import settings
+    DB_PATH = Path(settings.DATABASE_PATH)
+    from config.conf import PLAYWRIGHT_HEADLESS
+    from fastapi_app.core.timezone_utils import now_beijing_naive
+except ImportError:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    DB_PATH = BASE_DIR / os.getenv("DB_PATH_REL", "db/database.db")
+    PLAYWRIGHT_HEADLESS = True  # Default to headless if config missing
+    # Fallback timezone helper
+    from datetime import datetime as dt
+    def now_beijing_naive():
+        return dt.now()
+
 from myUtils.analytics_db import ensure_analytics_schema, upsert_video_analytics_by_key
 from myUtils.functional_route_manager import functional_route_manager
+from myUtils.cookie_manager import cookie_manager
 
-BASE_DIR = Path(__file__).parent.parent
-DB_PATH = BASE_DIR / os.getenv("DB_PATH_REL", "db/database.db")
 WAIT_TIMEOUT = int(os.getenv("COLLECT_WAIT_MS", "45000"))
 HEADLESS = PLAYWRIGHT_HEADLESS
 DEFAULT_UA = os.getenv(
@@ -35,84 +47,66 @@ class VideoDataCollector:
         self.init_database()
 
     def init_database(self):
-        """Ensure the analytics table exists."""
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS video_analytics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    account_id TEXT NOT NULL,
-                    platform TEXT NOT NULL,
-                    video_id TEXT NOT NULL,
-                    title TEXT,
-                    cover_url TEXT,
-                    publish_time TEXT,
-                    duration INTEGER,
-                    views INTEGER DEFAULT 0,
-                    likes INTEGER DEFAULT 0,
-                    comments INTEGER DEFAULT 0,
-                    shares INTEGER DEFAULT 0,
-                    favorites INTEGER DEFAULT 0,
-                    completion_rate REAL,
-                    avg_watch_time INTEGER,
-                    status TEXT DEFAULT 'published',
-                    collected_at TEXT NOT NULL,
-                    UNIQUE(account_id, video_id)
+        """Ensure the analytics table exists and has current schema."""
+        db_str = str(DB_PATH)
+        try:
+            with sqlite3.connect(db_str) as conn:
+                cursor = conn.cursor()
+                
+                # 1. Create table
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS video_analytics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        account_id TEXT NOT NULL,
+                        platform TEXT NOT NULL,
+                        video_id TEXT NOT NULL,
+                        title TEXT,
+                        cover_url TEXT,
+                        publish_time TEXT,
+                        duration INTEGER,
+                        play_count INTEGER DEFAULT 0,
+                        like_count INTEGER DEFAULT 0,
+                        comment_count INTEGER DEFAULT 0,
+                        share_count INTEGER DEFAULT 0,
+                        collect_count INTEGER DEFAULT 0,
+                        status TEXT DEFAULT 'published',
+                        collected_at TEXT NOT NULL,
+                        UNIQUE(account_id, video_id)
+                    )
+                    """
                 )
-                """
-            )
 
-            conn.commit()
+                # 2. Add missing columns (migration)
+                cursor.execute("PRAGMA table_info(video_analytics)")
+                existing_cols = {row[1] for row in cursor.fetchall()}
 
-        # migrate legacy schema to include missing columns used by collector
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(video_analytics)")
-            existing_cols = {row[1] for row in cursor.fetchall()}
+                def add_col(name, ddl):
+                    if name not in existing_cols:
+                        cursor.execute(f"ALTER TABLE video_analytics ADD COLUMN {name} {ddl}")
 
-            def add_column(name: str, ddl: str):
-                if name not in existing_cols:
-                    cursor.execute(f"ALTER TABLE video_analytics ADD COLUMN {name} {ddl}")
+                add_col("cover_url", "TEXT")
+                add_col("publish_time", "TEXT")
+                add_col("duration", "INTEGER")
+                add_col("play_count", "INTEGER DEFAULT 0")
+                add_col("like_count", "INTEGER DEFAULT 0")
+                add_col("comment_count", "INTEGER DEFAULT 0")
+                add_col("share_count", "INTEGER DEFAULT 0")
+                add_col("collect_count", "INTEGER DEFAULT 0")
+                add_col("completion_rate", "REAL")
+                add_col("avg_watch_time", "INTEGER")
+                add_col("status", "TEXT DEFAULT 'published'")
+                add_col("collected_at", "TEXT")
 
-            add_column("cover_url", "TEXT")
-            add_column("publish_time", "TEXT")
-            add_column("duration", "INTEGER")
-            add_column("views", "INTEGER DEFAULT 0")
-            add_column("likes", "INTEGER DEFAULT 0")
-            add_column("comments", "INTEGER DEFAULT 0")
-            add_column("shares", "INTEGER DEFAULT 0")
-            add_column("favorites", "INTEGER DEFAULT 0")
-            add_column("completion_rate", "REAL")
-            add_column("avg_watch_time", "INTEGER")
-            add_column("status", "TEXT DEFAULT 'published'")
-            add_column("collected_at", "TEXT")
-            conn.commit()
-
-        # create indexes after columns are ensured
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_video_analytics_account
-                ON video_analytics(account_id)
-                """
-            )
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_video_analytics_platform
-                ON video_analytics(platform)
-                """
-            )
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_video_analytics_collected
-                ON video_analytics(collected_at)
-                """
-            )
-            conn.commit()
-            print("[Collector] Database initialized")
+                # 3. Create indexes
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_a_account ON video_analytics(account_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_a_platform ON video_analytics(platform)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_v_a_collected ON video_analytics(collected_at)")
+                
+                conn.commit()
+                print("[Collector] Database initialized (consolidated)")
+        except Exception as e:
+            logger.error(f"[Collector] Database init failed at {db_str}: {e}")
 
     async def _recover_id_by_clicking(self, page: Page, item_selector: str, index: int, platform: str) -> Optional[str]:
         """通过点击元素并在详情页提取 ID"""
@@ -202,48 +196,36 @@ class VideoDataCollector:
             logger.error(f"Error in proximity matching: {e}")
 
     def save_video_data(self, account_id: str, platform: str, video: Dict[str, Any]):
-        """Save video data and trigger recovery."""
-        # 原有的保存逻辑
-        collected_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO video_analytics (
-                    account_id, platform, video_id, title, cover_url, 
-                    publish_time, views, likes, comments, shares, favorites, collected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(account_id, video_id) DO UPDATE SET
-                    title=excluded.title,
-                    cover_url=excluded.cover_url,
-                    views=excluded.views,
-                    likes=excluded.likes,
-                    comments=excluded.comments,
-                    shares=excluded.shares,
-                    favorites=excluded.favorites,
-                    collected_at=excluded.collected_at
-                """,
-                (
-                    account_id,
-                    platform,
-                    video.get("video_id", ""),
-                    video.get("title", ""),
-                    video.get("cover_url", ""),
-                    video.get("publish_time", ""),
-                    video.get("views", 0),
-                    video.get("likes", 0),
-                    video.get("comments", 0),
-                    video.get("shares", 0),
-                    video.get("favorites", 0),
-                    collected_at,
-                ),
-            )
-            conn.commit()
+        """Save video data using analytics_db helper and trigger recovery."""
+        data_to_save = {
+            "account_id": account_id,
+            "platform": platform,
+            "video_id": video.get("video_id"),
+            "title": video.get("title"),
+            "thumbnail": video.get("cover_url"),
+            "publish_date": video.get("publish_time"),
+            "play_count": video.get("play_count") or video.get("views") or 0,
+            "like_count": video.get("like_count") or video.get("likes") or 0,
+            "comment_count": video.get("comment_count") or video.get("comments") or 0,
+            "share_count": video.get("share_count") or video.get("shares") or 0,
+            "collect_count": video.get("collect_count") or video.get("favorites") or 0,
+            "raw_data": video
+        }
         
-        # 触发 ID 回收
+        try:
+            upsert_video_analytics_by_key(
+                DB_PATH,
+                platform=platform,
+                video_id=video.get("video_id"),
+                data=data_to_save
+            )
+        except Exception as e:
+            logger.error(f"[Collector] Error saving to DB: {e}")
+        
+        # 触发 ID 回写到后端任务表
         self._proximity_match_and_recover(account_id, platform, video)
 
-    async def collect_kuaishou_data(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
+    async def collect_douyin_data_api(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
         cookies = self._load_cookie_list(cookie_file)
         if not cookies:
             return {"success": False, "error": "Cookie file not found or invalid"}
@@ -443,9 +425,9 @@ class VideoDataCollector:
                             return {
                                 index,
                                 title,
-                                views: parseInt(stats[0] || '0'),
-                                likes: parseInt(stats[1] || '0'),
-                                comments: parseInt(stats[2] || '0'),
+                                play_count: parseInt(stats[0] || '0'),
+                                like_count: parseInt(stats[1] || '0'),
+                                comment_count: parseInt(stats[2] || '0'),
                                 publish_time: time
                             };
                         });
@@ -681,14 +663,14 @@ class VideoDataCollector:
 
             except PlaywrightTimeoutError:
                 try:
-                    await page.screenshot(path=BASE_DIR / "logs" / f"douyin_timeout_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+                    await page.screenshot(path=BASE_DIR / "logs" / f"douyin_timeout_{now_beijing_naive().strftime('%Y%m%d_%H%M%S')}.png")
                 except Exception:
                     pass
                 return {"success": False, "error": "Timeout waiting for video list (login expired or layout changed)"}
             except Exception as e:  # noqa: BLE001
                 print(f"[Douyin] Collect failed: {e}")
                 try:
-                    await page.screenshot(path=BASE_DIR / "logs" / f"douyin_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+                    await page.screenshot(path=BASE_DIR / "logs" / f"douyin_error_{now_beijing_naive().strftime('%Y%m%d_%H%M%S')}.png")
                 except Exception:
                     pass
                 return {"success": False, "error": str(e)}
@@ -882,10 +864,10 @@ class VideoDataCollector:
                                 video_id: item.getAttribute('data-feedid') || item.getAttribute('data-id') || '',
                                 title: item.querySelector('.title, .post-title')?.textContent.trim() || '',
                                 cover_url: item.querySelector('img')?.src || '',
-                                views: parseInt(item.querySelector('.view-num, [class*="view"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                likes: parseInt(item.querySelector('.like-num, [class*="like"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                comments: parseInt(item.querySelector('.comment-num, [class*="comment"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
-                                shares: parseInt(item.querySelector('.share-num, [class*="share"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
+                                play_count: parseInt(item.querySelector('.view-num, [class*="view"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
+                                like_count: parseInt(item.querySelector('.like-num, [class*="like"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
+                                comment_count: parseInt(item.querySelector('.comment-num, [class*="comment"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
+                                share_count: parseInt(item.querySelector('.share-num, [class*="share"]')?.textContent.replace(/[^0-9]/g, '') || '0'),
                                 publish_time: item.querySelector('.publish-time, .time')?.textContent.trim() || ''
                             };
                         });
@@ -975,7 +957,7 @@ class VideoDataCollector:
                 if photo_id and photo_id not in seen_ids:
                     seen_ids.add(photo_id)
                     # Try to extract title/stats on the detail page if possible
-                    stats = {"video_id": photo_id, "title": "", "cover_url": "", "views": 0, "likes": 0, "comments": 0}
+                    stats = {"video_id": photo_id, "title": "", "cover_url": "", "play_count": 0, "like_count": 0, "comment_count": 0}
                     try:
                         title_el = await detail_page.locator("h1, .video-title, [class*='title']").first
                         if await title_el.count() > 0:
@@ -987,10 +969,10 @@ class VideoDataCollector:
                             text = await s_el.inner_text()
                             val_m = re.search(r'(\d+)', text.replace(',', ''))
                             val = int(val_m.group(1)) if val_m else 0
-                            # Guessing order if no text labels: views, likes, comments
-                            if idx == 0: stats["views"] = val
-                            elif idx == 1: stats["likes"] = val
-                            elif idx == 2: stats["comments"] = val
+                            # Guessing order if no text labels: play_count, like_count, comment_count
+                            if idx == 0: stats["play_count"] = val
+                            elif idx == 1: stats["like_count"] = val
+                            elif idx == 2: stats["comment_count"] = val
                     except: pass
                     
                     results.append(stats)

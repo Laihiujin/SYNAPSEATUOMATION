@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from loguru import logger
 
 from fastapi_app.cache.redis_client import get_redis
+from fastapi_app.core.timezone_utils import now_beijing_naive, now_beijing_iso
 
 
 class TaskStateManager:
@@ -61,7 +62,7 @@ class TaskStateManager:
                 "priority": priority,
                 "parent_task_id": parent_task_id,
                 "status": "pending",
-                "created_at": datetime.now().isoformat(),
+                "created_at": now_beijing_iso(),
                 "started_at": None,
                 "completed_at": None,
                 "error_message": None,
@@ -79,13 +80,13 @@ class TaskStateManager:
             # 添加到状态索引（用于列表查询）
             self.redis.zadd(
                 self._index_key(f"status:{task_state['status']}"),
-                {task_id: datetime.now().timestamp()}
+                {task_id: now_beijing_naive().timestamp()}
             )
 
             # 添加到类型索引
             self.redis.zadd(
                 self._index_key(f"type:{task_type}"),
-                {task_id: datetime.now().timestamp()}
+                {task_id: now_beijing_naive().timestamp()}
             )
 
             logger.debug(f"[TaskState] Created task {task_id}")
@@ -138,7 +139,7 @@ class TaskStateManager:
                     "priority": 5,
                     "parent_task_id": None,
                     "status": status or "running",
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": now_beijing_iso(),
                     "started_at": None,
                     "completed_at": None,
                     "error_message": None,
@@ -157,7 +158,7 @@ class TaskStateManager:
                 # 添加到新状态索引
                 self.redis.zadd(
                     self._index_key(f"status:{status}"),
-                    {task_id: datetime.now().timestamp()}
+                    {task_id: now_beijing_naive().timestamp()}
                 )
 
             # 更新字段
@@ -174,7 +175,7 @@ class TaskStateManager:
             if retry_count is not None:
                 task_state['retry_count'] = retry_count
 
-            task_state['updated_at'] = datetime.now().isoformat()
+            task_state['updated_at'] = now_beijing_iso()
 
             # 保存更新后的状态
             self.redis.set(
@@ -318,7 +319,7 @@ class TaskStateManager:
             return self.update_task_state(
                 task_id=task_id,
                 status="cancelled",
-                completed_at=datetime.now()
+                completed_at=now_beijing_naive()
             )
 
         except Exception as e:

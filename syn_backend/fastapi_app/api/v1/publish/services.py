@@ -15,6 +15,9 @@ import warnings
 
 from sqlalchemy import text
 
+# 时区工具
+from fastapi_app.core.timezone_utils import now_beijing_naive
+
 # 添加路径以导入现有模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
@@ -264,7 +267,7 @@ class PublishService:
         """创建批量发布任务的内部方法"""
         import random  # 导入 random 模块用于随机偏移
 
-        base_time = datetime.now()
+        base_time = now_beijing_naive()
         interval_s = int(interval_seconds or 0)
         random_offset_s = int(random_offset or 0)
         mode = (interval_mode or "").strip()
@@ -628,7 +631,7 @@ class PublishService:
             else:
                 # 只有时间，使用今天或明天的日期
                 time_obj = datetime.strptime(scheduled_time, "%H:%M")
-                now = datetime.now()
+                now = now_beijing_naive()
                 target_time = now.replace(
                     hour=time_obj.hour,
                     minute=time_obj.minute,
@@ -641,7 +644,7 @@ class PublishService:
                     target_time += timedelta(days=1)
 
             # 计算延迟秒数
-            delay_seconds = (target_time - datetime.now()).total_seconds()
+            delay_seconds = (target_time - now_beijing_naive()).total_seconds()
 
             if delay_seconds < 0:
                 raise ValueError("定时时间不能早于当前时间")

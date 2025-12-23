@@ -7,6 +7,13 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import json
 
+try:
+    from fastapi_app.core.timezone_utils import now_beijing_naive
+except ImportError:
+    # Fallback for standalone usage
+    def now_beijing_naive():
+        return datetime.now()
+
 def ensure_analytics_schema(db_path: Path):
     """Create analytics tables if they don't exist"""
     with sqlite3.connect(db_path) as conn:
@@ -142,12 +149,12 @@ def get_chart_data(db_path: Path, start_date: Optional[str] = None, end_date: Op
     """Get chart data for trend visualization"""
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
-        
+
         # If no date range specified, use last N days
         if not start_date:
-            start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            start_date = (now_beijing_naive() - timedelta(days=days)).strftime('%Y-%m-%d')
         if not end_date:
-            end_date = datetime.now().strftime('%Y-%m-%d')
+            end_date = now_beijing_naive().strftime('%Y-%m-%d')
         
         cursor.execute("""
             SELECT 
