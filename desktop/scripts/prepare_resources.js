@@ -22,14 +22,17 @@ function main() {
   const outResources = path.join(desktopRoot, "resources");
   fs.mkdirSync(outResources, { recursive: true });
 
-  const playwrightSrc = path.join(repoRoot, ".playwright-browsers");
-  const playwrightDst = path.join(outResources, "playwright-browsers");
-  if (fs.existsSync(playwrightSrc)) {
-    console.log(`[prepare] copy playwright browsers: ${playwrightSrc} -> ${playwrightDst}`);
-    fs.rmSync(playwrightDst, { recursive: true, force: true });
-    copyDir(playwrightSrc, playwrightDst);
+  // 🆕 新方案：浏览器以 ZIP 形式打包，在启动时解压
+  // 不再复制整个 .playwright-browsers 目录（节省打包时间和空间）
+  // 浏览器 ZIP 文件通过 package.json extraResources 配置打包
+  const browsersZipDir = path.join(outResources, "browsers-zip");
+  if (fs.existsSync(browsersZipDir)) {
+    console.log(`[prepare] browsers-zip directory found: ${browsersZipDir}`);
+    const zipFiles = fs.readdirSync(browsersZipDir).filter(f => f.endsWith(".zip"));
+    console.log(`[prepare] found ${zipFiles.length} browser ZIP files: ${zipFiles.join(", ")}`);
   } else {
-    console.log(`[prepare] skip playwright browsers (not found): ${playwrightSrc}`);
+    console.log(`[prepare] ⚠️  browsers-zip directory not found!`);
+    console.log(`[prepare] Run 'prepare-browsers-zip.bat' before building`);
   }
 
   console.log("[prepare] done");
