@@ -1,43 +1,20 @@
 """
-简化版设备指纹管理器
-为每个账号生成并持久化设备特征，避免频繁变化触发风控
-
-解决问题：
-- 平台（特别是抖音）检测设备指纹
-- 缺少设备指纹持久化
-- 完整风控方案过于复杂，需要实用优先的简化版
-
-使用方式：
-    from myUtils.device_fingerprint import device_fingerprint_manager
-
-    # 获取或生成设备指纹（自动持久化）
-    fingerprint = device_fingerprint_manager.get_or_create_fingerprint(
-        account_id="account_123",
-        platform="douyin"
-    )
-
-    # 应用到浏览器上下文
-    context_options = device_fingerprint_manager.apply_to_context(
-        fingerprint, context_options
-    )
-
-    # 获取反检测脚本
-    init_script = device_fingerprint_manager.get_init_script(fingerprint)
-    await context.add_init_script(init_script)
+Full device fingerprint manager.
+Generates and persists per-account fingerprints and provides init scripts.
 """
 import json
 import hashlib
 import random
 import string
+import re
 from pathlib import Path
 from typing import Dict, Optional
 from loguru import logger
 
 
 class DeviceFingerprint:
-    """设备指纹管理器"""
+    """Device fingerprint manager."""
 
-    # 常见 User-Agent 池（真实浏览器）
     USER_AGENTS = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
@@ -45,12 +22,54 @@ class DeviceFingerprint:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
     ]
 
-    # 屏幕分辨率池（常见分辨率）
     SCREEN_RESOLUTIONS = [
         {"width": 1920, "height": 1080},
         {"width": 1366, "height": 768},
         {"width": 2560, "height": 1440},
         {"width": 1536, "height": 864},
+    ]
+
+    FONT_LIST = [
+        "Arial",
+        "Arial Black",
+        "Calibri",
+        "Cambria",
+        "Cambria Math",
+        "Comic Sans MS",
+        "Consolas",
+        "Courier New",
+        "Georgia",
+        "Helvetica",
+        "Impact",
+        "Lucida Console",
+        "Microsoft YaHei",
+        "Microsoft YaHei UI",
+        "Microsoft Sans Serif",
+        "Segoe UI",
+        "Segoe UI Emoji",
+        "Segoe UI Symbol",
+        "Tahoma",
+        "Times New Roman",
+        "Trebuchet MS",
+        "Verdana",
+    ]
+
+    PLUGINS = [
+        {"name": "Chrome PDF Plugin", "filename": "internal-pdf-viewer", "description": "Portable Document Format"},
+        {"name": "Chrome PDF Viewer", "filename": "mhjfbmdgcfjbbpaeojofohoefgiehjai", "description": ""},
+        {"name": "Native Client", "filename": "internal-nacl-plugin", "description": ""},
+    ]
+
+    MIME_TYPES = [
+        {"type": "application/pdf", "suffixes": "pdf", "description": "Portable Document Format"},
+        {"type": "application/x-nacl", "suffixes": "", "description": "Native Client Executable"},
+        {"type": "application/x-pnacl", "suffixes": "", "description": "Portable Native Client Executable"},
+    ]
+
+    MEDIA_DEVICES = [
+        {"kind": "audioinput", "label": "Microphone (Realtek(R) Audio)", "groupId": "audio-group-1"},
+        {"kind": "audiooutput", "label": "Speakers (Realtek(R) Audio)", "groupId": "audio-group-1"},
+        {"kind": "videoinput", "label": "Integrated Camera", "groupId": "video-group-1"},
     ]
 
     def __init__(self, storage_dir: Path = None):
@@ -62,12 +81,10 @@ class DeviceFingerprint:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _generate_device_id(self, account_id: str, platform: str) -> str:
-        """生成设备 ID（基于账号和平台的哈希，确保同一账号总是相同）"""
         seed = f"{account_id}_{platform}_device"
         return hashlib.md5(seed.encode()).hexdigest()[:16]
 
     def _generate_webgl_vendor(self) -> str:
-        """生成 WebGL 供应商信息"""
         vendors = [
             "Google Inc. (NVIDIA)",
             "Google Inc. (Intel)",
@@ -76,67 +93,80 @@ class DeviceFingerprint:
         return random.choice(vendors)
 
     def _generate_canvas_fingerprint(self, device_id: str) -> str:
-        """生成 Canvas 指纹（简化版，基于 device_id 生成稳定值）"""
-        # 基于 device_id 生成稳定的 Canvas 指纹
         seed = int(hashlib.md5(device_id.encode()).hexdigest()[:8], 16)
         random.seed(seed)
-
-        # 生成伪随机但稳定的指纹字符串
         fp = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-
-        # 重置随机种子
         random.seed()
-
         return fp
+
+    def _pick_subset(self, seed: int, items: list, min_count: int, max_count: int) -> list:
+        if not items:
+            return []
+        random.seed(seed)
+        count = min(len(items), random.randint(min_count, max_count))
+        subset = random.sample(items, count)
+        random.seed()
+        return subset
+
+    def _extract_chrome_version(self, user_agent: str) -> str:
+        if not user_agent:
+            return "120.0.0.0"
+        match = re.search(r"Chrome/([0-9.]+)", user_agent)
+        return match.group(1) if match else "120.0.0.0"
+
+    def _build_client_hints(self, user_agent: str, platform: str) -> Dict:
+        chrome_version = self._extract_chrome_version(user_agent)
+        major = chrome_version.split(".")[0] if chrome_version else "120"
+        brands = [
+            {"brand": "Chromium", "version": major},
+            {"brand": "Google Chrome", "version": major},
+            {"brand": "Not A(Brand", "version": "99"},
+        ]
+        platform_map = {
+            "win32": "Windows",
+            "darwin": "macOS",
+            "linux": "Linux",
+        }
+        ch_platform = platform_map.get(platform.lower(), "Windows") if platform else "Windows"
+        return {
+            "brands": brands,
+            "mobile": False,
+            "platform": ch_platform,
+            "ua_full_version": chrome_version,
+            "platform_version": "10.0.0",
+            "architecture": "x86",
+            "model": "",
+            "bitness": "64",
+            "wow64": False,
+        }
 
     def generate_fingerprint(
         self,
         account_id: str,
-        platform: str
+        platform: str,
+        policy: Optional[Dict] = None
     ) -> Dict:
-        """
-        生成设备指纹
-
-        策略：
-        - 为每个账号生成固定的设备特征
-        - 基于 device_id 确定性地选择配置（确保同一账号总是相同）
-        - 不做复杂的风控伪装，仅保持基本稳定性
-
-        Returns:
-            {
-                "device_id": "abc123...",
-                "user_agent": "Mozilla/5.0 ...",
-                "viewport": {"width": 1920, "height": 1080},
-                "screen": {"width": 1920, "height": 1080},
-                "timezone": "Asia/Shanghai",
-                "language": "zh-CN",
-                "webgl_vendor": "Google Inc. (NVIDIA)",
-                "canvas_fp": "abc123...",
-                "platform": "Win32",
-                "hardware_concurrency": 8,
-                "device_memory": 8
-            }
-        """
-        # 生成稳定的设备 ID
         device_id = self._generate_device_id(account_id, platform)
-
-        # 基于 device_id 确定性地选择配置（确保同一账号总是相同）
         seed = int(hashlib.md5(device_id.encode()).hexdigest()[:8], 16)
         random.seed(seed)
 
         user_agent = random.choice(self.USER_AGENTS)
         screen = random.choice(self.SCREEN_RESOLUTIONS)
+        fonts = self._pick_subset(seed + 7, self.FONT_LIST, 10, 16)
+        plugins = list(self.PLUGINS)
+        mime_types = list(self.MIME_TYPES)
+        media_devices = list(self.MEDIA_DEVICES)
+        client_hints = self._build_client_hints(user_agent, "win32")
 
-        # 重置随机种子
         random.seed()
 
-        fingerprint = {
+        webrtc_mode = ((policy or {}).get("webrtc") or {}).get("mode", "mask")
+        audio_noise = ((policy or {}).get("audio") or {}).get("noise", 0.0001)
+
+        return {
             "device_id": device_id,
             "user_agent": user_agent,
-            "viewport": {
-                "width": screen["width"],
-                "height": screen["height"] - 100  # 减去浏览器 UI 高度
-            },
+            "viewport": {"width": screen["width"], "height": screen["height"] - 100},
             "screen": screen,
             "timezone": "Asia/Shanghai",
             "language": "zh-CN",
@@ -150,48 +180,74 @@ class DeviceFingerprint:
             "device_memory": 8,
             "max_touch_points": 0,
             "color_depth": 24,
-            "pixel_depth": 24
+            "pixel_depth": 24,
+            "fonts": fonts,
+            "plugins": plugins,
+            "mime_types": mime_types,
+            "media_devices": media_devices,
+            "client_hints": client_hints,
+            "webrtc_mode": webrtc_mode,
+            "audio_noise": audio_noise,
         }
-
-        return fingerprint
 
     def get_or_create_fingerprint(
         self,
         account_id: str,
-        platform: str
+        platform: str,
+        policy: Optional[Dict] = None
     ) -> Dict:
-        """获取或创建设备指纹（持久化到文件）"""
         fingerprint_file = self.storage_dir / f"{account_id}_{platform}.json"
 
-        # 尝试加载现有指纹
         if fingerprint_file.exists():
             try:
                 with open(fingerprint_file, 'r', encoding='utf-8') as f:
                     fingerprint = json.load(f)
-                    logger.info(f"✅ [{platform}] 加载设备指纹: {account_id}")
+                    fingerprint = self._normalize_fingerprint(fingerprint, account_id, platform, policy)
+                    logger.info(f"[fp] loaded: {platform} {account_id}")
                     return fingerprint
             except Exception as e:
-                logger.warning(f"⚠️ 加载设备指纹失败: {e}，重新生成")
+                logger.warning(f"[fp] load failed: {e}; regenerate")
 
-        # 生成新指纹
-        fingerprint = self.generate_fingerprint(account_id, platform)
+        fingerprint = self.generate_fingerprint(account_id, platform, policy=policy)
 
-        # 保存到文件
         try:
             with open(fingerprint_file, 'w', encoding='utf-8') as f:
                 json.dump(fingerprint, f, ensure_ascii=False, indent=2)
-            logger.info(f"✅ [{platform}] 生成并保存设备指纹: {account_id}")
+            logger.info(f"[fp] saved: {platform} {account_id}")
         except Exception as e:
-            logger.error(f"❌ 保存设备指纹失败: {e}")
+            logger.error(f"[fp] save failed: {e}")
 
         return fingerprint
 
-    def apply_to_context(
+    def _normalize_fingerprint(
         self,
         fingerprint: Dict,
-        context_options: Dict
+        account_id: str,
+        platform: str,
+        policy: Optional[Dict],
     ) -> Dict:
-        """将设备指纹应用到 Playwright 浏览器上下文"""
+        if not fingerprint.get("device_id"):
+            fingerprint["device_id"] = self._generate_device_id(account_id, platform)
+        if not fingerprint.get("user_agent"):
+            fingerprint["user_agent"] = random.choice(self.USER_AGENTS)
+        if "fonts" not in fingerprint:
+            seed = int(hashlib.md5(fingerprint["device_id"].encode()).hexdigest()[:8], 16)
+            fingerprint["fonts"] = self._pick_subset(seed + 7, self.FONT_LIST, 10, 16)
+        if "plugins" not in fingerprint:
+            fingerprint["plugins"] = list(self.PLUGINS)
+        if "mime_types" not in fingerprint:
+            fingerprint["mime_types"] = list(self.MIME_TYPES)
+        if "media_devices" not in fingerprint:
+            fingerprint["media_devices"] = list(self.MEDIA_DEVICES)
+        if "client_hints" not in fingerprint:
+            fingerprint["client_hints"] = self._build_client_hints(fingerprint.get("user_agent", ""), "win32")
+        if "webrtc_mode" not in fingerprint:
+            fingerprint["webrtc_mode"] = ((policy or {}).get("webrtc") or {}).get("mode", "mask")
+        if "audio_noise" not in fingerprint:
+            fingerprint["audio_noise"] = ((policy or {}).get("audio") or {}).get("noise", 0.0001)
+        return fingerprint
+
+    def apply_to_context(self, fingerprint: Dict, context_options: Dict) -> Dict:
         context_options.update({
             "user_agent": fingerprint["user_agent"],
             "viewport": fingerprint["viewport"],
@@ -200,87 +256,150 @@ class DeviceFingerprint:
             "timezone_id": fingerprint["timezone"],
             "device_scale_factor": 1.0,
             "has_touch": False,
-            "is_mobile": False
+            "is_mobile": False,
         })
-
-        logger.debug(f"✅ 设备指纹已应用到浏览器上下文")
         return context_options
 
     def get_init_script(self, fingerprint: Dict) -> str:
-        """
-        生成反检测 JavaScript 脚本
+        """Build a browser init script to spoof common fingerprint surfaces."""
+        fp_payload = {
+            "languages": fingerprint.get("languages", ["zh-CN", "zh"]),
+            "hardwareConcurrency": fingerprint.get("hardware_concurrency", 8),
+            "deviceMemory": fingerprint.get("device_memory", 8),
+            "maxTouchPoints": fingerprint.get("max_touch_points", 0),
+            "webglVendor": fingerprint.get("webgl_vendor", "Google Inc. (Intel)"),
+            "webglRenderer": fingerprint.get("webgl_renderer", "ANGLE (Intel)"),
+            "canvasFp": fingerprint.get("canvas_fp", ""),
+            "colorDepth": fingerprint.get("color_depth", 24),
+            "pixelDepth": fingerprint.get("pixel_depth", 24),
+            "plugins": fingerprint.get("plugins", []),
+            "mimeTypes": fingerprint.get("mime_types", []),
+            "fonts": fingerprint.get("fonts", []),
+            "mediaDevices": fingerprint.get("media_devices", []),
+            "clientHints": fingerprint.get("client_hints", {}),
+            "audioNoise": fingerprint.get("audio_noise", 0.0001),
+            "webrtcMode": fingerprint.get("webrtc_mode", "mask"),
+            "platform": fingerprint.get("platform", "Win32"),
+        }
+        fp_json = json.dumps(fp_payload)
 
-        覆盖内容：
-        - navigator.webdriver（隐藏自动化标记）
-        - WebGL 指纹
-        - Canvas 指纹混淆
-        - navigator.hardwareConcurrency / deviceMemory 等硬件参数
-        """
         return f"""
         (() => {{
-            // 禁用 webdriver 检测（最重要）
-            Object.defineProperty(navigator, 'webdriver', {{
-                get: () => undefined
-            }});
+            const fp = {fp_json};
 
-            // 覆盖 WebGL 指纹
+            Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
+            Object.defineProperty(navigator, 'platform', {{ get: () => fp.platform }});
+
             const getParameter = WebGLRenderingContext.prototype.getParameter;
             WebGLRenderingContext.prototype.getParameter = function(parameter) {{
-                if (parameter === 37445) return '{fingerprint["webgl_vendor"]}';
-                if (parameter === 37446) return '{fingerprint["webgl_renderer"]}';
+                if (parameter === 37445) return fp.webglVendor;
+                if (parameter === 37446) return fp.webglRenderer;
                 return getParameter.apply(this, arguments);
             }};
 
-            // 覆盖 navigator.hardwareConcurrency
-            Object.defineProperty(navigator, 'hardwareConcurrency', {{
-                get: () => {fingerprint["hardware_concurrency"]}
-            }});
+            Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => fp.hardwareConcurrency }});
+            Object.defineProperty(navigator, 'deviceMemory', {{ get: () => fp.deviceMemory }});
+            Object.defineProperty(navigator, 'maxTouchPoints', {{ get: () => fp.maxTouchPoints }});
+            Object.defineProperty(navigator, 'languages', {{ get: () => fp.languages }});
 
-            // 覆盖 navigator.deviceMemory
-            Object.defineProperty(navigator, 'deviceMemory', {{
-                get: () => {fingerprint["device_memory"]}
-            }});
-
-            // 覆盖 navigator.maxTouchPoints
-            Object.defineProperty(navigator, 'maxTouchPoints', {{
-                get: () => {fingerprint["max_touch_points"]}
-            }});
-
-            // 覆盖 navigator.languages
-            Object.defineProperty(navigator, 'languages', {{
-                get: () => {json.dumps(fingerprint["languages"])}
-            }});
-
-            // Canvas 指纹混淆（简化版）
             const toDataURL = HTMLCanvasElement.prototype.toDataURL;
             HTMLCanvasElement.prototype.toDataURL = function() {{
                 const result = toDataURL.apply(this, arguments);
-                // 添加稳定的噪声
-                return result + '{fingerprint["canvas_fp"]}';
+                return result + fp.canvasFp;
             }};
 
-            // 禁用自动化检测
-            window.chrome = {{
-                runtime: {{}}
-            }};
-
-            // 覆盖 Notification.permission
             try {{
-                Object.defineProperty(Notification, 'permission', {{
-                    get: () => 'default'
-                }});
+                Object.defineProperty(Notification, 'permission', {{ get: () => 'default' }});
             }} catch (e) {{}}
 
-            // 覆盖屏幕色深
-            Object.defineProperty(screen, 'colorDepth', {{
-                get: () => {fingerprint["color_depth"]}
-            }});
-            Object.defineProperty(screen, 'pixelDepth', {{
-                get: () => {fingerprint["pixel_depth"]}
-            }});
+            Object.defineProperty(screen, 'colorDepth', {{ get: () => fp.colorDepth }});
+            Object.defineProperty(screen, 'pixelDepth', {{ get: () => fp.pixelDepth }});
+
+            const makeArrayLike = (items, nameKey) => {{
+                const arr = items.map((item) => Object.assign({{}}, item));
+                arr.item = (i) => arr[i] || null;
+                arr.namedItem = (name) => arr.find((x) => x[nameKey] === name) || null;
+                return arr;
+            }};
+            try {{
+                const plugins = makeArrayLike(fp.plugins || [], 'name');
+                Object.defineProperty(navigator, 'plugins', {{ get: () => plugins }});
+                const mimeTypes = makeArrayLike(fp.mimeTypes || [], 'type');
+                Object.defineProperty(navigator, 'mimeTypes', {{ get: () => mimeTypes }});
+            }} catch (e) {{}}
+
+            try {{
+                const fontSet = new Set(fp.fonts || []);
+                if (document.fonts && document.fonts.check) {{
+                    const origCheck = document.fonts.check.bind(document.fonts);
+                    document.fonts.check = (query) => {{
+                        const match = /"([^"]+)"/.exec(query);
+                        if (match && match[1]) {{
+                            return fontSet.has(match[1]);
+                        }}
+                        return origCheck(query);
+                    }};
+                }}
+            }} catch (e) {{}}
+
+            try {{
+                if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {{
+                    navigator.mediaDevices.enumerateDevices = async () => (fp.mediaDevices || []);
+                }}
+            }} catch (e) {{}}
+
+            try {{
+                const data = fp.clientHints || {{}};
+                const uaData = {{
+                    brands: data.brands || [],
+                    mobile: !!data.mobile,
+                    platform: data.platform || 'Windows',
+                    getHighEntropyValues: async (hints) => {{
+                        const out = {{}};
+                        (hints || []).forEach((key) => {{
+                            if (key === 'architecture') out.architecture = data.architecture || 'x86';
+                            if (key === 'bitness') out.bitness = data.bitness || '64';
+                            if (key === 'model') out.model = data.model || '';
+                            if (key === 'platform') out.platform = data.platform || 'Windows';
+                            if (key === 'platformVersion') out.platformVersion = data.platform_version || '10.0.0';
+                            if (key === 'uaFullVersion') out.uaFullVersion = data.ua_full_version || '';
+                            if (key === 'fullVersionList') out.fullVersionList = data.brands || [];
+                            if (key === 'wow64') out.wow64 = !!data.wow64;
+                        }});
+                        return out;
+                    }}
+                }};
+                Object.defineProperty(navigator, 'userAgentData', {{ get: () => uaData }});
+            }} catch (e) {{}}
+
+            try {{
+                const getChannelData = AudioBuffer.prototype.getChannelData;
+                AudioBuffer.prototype.getChannelData = function() {{
+                    const data = getChannelData.apply(this, arguments);
+                    for (let i = 0; i < data.length; i += 100) {{
+                        data[i] = data[i] + (Math.random() * fp.audioNoise);
+                    }}
+                    return data;
+                }};
+            }} catch (e) {{}}
+
+            try {{
+                if (fp.webrtcMode === 'mask') {{
+                    RTCPeerConnection.prototype.addIceCandidate = function() {{
+                        return Promise.resolve();
+                    }};
+                    const origCreateOffer = RTCPeerConnection.prototype.createOffer;
+                    RTCPeerConnection.prototype.createOffer = async function() {{
+                        const offer = await origCreateOffer.apply(this, arguments);
+                        offer.sdp = offer.sdp.replace(/a=candidate:.*
+/g, '');
+                        return offer;
+                    }};
+                }}
+            }} catch (e) {{}}
         }})();
         """
 
 
-# 全局实例
+# Global instance
 device_fingerprint_manager = DeviceFingerprint()

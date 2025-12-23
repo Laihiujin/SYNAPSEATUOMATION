@@ -266,7 +266,12 @@ async def poll_login_status(session_id: str = Query(..., description="登录会�
 
                 if needs_enrich:
                     logger.info(f"[Login] 检测到信息缺失，准备调用enrich_account补全: user_id={user_info.get('user_id')}, name={user_info.get('name')}, avatar={'存在' if user_info.get('avatar') else '缺失'}")
-                    enriched = await worker.enrich_account(platform.value.lower(), full_state, headless=bool(PLAYWRIGHT_HEADLESS))
+                    enriched = await worker.enrich_account(
+                        platform.value.lower(),
+                        full_state,
+                        headless=bool(PLAYWRIGHT_HEADLESS),
+                        account_id=session.get("account_id"),
+                    )
 
                     if enriched.get("user_id") and _is_blank(user_info.get("user_id")):
                         user_info["user_id"] = enriched.get("user_id")

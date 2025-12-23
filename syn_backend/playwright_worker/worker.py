@@ -108,6 +108,7 @@ PLATFORM_ADAPTERS = {
 class EnrichAccountRequest(BaseModel):
     platform: str = Field(..., description="平台名称 (tencent/douyin/kuaishou/xiaohongshu/bilibili)")
     storage_state: Dict[str, Any] = Field(..., description="Playwright storage_state JSON")
+    account_id: str | None = Field(default=None, description="账号ID(用于设备指纹)")
     # None => 使用环境变量 `PLAYWRIGHT_HEADLESS` 的默认值
     headless: bool | None = Field(default=None, description="是否无头模式（None 表示使用 PLAYWRIGHT_HEADLESS）")
     timeout_ms: int = Field(default=30000, description="页面加载超时(ms)")
@@ -116,6 +117,8 @@ class EnrichAccountRequest(BaseModel):
 class OpenCreatorCenterRequest(BaseModel):
     platform: str = Field(..., description="平台名称 (tencent/channels/douyin/kuaishou/xiaohongshu/bilibili)")
     storage_state: Dict[str, Any] = Field(..., description="Playwright storage_state JSON")
+    account_id: str | None = Field(default=None, description="账号ID(用于设备指纹)")
+    apply_fingerprint: bool = Field(default=True, description="是否应用设备指纹")
     headless: bool | None = Field(default=None, description="是否无头模式（None 表示使用 PLAYWRIGHT_HEADLESS）")
     timeout_ms: int = Field(default=60000, description="页面加载超时(ms)")
     expires_in: int = Field(default=3600, description="会话保留时间(秒)")
@@ -127,7 +130,7 @@ _PLATFORM_PROFILE_URL = {
     "douyin": "https://creator.douyin.com/creator-micro/home",
     "kuaishou": "https://cp.kuaishou.com/profile",
     "xiaohongshu": "https://creator.xiaohongshu.com/creator/home",
-    "bilibili": "https://account.bilibili.com/account/home",
+    "bilibili": "https://member.bilibili.com/platform/home",
 }
 
 
@@ -194,16 +197,95 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
             headless = _env_bool("PLAYWRIGHT_HEADLESS", True)
 
         from playwright.async_api import async_playwright
+        from myUtils.browser_context import build_context_options, persistent_browser_manager
+        from myUtils.fingerprint_policy import get_fingerprint_policy, resolve_proxy
+        from utils.base_social_media import set_init_script
+
+        policy = get_fingerprint_policy(req.account_id, platform_code)
+        apply_fingerprint = bool(req.apply_fingerprint) and bool(policy.get("apply_fingerprint", True))
+        apply_stealth = bool(policy.get("apply_stealth", True))
+        use_persistent_profile = bool(policy.get("use_persistent_profile", True)) and bool(req.account_id)
+        if (policy.get("tls_ja3") or {}).get("enabled"):
+            logger.warning("[Worker] tls_ja3 is enabled in policy, but Playwright does not support JA3 spoofing.")
 
         pw = await async_playwright().start()
         launch_kwargs: Dict[str, Any] = {"headless": headless}
         executable_path = _resolve_executable_path()
         if executable_path:
             launch_kwargs["executable_path"] = executable_path
-        browser = await pw.chromium.launch(**launch_kwargs)
-        context = await browser.new_context(storage_state=req.storage_state)
+        proxy = resolve_proxy(policy)
+        if proxy:
+            launch_kwargs["proxy"] = proxy
+        browser = None
+
+        context_opts = build_context_options(storage_state=req.storage_state)
+        fingerprint = None
+        if apply_fingerprint and req.account_id:
+            try:
+                from myUtils.device_fingerprint import device_fingerprint_manager
+
+                fingerprint = device_fingerprint_manager.get_or_create_fingerprint(
+                    account_id=req.account_id,
+                    platform=platform_code,
+                    policy=policy,
+                )
+                context_opts = device_fingerprint_manager.apply_to_context(fingerprint, context_opts)
+            except Exception as e:
+                logger.warning(f"[Worker] Apply fingerprint failed (ignored): {e}")
+
+        if use_persistent_profile:
+            profile_root = policy.get("persistent_profile_dir") or "syn_backend/browser_profiles"
+            try:
+                from config.conf import BASE_DIR
+
+                profile_root_path = Path(profile_root)
+                if not profile_root_path.is_absolute():
+                    profile_root_path = Path(BASE_DIR) / profile_root_path
+            except Exception:
+                profile_root_path = Path(profile_root)
+            custom_manager = persistent_browser_manager
+            if profile_root_path:
+                try:
+                    custom_manager = persistent_browser_manager.__class__(profile_root_path)
+                except Exception:
+                    custom_manager = persistent_browser_manager
+            user_data_dir = custom_manager.get_user_data_dir(req.account_id, platform_code)
+            context = await pw.chromium.launch_persistent_context(str(user_data_dir), **context_opts, **launch_kwargs)
+            try:
+                browser = context.browser()
+            except Exception:
+                browser = None
+        else:
+            browser = await pw.chromium.launch(**launch_kwargs)
+            context = await browser.new_context(**context_opts)
+        if fingerprint:
+            try:
+                from myUtils.device_fingerprint import device_fingerprint_manager
+
+                await context.add_init_script(device_fingerprint_manager.get_init_script(fingerprint))
+            except Exception as e:
+                logger.warning(f"[Worker] Add fingerprint script failed (ignored): {e}")
+        if apply_stealth:
+            try:
+                await set_init_script(context)
+            except Exception as e:
+                logger.warning(f"[Worker] Add stealth script failed (ignored): {e}")
+
         page = await context.new_page()
         await page.goto(profile_url, wait_until="domcontentloaded", timeout=req.timeout_ms)
+
+        if platform_code == "bilibili":
+            current_url = (page.url or "").lower()
+            if "passport.bilibili.com" in current_url or "passport.bilibili" in current_url:
+                with contextlib.suppress(Exception):
+                    await page.close()
+                with contextlib.suppress(Exception):
+                    await context.close()
+                with contextlib.suppress(Exception):
+                    await browser.close()
+                with contextlib.suppress(Exception):
+                    await pw.stop()
+                return JSONResponse(status_code=401, content={"success": False, "error": "Login required"})
 
         session_id = f"creator_{uuid.uuid4().hex[:12]}"
         now = asyncio.get_running_loop().time()
@@ -217,6 +299,7 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 "context": context,
                 "page": page,
                 "profile_url": profile_url,
+                "persistent": bool(use_persistent_profile),
             }
 
         logger.info(f"[Worker] Creator center opened: platform={platform_code} session={session_id}")
@@ -290,19 +373,24 @@ async def enrich_account(req: EnrichAccountRequest):
             return JSONResponse(status_code=400, content={"success": False, "error": f"No profile url for platform: {req.platform}"})
 
         from playwright.async_api import async_playwright
+        from myUtils.playwright_context_factory import create_context_with_policy
         import inspect
 
         headless = req.headless if req.headless is not None else _env_bool("PLAYWRIGHT_HEADLESS", True)
-        adapter = adapter_class(config={"headless": headless})
+        adapter = adapter_class(config={"headless": headless, "account_id": req.account_id})
 
         pw = await async_playwright().start()
-        launch_kwargs: Dict[str, Any] = {"headless": headless, "args": ["--no-sandbox"]}
-        executable_path = _resolve_executable_path()
-        if executable_path:
-            launch_kwargs["executable_path"] = executable_path
-        browser = await pw.chromium.launch(**launch_kwargs)
+        browser = None
+        context = None
         try:
-            context = await browser.new_context(storage_state=req.storage_state)
+            browser, context, _, _ = await create_context_with_policy(
+                pw,
+                platform=platform_code,
+                account_id=req.account_id,
+                headless=headless,
+                storage_state=req.storage_state,
+                launch_kwargs={"args": ["--no-sandbox"]},
+            )
             page = await context.new_page()
             await page.goto(profile_url, timeout=req.timeout_ms, wait_until="domcontentloaded")
             await asyncio.sleep(2)
@@ -337,7 +425,11 @@ async def enrich_account(req: EnrichAccountRequest):
             }
         finally:
             with contextlib.suppress(Exception):
-                await browser.close()
+                if context:
+                    await context.close()
+            with contextlib.suppress(Exception):
+                if browser:
+                    await browser.close()
             with contextlib.suppress(Exception):
                 await pw.stop()
 
@@ -372,7 +464,7 @@ async def generate_qrcode(platform: str, account_id: str, headless: bool | None 
             headless = _env_bool("PLAYWRIGHT_HEADLESS", True)
 
         # 创建适配器实例
-        adapter = adapter_class(config={"headless": headless})
+        adapter = adapter_class(config={"headless": headless, "account_id": account_id})
 
         # 生成二维码
         qr_data = await adapter.get_qrcode()

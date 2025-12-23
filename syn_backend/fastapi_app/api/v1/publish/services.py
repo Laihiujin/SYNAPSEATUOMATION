@@ -18,7 +18,6 @@ from sqlalchemy import text
 # 添加路径以导入现有模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
-from myUtils.task_queue_manager import TaskQueueManager, Task, TaskType, TaskStatus
 from myUtils.preset_manager import PresetManager
 from myUtils.cookie_manager import cookie_manager
 from myUtils.platform_metadata_adapter import format_metadata_for_platform
@@ -29,7 +28,7 @@ from platforms.path_utils import resolve_video_file
 
 
 class PublishService:
-    """发布服务"""
+    """发布服务（已迁移到 Celery）"""
 
     # 平台代码映射
     PLATFORM_MAP = {
@@ -40,7 +39,15 @@ class PublishService:
         5: "bilibili"
     }
 
-    def __init__(self, task_manager: TaskQueueManager):
+    def __init__(self, task_manager=None):
+        """
+        初始化发布服务
+
+        Args:
+            task_manager: (已弃用) 保留用于向后兼容
+        """
+        if task_manager is not None:
+            logger.warning("[PublishService] task_manager 参数已弃用，任务已迁移到 Celery")
         self.task_manager = task_manager
         self.preset_manager = PresetManager()
         self.executor = ThreadPoolExecutor(max_workers=3)
@@ -140,6 +147,7 @@ class PublishService:
         interval_control_enabled: bool = False,
         interval_mode: Optional[str] = None,
         interval_seconds: Optional[int] = 300,
+        random_offset: Optional[int] = 0,
         priority: int = 5,
         items: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
@@ -148,6 +156,12 @@ class PublishService:
         支持单平台和多平台发布
         - 如果指定了 platform，则只发布到该平台（验证账号必须属于该平台）
         - 如果未指定 platform，则支持多平台发布（自动按账号平台分组）
+
+        Args:
+            interval_control_enabled: 是否启用间隔控制
+            interval_mode: 间隔模式 ('video_first' 或 'account_first')
+            interval_seconds: 基础间隔时间（秒）
+            random_offset: 随机偏移范围（±秒），0表示不随机
         """
         batch_id = f"batch_{uuid.uuid4().hex[:12]}"
         results = {
@@ -199,6 +213,7 @@ class PublishService:
                     interval_control_enabled=interval_control_enabled,
                     interval_mode=interval_mode,
                     interval_seconds=interval_seconds,
+                    random_offset=random_offset,
                 )
         else:
             # 单平台发布
@@ -215,6 +230,7 @@ class PublishService:
                 interval_control_enabled=interval_control_enabled,
                 interval_mode=interval_mode,
                 interval_seconds=interval_seconds,
+                random_offset=random_offset,
             )
 
         logger.info(
@@ -243,11 +259,21 @@ class PublishService:
         interval_control_enabled: bool = False,
         interval_mode: Optional[str] = None,
         interval_seconds: Optional[int] = 300,
+        random_offset: Optional[int] = 0,
     ):
         """创建批量发布任务的内部方法"""
+        import random  # 导入 random 模块用于随机偏移
+
         base_time = datetime.now()
         interval_s = int(interval_seconds or 0)
+        random_offset_s = int(random_offset or 0)
         mode = (interval_mode or "").strip()
+
+        logger.info(
+            f"[IntervalControl] 间隔控制配置: "
+            f"enabled={interval_control_enabled}, mode={mode}, "
+            f"interval={interval_s}s, random_offset=±{random_offset_s}s"
+        )
         # 为每个文件和每个账号创建独立任务
         for file_idx, file_id in enumerate(file_ids):
             try:
@@ -359,6 +385,8 @@ class PublishService:
                         "thumbnail_path": final_cover or "",
                     }
 
+                    task_id = f"publish_{batch_id}_{file_id}_{account['account_id']}"
+
                     # Optional interval control: delay task execution by setting `not_before`.
                     if interval_control_enabled and interval_s > 0 and mode in ("account_first", "video_first"):
                         if mode == "video_first":
@@ -366,40 +394,58 @@ class PublishService:
                         else:
                             # account_first: stagger accounts and keep each account's files sequential.
                             offset = (account_idx * interval_s) + (file_idx * interval_s * max(len(accounts), 1))
-                        task_data["not_before"] = (base_time + timedelta(seconds=offset)).isoformat()
 
-                    task_id = f"publish_{batch_id}_{file_id}_{account['account_id']}"
-                    task = Task(
-                        task_id=task_id,
-                        task_type=TaskType.PUBLISH,
-                        data=task_data,
+                        # 添加随机偏移（如果配置了）
+                        if random_offset_s > 0:
+                            import random
+                            random_delta = random.randint(-random_offset_s, random_offset_s)
+                            offset += random_delta
+                            logger.debug(
+                                f"[IntervalControl] Task {task_id}: "
+                                f"base_offset={offset - random_delta}s, random_delta={random_delta}s, "
+                                f"final_offset={offset}s"
+                            )
+
+                        # 确保偏移量不为负数
+                        offset = max(0, offset)
+
+                        scheduled_time = base_time + timedelta(seconds=offset)
+                        task_data["not_before"] = scheduled_time.isoformat()
+
+                        logger.info(
+                            f"[IntervalControl] Task {task_id} scheduled at "
+                            f"{scheduled_time.strftime('%H:%M:%S')} "
+                            f"(+{offset}s from now)"
+                        )
+
+                    # 使用 Celery 提交任务
+                    from fastapi_app.tasks.publish_tasks import publish_single_task
+                    from fastapi_app.tasks.task_state_manager import task_state_manager
+
+                    result = publish_single_task.apply_async(
+                        kwargs={'task_data': task_data},
                         priority=priority,
-                        max_retries=0  # 禁用自动重试，失败任务需手动处理
+                        task_id=task_id  # 使用自定义 task_id
                     )
 
-                    success = self.task_manager.add_task(task)
-                    results["total_tasks"] += 1
+                    # 保存任务状态
+                    task_state_manager.create_task(
+                        task_id=result.id,
+                        task_type="publish",
+                        data=task_data,
+                        priority=priority
+                    )
 
-                    if success:
-                        results["success_count"] += 1
-                        results["pending_count"] += 1
-                        results["tasks"].append({
-                            "task_id": task_id,
-                            "file_id": file_id,
-                            "platform": platform,
-                            "account_id": account['account_id'],
-                            "status": "pending"
-                        })
-                    else:
-                        results["failed_count"] += 1
-                        results["tasks"].append({
-                            "task_id": task_id,
-                            "file_id": file_id,
-                            "platform": platform,
-                            "account_id": account['account_id'],
-                            "status": "failed",
-                            "error_message": "无法添加到任务队列"
-                        })
+                    results["total_tasks"] += 1
+                    results["success_count"] += 1
+                    results["pending_count"] += 1
+                    results["tasks"].append({
+                        "task_id": result.id,
+                        "file_id": file_id,
+                        "platform": platform,
+                        "account_id": account['account_id'],
+                        "status": "pending"
+                    })
 
             except Exception as e:
                 logger.error(f"批量发布文件 {file_id} 失败: {e}")
@@ -611,6 +657,11 @@ class PublishService:
 
 
 # 全局服务实例工厂
-def get_publish_service(task_manager: TaskQueueManager) -> PublishService:
-    """获取发布服务实例"""
+def get_publish_service(task_manager=None) -> PublishService:
+    """
+    获取发布服务实例
+
+    Args:
+        task_manager: (已弃用) 保留用于向后兼容
+    """
     return PublishService(task_manager)

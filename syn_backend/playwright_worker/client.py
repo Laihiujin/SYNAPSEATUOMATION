@@ -125,6 +125,8 @@ class PlaywrightWorkerClient:
         self,
         platform: str,
         storage_state: Dict[str, Any],
+        account_id: str | None = None,
+        apply_fingerprint: bool = True,
         headless: bool = False,
         timeout_ms: int = 60000,
         expires_in: int = 3600,
@@ -137,6 +139,8 @@ class PlaywrightWorkerClient:
         payload = {
             "platform": platform,
             "storage_state": storage_state,
+            "account_id": account_id,
+            "apply_fingerprint": apply_fingerprint,
             "headless": headless,
             "timeout_ms": timeout_ms,
             "expires_in": expires_in,
@@ -178,12 +182,23 @@ class PlaywrightWorkerClient:
             return {"raw": data}
         return data
 
-    async def enrich_account(self, platform: str, storage_state: Dict[str, Any], headless: bool = True) -> Dict[str, Any]:
+    async def enrich_account(
+        self,
+        platform: str,
+        storage_state: Dict[str, Any],
+        headless: bool = True,
+        account_id: str | None = None,
+    ) -> Dict[str, Any]:
         """
         使用 storage_state 在 Worker 内补全 user_id/name/avatar（DOM + cookie）。
         """
         url = f"{self.worker_url}/account/enrich"
-        payload = {"platform": platform, "storage_state": storage_state, "headless": headless}
+        payload = {
+            "platform": platform,
+            "storage_state": storage_state,
+            "headless": headless,
+            "account_id": account_id,
+        }
         response = await self.client.post(url, json=payload, timeout=30.0)
         try:
             data = response.json()

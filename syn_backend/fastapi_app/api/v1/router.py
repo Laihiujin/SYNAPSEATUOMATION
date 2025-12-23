@@ -26,6 +26,7 @@ from .manual_tasks.router import router as manual_tasks_router
 from .campaigns.plans_alias import router as plans_router
 from .campaigns.task_packages import router as task_packages_router
 from .ip_pool.router import router as ip_pool_router
+from .concurrency.router import router as concurrency_router
 
 # 导入平台路由
 from .platforms.douyin.router import router as douyin_router
@@ -61,6 +62,7 @@ api_router.include_router(manual_tasks_router)  # router 已自带 /manual-tasks
 api_router.include_router(plans_router)  # /plans (原 /api/plans 兼容入口升级为 v1)
 api_router.include_router(task_packages_router)  # /task-packages (原 /api/task-packages 入口升级为 v1)
 api_router.include_router(ip_pool_router)  # router 已自带 /ip-pool 前缀
+api_router.include_router(concurrency_router)  # router 已自带 /concurrency 前缀
 
 # 注册平台路由
 api_router.include_router(douyin_router)  # router 已自带 /platforms/douyin 前缀

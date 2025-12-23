@@ -25,7 +25,7 @@ if %errorLevel% neq 0 (
 echo [✓] 管理员权限确认
 echo.
 
-:: 启用开发者模式（符号链接支持）
+:: Enable Developer Mode
 echo [1/8] 启用开发者模式...
 reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense /t REG_DWORD /d 1 /f >nul 2>&1
 echo   完成（重启后生效，但可继续构建）
@@ -39,7 +39,7 @@ if not exist "package.json" (
     exit /b 1
 )
 
-:: 彻底清理所有缓存
+:: Clean Caches
 echo [2/8] 清理所有缓存...
 if exist "dist" (
     echo   - 删除 dist 目录...
@@ -102,7 +102,7 @@ if %errorLevel% equ 0 (
 )
 echo.
 
-:: 设置环境变量
+:: Set Environment Variables
 echo [6/8] 配置构建环境...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 set WIN_CSC_LINK=
@@ -112,12 +112,12 @@ echo   - 已禁用代码签名
 echo   - 已设置 ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES
 echo.
 
-:: 构建安装包
+:: Build Package
 echo [7/8] 构建 NSIS 安装包...
 echo   这可能需要 10-20 分钟，请耐心等待...
 echo.
 
-call npx electron-builder --win --x64 2>&1 | findstr /v /c:"deprecated" /c:"npm notice"
+call npx electron-builder --win --x64
 if %errorLevel% neq 0 (
     echo.
     echo [错误] 构建失败

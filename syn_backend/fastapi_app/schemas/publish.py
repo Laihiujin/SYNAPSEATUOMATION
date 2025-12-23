@@ -50,6 +50,13 @@ class BatchPublishRequest(BaseModel):
         description="间隔秒数（默认300=5分钟）",
         validation_alias=AliasChoices("interval_seconds", "intervalSeconds"),
     )
+    random_offset: Optional[int] = Field(
+        default=0,
+        ge=0,
+        le=3600,
+        description="随机偏移范围（±秒），0表示不随机，例如120表示±2分钟随机偏移",
+        validation_alias=AliasChoices("random_offset", "randomOffset"),
+    )
     priority: Optional[int] = Field(5, ge=1, le=10, description="优先级 (1-10, 越小优先级越高)")
     items: Optional[List[BatchTaskItem]] = Field(None, description="差异化配置列表")
 
@@ -71,6 +78,10 @@ class BatchPublishRequest(BaseModel):
                 "platform": 3,
                 "title": "批量发布视频",
                 "topics": ["生活", "分享"],
+                "interval_control_enabled": True,
+                "interval_mode": "video_first",
+                "interval_seconds": 300,
+                "random_offset": 120,
                 "priority": 5,
                 "items": [
                     {

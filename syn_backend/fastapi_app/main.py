@@ -153,30 +153,14 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"[DB] MySQL table ensure failed (continuing): {e}")
 
-    # 初始化任务队列管理器
+    # 初始化批量发布服务（不再需要 TaskQueueManager）
     try:
-        from myUtils.task_queue_manager import get_task_manager
-
-        task_db_path = Path(settings.BASE_DIR) / "db" / "task_queue.db"
-        task_db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # 使用 get_task_manager 初始化全局单例
-        app.state.task_manager = get_task_manager(
-            db_path=task_db_path,
-            max_workers=settings.TASK_QUEUE_MAX_WORKERS
-        )
-        
-        # 初始化批量发布服务（注册任务处理器）
         from myUtils.batch_publish_service import get_batch_publish_service
-        get_batch_publish_service(app.state.task_manager)
-        logger.info("矩阵发布初始化成功 (Handlers Registered)")
-
-        app.state.task_manager.start()
-
-        logger.info(f"任务队列管理器初始化成功: {task_db_path}")
+        # 初始化服务（不再依赖任务队列）
+        get_batch_publish_service()
+        logger.info("✅ 批量发布服务初始化成功（已迁移到 Celery + Redis）")
     except Exception as e:
-        logger.warning(f"任务队列管理器/发布服务初始化失败: {e}")
-        app.state.task_manager = None
+        logger.warning(f"批量发布服务初始化失败: {e}")
 
     # 初始化AI服务（可选）
     if AI_SERVICE_AVAILABLE:

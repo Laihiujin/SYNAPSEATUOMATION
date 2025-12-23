@@ -2,7 +2,10 @@
 账号管理API路由
 """
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import Optional
+from typing import Optional, Any, Dict
+import asyncio
+import subprocess
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -97,12 +100,28 @@ async def open_creator_center(account_id: str):
         if not p.exists():
             raise BadRequestException(f"Cookie 文件不存在: {cookie_path}")
 
-        storage_state = json.loads(p.read_text(encoding="utf-8"))
+        raw_state = json.loads(p.read_text(encoding="utf-8"))
+        storage_state = raw_state
+        if platform == "bilibili" and isinstance(raw_state, dict) and "cookie_info" in raw_state:
+            storage_state = _build_storage_state_from_biliup_cookie(raw_state)
 
         from playwright_worker.client import get_worker_client
         client = get_worker_client()
-        data = await client.open_creator_center(platform=platform, storage_state=storage_state, headless=False)
-        return Response(success=True, data=data)
+        try:
+            data = await client.open_creator_center(
+                platform=platform,
+                storage_state=storage_state,
+                account_id=account_id,
+                apply_fingerprint=True,
+                headless=False,
+            )
+            return Response(success=True, data=data)
+        except Exception as e:
+            if platform != "bilibili":
+                raise
+            logger.warning(f"B站打开创作中心失败，尝试 biliup 登录: {e}")
+            data = await _open_bilibili_creator_center_with_biliup(account_id, p)
+            return Response(success=True, data=data)
 
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -110,6 +129,103 @@ async def open_creator_center(account_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"打开创作中心失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _build_storage_state_from_biliup_cookie(cookie_data: Dict[str, Any]) -> Dict[str, Any]:
+    from uploader.bilibili_uploader.cookie_refresher import to_biliup_cookie_format
+
+    normalized = to_biliup_cookie_format(cookie_data or {})
+    cookies_list = (normalized.get("cookie_info") or {}).get("cookies") or []
+    if not isinstance(cookies_list, list):
+        cookies_list = []
+    return {"cookies": cookies_list, "origins": []}
+
+
+async def _open_bilibili_creator_center_with_biliup(
+    account_id: str,
+    cookie_path: Path,
+) -> Dict[str, Any]:
+    biliup_exe = Path(__file__).resolve().parents[4] / "uploader" / "bilibili_uploader" / "biliup.exe"
+    if not biliup_exe.exists():
+        raise BadRequestException(f"biliup.exe 不存在: {biliup_exe}")
+
+    cookie_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [str(biliup_exe), "-u", str(cookie_path), "login"]
+    await asyncio.to_thread(
+        subprocess.run,
+        cmd,
+        check=True,
+        cwd=str(biliup_exe.parent),
+    )
+
+    cookie_data = json.loads(cookie_path.read_text(encoding="utf-8"))
+    storage_state = _build_storage_state_from_biliup_cookie(cookie_data)
+    if not storage_state.get("cookies"):
+        raise BadRequestException("biliup 登录未获取到有效 Cookie")
+
+    try:
+        extracted = cookie_manager._extract_user_info_from_cookie("bilibili", cookie_data) or {}
+        name = extracted.get("name")
+        avatar = extracted.get("avatar")
+        user_id = extracted.get("user_id")
+        update_kwargs = {
+            "status": "valid",
+            "last_checked": datetime.now(timezone.utc).isoformat(),
+        }
+        if user_id:
+            update_kwargs["user_id"] = str(user_id)
+        if name:
+            update_kwargs["name"] = str(name)
+        if avatar:
+            update_kwargs["avatar"] = str(avatar)
+        cookie_manager.update_account(account_id, **update_kwargs)
+    except Exception as e:
+        logger.warning(f"更新 B站账号信息失败（忽略）: {e}")
+
+    from playwright_worker.client import get_worker_client
+    client = get_worker_client()
+    return await client.open_creator_center(
+        platform="bilibili",
+        storage_state=storage_state,
+        account_id=account_id,
+        apply_fingerprint=True,
+        headless=False,
+    )
+
+
+@router.post("/{account_id}/creator-center/open-biliup", response_model=Response[dict])
+async def open_creator_center_biliup(account_id: str):
+    """
+    使用 biliup.exe 登录并打开 B站创作者中心（解决 B站账号 cookie 为空/不兼容的问题）。
+    """
+    try:
+        account = cookie_manager.get_account_by_id(account_id)
+        if not account:
+            raise NotFoundException(f"账号不存在: {account_id}")
+
+        platform = (account.get("platform") or "").strip().lower()
+        if platform != "bilibili":
+            raise BadRequestException("仅支持 Bilibili 账号")
+
+        cookie_file = account.get("cookie_file") or account.get("cookieFile")
+        if not cookie_file:
+            raise BadRequestException("该账号缺少 cookie_file，无法打开创作中心")
+
+        cookie_path = resolve_cookie_file(cookie_file)
+        p = Path(cookie_path)
+        data = await _open_bilibili_creator_center_with_biliup(account_id, p)
+        return Response(success=True, data=data)
+
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BadRequestException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except subprocess.CalledProcessError as e:
+        logger.error(f"biliup.exe 登录失败: {e}")
+        raise HTTPException(status_code=500, detail="biliup.exe 登录失败")
+    except Exception as e:
+        logger.error(f"打开创作中心失败(Biliup): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -266,4 +382,3 @@ async def filter_accounts(filter_req: AccountFilterRequest):
 #     except Exception as e:
 #         logger.error(f"同步用户信息失败: {e}")
 #         raise HTTPException(status_code=500, detail=str(e))
-

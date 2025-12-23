@@ -2,9 +2,11 @@ import asyncio
 import sys
 import os
 import time
+import contextlib
 from pathlib import Path
 from playwright.async_api import async_playwright
 from loguru import logger
+from myUtils.playwright_context_factory import create_context_with_policy
 
 # 添加父目录到 Python 路径
 sys_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,11 +24,31 @@ except ImportError:
     def set_init_script(page):
         pass
 
+
+async def _open_context_with_policy(playwright, platform: str, file_path: Path):
+    account_id = file_path.stem if file_path else None
+    return await create_context_with_policy(
+        playwright,
+        platform=platform,
+        account_id=account_id,
+        headless=HEADLESS_FLAG,
+        storage_state=str(file_path),
+        launch_kwargs={"args": ["--no-sandbox"]},
+    )
+
+
+async def _close_context(browser, context):
+    with contextlib.suppress(Exception):
+        if context:
+            await context.close()
+    with contextlib.suppress(Exception):
+        if browser:
+            await browser.close()
+
 async def cookie_auth_douyin(file_path):
     """通过二次抓取cookie验证cookie状态"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_FLAG)
-        context = await browser.new_context(storage_state=file_path)
+        browser, context, _, _ = await _open_context_with_policy(p, "douyin", Path(file_path))
         page = await context.new_page()
         try:
             logger.info(f"[Douyin Check] Validating cookie by re-capture...")
@@ -137,13 +159,12 @@ async def cookie_auth_douyin(file_path):
             logger.error(f"[Douyin Check] Error: {e}")
             return {"status": "error"}
         finally:
-            await browser.close()
+            await _close_context(browser, context)
 
 async def cookie_auth_tencent(file_path):
     """通过二次抓取cookie验证cookie状态"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_FLAG)
-        context = await browser.new_context(storage_state=file_path)
+        browser, context, _, _ = await _open_context_with_policy(p, "tencent", Path(file_path))
         page = await context.new_page()
         try:
             logger.info(f"[Tencent Check] Validating cookie by re-capture...")
@@ -246,13 +267,12 @@ async def cookie_auth_tencent(file_path):
             logger.error(f"[Tencent Check] Error: {e}")
             return {"status": "error"}
         finally:
-            await browser.close()
+            await _close_context(browser, context)
 
 async def cookie_auth_ks(file_path):
     """通过二次抓取cookie验证cookie状态"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_FLAG)
-        context = await browser.new_context(storage_state=file_path)
+        browser, context, _, _ = await _open_context_with_policy(p, "kuaishou", Path(file_path))
         page = await context.new_page()
         try:
             logger.info(f"[Kuaishou Check] Validating cookie by re-capture...")
@@ -357,13 +377,12 @@ async def cookie_auth_ks(file_path):
             logger.error(f"[Kuaishou Check] Error: {e}")
             return {"status": "error"}
         finally:
-            await browser.close()
+            await _close_context(browser, context)
 
 async def cookie_auth_xhs(file_path):
     """通过二次抓取cookie验证cookie状态"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_FLAG)
-        context = await browser.new_context(storage_state=file_path)
+        browser, context, _, _ = await _open_context_with_policy(p, "xiaohongshu", Path(file_path))
         page = await context.new_page()
         try:
             logger.info(f"[XHS Check] Validating cookie by re-capture...")
@@ -468,13 +487,12 @@ async def cookie_auth_xhs(file_path):
             logger.error(f"[XHS Check] Error: {e}")
             return {"status": "error"}
         finally:
-            await browser.close()
+            await _close_context(browser, context)
 
 async def cookie_auth_bilibili(file_path):
     """通过二次抓取cookie验证cookie状态"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_FLAG)
-        context = await browser.new_context(storage_state=file_path)
+        browser, context, _, _ = await _open_context_with_policy(p, "bilibili", Path(file_path))
         page = await context.new_page()
         try:
             logger.info(f"[Bilibili Check] Validating cookie by re-capture...")
@@ -571,7 +589,7 @@ async def cookie_auth_bilibili(file_path):
             logger.error(f"[Bilibili Check] Error: {e}")
             return {"status": "error"}
         finally:
-            await browser.close()
+            await _close_context(browser, context)
 
 async def _check_cookie_impl(type, file_path):
     """

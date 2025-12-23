@@ -276,7 +276,12 @@ class CookieManager:
 
             resp = httpx.post(
                 f"{worker_base_url}/account/enrich",
-                json={"platform": self._normalize_platform(platform), "storage_state": storage_state, "headless": desired_headless},
+                json={
+                    "platform": self._normalize_platform(platform),
+                    "storage_state": storage_state,
+                    "headless": desired_headless,
+                    "account_id": account.get("account_id"),
+                },
                 timeout=30.0,
             )
             if resp.status_code >= 400:

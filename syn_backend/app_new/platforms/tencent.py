@@ -10,6 +10,7 @@ from typing import Dict, Any
 
 from loguru import logger
 from playwright.async_api import async_playwright, Page
+from myUtils.playwright_context_factory import create_context_with_policy
 
 from .base import PlatformAdapter, QRCodeData, UserInfo, LoginResult, LoginStatus
 
@@ -25,6 +26,7 @@ class TencentAdapter(PlatformAdapter):
         super().__init__(config)
         self.platform_name = "tencent"  # channels
         self.headless = config.get("headless", True) if config else True
+        self.account_id = config.get("account_id") if config else None
 
     async def get_qrcode(self) -> QRCodeData:
         """
@@ -38,15 +40,14 @@ class TencentAdapter(PlatformAdapter):
         try:
             # 创建浏览器会话
             playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(
+            browser, context, _, _ = await create_context_with_policy(
+                playwright,
+                platform=self.platform_name,
+                account_id=self.account_id,
                 headless=self.headless,
-                args=["--no-sandbox", "--disable-blink-features=AutomationControlled"]
+                base_context_opts={"viewport": {"width": 1280, "height": 800}},
+                launch_kwargs={"args": ["--no-sandbox", "--disable-blink-features=AutomationControlled"]},
             )
-            context = await browser.new_context(
-                viewport={'width': 1280, 'height': 800},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            )
-            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             page = await context.new_page()
 
             # 存储会话

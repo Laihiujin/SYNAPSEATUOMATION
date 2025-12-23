@@ -1,0 +1,34 @@
+{
+  "defaults": {
+    "apply_fingerprint": true,
+    "apply_stealth": true,
+    "use_persistent_profile": true,
+    "persistent_profile_dir": "syn_backend/browser_profiles",
+    "proxy": null,
+    "webrtc": {
+      "mode": "mask"
+    },
+    "audio": {
+      "mode": "noise",
+      "noise": 0.0001
+    },
+    "fonts": {
+      "mode": "allowlist"
+    },
+    "plugins": {
+      "mode": "spoof"
+    },
+    "media_devices": {
+      "mode": "spoof"
+    },
+    "client_hints": {
+      "mode": "spoof"
+    },
+    "tls_ja3": {
+      "enabled": false,
+      "note": "Not supported by Playwright; requires a custom TLS stack."
+    }
+  },
+  "platforms": {},
+  "accounts": {}
+}

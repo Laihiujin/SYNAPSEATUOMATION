@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import json
 
-from myUtils.task_queue_manager import Task, TaskType, TaskStatus, TaskQueueManager, get_task_manager
 from myUtils.exceptions import CaptchaRequiredException, AccountBlockedException
 from myUtils.cookie_manager import cookie_manager
 from loguru import logger
@@ -21,14 +20,19 @@ from platforms.registry import get_uploader_by_platform_code
 from platforms.path_utils import resolve_cookie_file, resolve_video_file
 
 class BatchPublishService:
-    """批量发布服务"""
+    """批量发布服务（已迁移到 Celery）"""
 
-    def __init__(self, task_manager: TaskQueueManager):
+    def __init__(self, task_manager=None):
+        """
+        初始化批量发布服务
+
+        Args:
+            task_manager: (已弃用) 保留用于向后兼容，实际不再使用
+        """
+        # task_manager 参数保留用于向后兼容，但不再使用
+        if task_manager is not None:
+            logger.warning("[BatchPublish] task_manager 参数已弃用，任务已迁移到 Celery")
         self.task_manager = task_manager
-
-        # 注册批量发布任务处理器
-        self.task_manager.register_handler(TaskType.PUBLISH, self.handle_single_publish)
-        self.task_manager.register_handler(TaskType.BATCH_PUBLISH, self.handle_batch_publish)
 
     async def handle_single_publish(self, data: Dict) -> Dict:
         """处理单个发布任务"""
@@ -173,34 +177,44 @@ class BatchPublishService:
             raise
 
     async def handle_batch_publish(self, data: Dict) -> Dict:
-        """处理批量发布任务（主任务，会拆分为多个子任务）"""
+        """
+        处理批量发布任务（主任务，会拆分为多个子任务）
+        注意：此方法现已由 Celery 任务调用，不再通过内存队列
+        """
         batch_id = data.get('batch_id', str(uuid.uuid4()))
         items = data.get('items', [])
 
-        print(f"📦 [BatchPublish] 开始批量发布: {batch_id}")
-        print(f"   任务数: {len(items)}")
+        logger.info(f"📦 [BatchPublish] 开始批量发布: {batch_id}, 任务数: {len(items)}")
 
-        # 创建子任务
-        task_ids = []
+        # 使用 Celery 提交子任务
+        from fastapi_app.tasks.publish_tasks import publish_single_task
+        from fastapi_app.tasks.task_state_manager import task_state_manager
+
+        sub_task_ids = []
         for item in items:
-            task_id = f"{batch_id}_{item['account_id']}_{item['platform']}"
+            # 使用 Celery 提交任务
+            result = publish_single_task.apply_async(
+                kwargs={'task_data': item},
+                priority=item.get('priority', 5)
+            )
+            sub_task_ids.append(result.id)
 
-            task = Task(
-                task_id=task_id,
-                task_type=TaskType.PUBLISH,
+            # 保存子任务到状态管理器
+            task_state_manager.create_task(
+                task_id=result.id,
+                task_type="publish",
                 data=item,
-                priority=data.get('priority', 5),
-                max_retries=data.get('max_retries', 3)
+                priority=item.get('priority', 5),
+                parent_task_id=batch_id
             )
 
-            self.task_manager.add_task(task)
-            task_ids.append(task_id)
+        logger.info(f"✅ [BatchPublish] 批量任务已提交: {batch_id}, 子任务数: {len(sub_task_ids)}")
 
         return {
             "success": True,
             "batch_id": batch_id,
-            "task_ids": task_ids,
-            "total_tasks": len(task_ids)
+            "task_ids": sub_task_ids,
+            "total_tasks": len(sub_task_ids)
         }
 
     def create_batch_publish_task(
@@ -214,7 +228,7 @@ class BatchPublishService:
         thumbnail_path: Optional[str] = None,
         priority: int = 5
     ) -> str:
-        """创建批量发布任务"""
+        """创建批量发布任务（使用 Celery）"""
 
         # 生成批次ID
         batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
@@ -240,33 +254,41 @@ class BatchPublishService:
             }
             items.append(item)
 
-        # 创建批量任务
-        batch_task = Task(
-            task_id=batch_id,
-            task_type=TaskType.BATCH_PUBLISH,
-            data={
-                'batch_id': batch_id,
-                'material_id': material_id,
-                'items': items,
-                'priority': priority,
-                'max_retries': 2  # 批量任务重试次数
-            },
-            priority=priority,
-            max_retries=2
+        # 使用 Celery 提交批量任务
+        from fastapi_app.tasks.publish_tasks import publish_batch_task
+        from fastapi_app.tasks.task_state_manager import task_state_manager
+
+        batch_data = {
+            'batch_id': batch_id,
+            'material_id': material_id,
+            'items': items,
+            'priority': priority
+        }
+
+        # 提交到 Celery
+        result = publish_batch_task.apply_async(
+            kwargs={'batch_data': batch_data},
+            priority=priority
         )
 
-        # 添加到队列
-        self.task_manager.add_task(batch_task)
+        # 保存批次任务状态
+        task_state_manager.create_task(
+            task_id=result.id,
+            task_type="batch_publish",
+            data=batch_data,
+            priority=priority
+        )
 
-        print(f"✅ [BatchPublish] 批量发布任务已创建: {batch_id}")
-        print(f"   包含 {len(items)} 个发布任务")
+        logger.info(f"✅ [BatchPublish] 批量发布任务已创建: {batch_id}, 包含 {len(items)} 个发布任务")
 
         return batch_id
 
     def get_batch_status(self, batch_id: str) -> Dict:
-        """获取批量任务状态"""
+        """获取批量任务状态（从 Redis 查询）"""
+        from fastapi_app.tasks.task_state_manager import task_state_manager
+
         # 查询批次主任务
-        batch_status = self.task_manager.get_task_status(batch_id)
+        batch_status = task_state_manager.get_task_state(batch_id)
         if not batch_status:
             return {"error": "批次不存在"}
 
@@ -275,7 +297,7 @@ class BatchPublishService:
         task_ids = batch_status.get('result', {}).get('task_ids', [])
 
         for task_id in task_ids:
-            task_status = self.task_manager.get_task_status(task_id)
+            task_status = task_state_manager.get_task_state(task_id)
             if task_status:
                 sub_tasks.append(task_status)
 
@@ -293,19 +315,22 @@ class BatchPublishService:
             "batch_status": batch_status['status'],
             "stats": stats,
             "tasks": sub_tasks,
-            "created_at": batch_status['created_at'],
-            "started_at": batch_status['started_at'],
-            "completed_at": batch_status['completed_at']
+            "created_at": batch_status.get('created_at'),
+            "started_at": batch_status.get('started_at'),
+            "completed_at": batch_status.get('completed_at')
         }
 
 # 全局实例
 _batch_publish_service_instance = None
 
-def get_batch_publish_service(task_manager: TaskQueueManager = None) -> BatchPublishService:
-    """获取批量发布服务实例"""
+def get_batch_publish_service(task_manager=None) -> BatchPublishService:
+    """
+    获取批量发布服务实例
+
+    Args:
+        task_manager: (已弃用) 保留用于向后兼容
+    """
     global _batch_publish_service_instance
     if _batch_publish_service_instance is None:
-        if task_manager is None:
-            raise ValueError("首次调用必须提供 task_manager")
         _batch_publish_service_instance = BatchPublishService(task_manager)
     return _batch_publish_service_instance

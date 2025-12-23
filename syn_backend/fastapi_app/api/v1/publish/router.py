@@ -25,7 +25,6 @@ from fastapi_app.api.v1.publish.services import PublishService, get_publish_serv
 from fastapi_app.core.exceptions import NotFoundException, BadRequestException
 from fastapi_app.core.logger import logger
 from fastapi_app.core.config import settings
-from myUtils.task_queue_manager import get_task_manager
 from fastapi_app.db.runtime import mysql_enabled, sa_connection
 import warnings
 from sqlalchemy import text
@@ -34,37 +33,13 @@ from sqlalchemy import text
 router = APIRouter(prefix="/publish", tags=["发布管理"])
 
 # 运行指纹：用于确认"当前生效的发布入口"
-PUBLISH_ROUTER_BUILD_TAG = "fastapi_app/api/v1/publish/router.py@unified-batch-only@2025-12-19"
+PUBLISH_ROUTER_BUILD_TAG = "fastapi_app/api/v1/publish/router.py@unified-batch-only@celery-migration@2025-12-23"
 
 
-# 依赖注入：获取任务管理器
-def get_task_mgr(request: Request):
-    """获取任务队列管理器"""
-    # 优先使用应用状态中的实例（启动时创建）
-    tm = getattr(request.app.state, "task_manager", None)
-    if tm:
-        return tm
-
-    # 回退创建全局实例，确保首次调用不会因缺少 db_path 报错
-    try:
-        task_db_path = Path(settings.BASE_DIR) / "db" / "task_queue.db"
-        tm = get_task_manager(
-            db_path=task_db_path,
-            max_workers=settings.TASK_QUEUE_MAX_WORKERS
-        )
-        tm.start()
-        request.app.state.task_manager = tm
-        logger.info(f"任务队列管理器已按需初始化: {task_db_path}")
-        return tm
-    except Exception as e:
-        logger.error(f"无法获取任务管理器: {e}")
-        raise HTTPException(status_code=503, detail="任务队列服务不可用")
-
-
-# 依赖注入：获取发布服务
-def get_service(task_manager=Depends(get_task_mgr)) -> PublishService:
+# 依赖注入：获取发布服务（已迁移到 Celery，不再需要 task_manager）
+def get_service() -> PublishService:
     """获取发布服务实例"""
-    return get_publish_service(task_manager)
+    return get_publish_service()
 
 
 @router.post(
@@ -119,6 +94,7 @@ async def publish_batch_videos(
             interval_control_enabled=request.interval_control_enabled,
             interval_mode=request.interval_mode,
             interval_seconds=request.interval_seconds,
+            random_offset=request.random_offset,
             priority=request.priority,
             items=request.items  # 传递 items 参数，包含每个素材的独立配置
         )
