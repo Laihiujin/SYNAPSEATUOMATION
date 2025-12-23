@@ -2,7 +2,14 @@
 Video data auto-collection system.
 Collects full video lists for supported platforms using saved cookies.
 """
+import sys
 import asyncio
+
+# 修复 Windows 下 Playwright 的 NotImplementedError
+# Playwright 需要 ProactorEventLoop 来创建子进程
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import os
 import sqlite3
 import json
@@ -199,31 +206,40 @@ class VideoDataCollector:
 
     def save_video_data(self, account_id: str, platform: str, video: Dict[str, Any]):
         """Save video data using analytics_db helper and trigger recovery."""
+        # ✅ CRITICAL: Validate video_id before saving
+        video_id = video.get("video_id")
+        if not video_id or not str(video_id).strip():
+            logger.warning(f"[Collector] Skipping video without valid ID: {video.get('title', 'NO_TITLE')[:40]}")
+            return
+
         data_to_save = {
             "account_id": account_id,
             "platform": platform,
-            "video_id": video.get("video_id"),
-            "title": video.get("title"),
-            "thumbnail": video.get("cover_url"),
-            "publish_date": video.get("publish_time"),
-            "play_count": video.get("play_count") or video.get("views") or 0,
-            "like_count": video.get("like_count") or video.get("likes") or 0,
-            "comment_count": video.get("comment_count") or video.get("comments") or 0,
-            "share_count": video.get("share_count") or video.get("shares") or 0,
-            "collect_count": video.get("collect_count") or video.get("favorites") or 0,
+            "video_id": str(video_id).strip(),
+            "title": video.get("title") or "",
+            "thumbnail": video.get("cover_url") or "",
+            "publish_date": video.get("publish_time") or "",
+            "play_count": video.get("play_count") or 0,
+            "like_count": video.get("like_count") or 0,
+            "comment_count": video.get("comment_count") or 0,
+            "share_count": video.get("share_count") or 0,
+            "collect_count": video.get("collect_count") or 0,
+            "collected_at": now_beijing_naive().isoformat(),
             "raw_data": video
         }
-        
+
         try:
             upsert_video_analytics_by_key(
                 DB_PATH,
                 platform=platform,
-                video_id=video.get("video_id"),
+                video_id=data_to_save["video_id"],
                 data=data_to_save
             )
+            logger.debug(f"[Collector] Saved {platform} video {data_to_save['video_id']}: {data_to_save['title'][:30] if data_to_save['title'] else 'NO_TITLE'}")
         except Exception as e:
             logger.error(f"[Collector] Error saving to DB: {e}")
-        
+            return
+
         # 触发 ID 回写到后端任务表
         self._proximity_match_and_recover(account_id, platform, video)
 
@@ -280,10 +296,10 @@ class VideoDataCollector:
                             "video_id": item.get("aweme_id") or "",
                             "title": title,
                             "cover_url": cover,
-                            "views": stats.get("play_count") or stats.get("play_count_v2") or 0,
-                            "likes": stats.get("digg_count") or 0,
-                            "comments": stats.get("comment_count") or 0,
-                            "shares": stats.get("share_count") or 0,
+                            "play_count": stats.get("play_count") or stats.get("play_count_v2") or 0,  # ✅ Standardized
+                            "like_count": stats.get("digg_count") or 0,  # ✅ Standardized
+                            "comment_count": stats.get("comment_count") or 0,  # ✅ Standardized
+                            "share_count": stats.get("share_count") or 0,  # ✅ Standardized
                             "publish_time": item.get("create_time"),
                         }
                     )
@@ -539,10 +555,10 @@ class VideoDataCollector:
                                 video_id: item.getAttribute('data-note-id') || item.getAttribute('data-id') || '',
                                 title: item.querySelector('.title, .note-title, .name')?.textContent.trim() || '',
                                 cover_url: item.querySelector('img')?.src || '',
-                                views: num('.view-count, [class*="view"]'),
-                                likes: num('.like-count, [class*="like"]'),
-                                comments: num('.comment-count, [class*="comment"]'),
-                                favorites: num('.collect-count, [class*="collect"]'),
+                                play_count: num('.view-count, [class*="view"]'),
+                                like_count: num('.like-count, [class*="like"]'),
+                                comment_count: num('.comment-count, [class*="comment"]'),
+                                collect_count: num('.collect-count, [class*="collect"]'),
                                 publish_time: item.querySelector('.publish-time, .time, .date, .time-text')?.textContent.trim() || ''
                             };
                         });
@@ -570,7 +586,19 @@ class VideoDataCollector:
                 await browser.close()
 
     async def collect_douyin_data(self, cookie_file: str, account_id: str) -> Dict[str, Any]:
-        """Collect Douyin videos for the given account."""
+        """
+        Collect Douyin videos for the given account.
+
+        Collection Strategy:
+        1. Try API method first (faster, but requires specific headers/cookies)
+        2. Fall back to page DOM extraction
+        3. Final fallback: click each item to get video_id from detail page URL
+
+        Known Issues:
+        - API method fails with "Url doesn't match" (requires additional auth headers)
+        - Detail page is SPA-based, title/stats selectors may not match dynamic content
+        - Click method only gets video_id reliably, title/stats often empty
+        """
         print("[Douyin] Start collecting data...")
 
         cookie_path = BASE_DIR / "cookiesFile" / cookie_file
@@ -631,7 +659,7 @@ class VideoDataCollector:
                                 return {
                                     video_id: id,
                                     title: titleEl ? titleEl.textContent.trim() : '',
-                                    views: 0, likes: 0, comments: 0
+                                    play_count: 0, like_count: 0, comment_count: 0
                                 };
                             } ).filter(v => v.title);
                         }
@@ -640,7 +668,7 @@ class VideoDataCollector:
 
                 saved_count = 0
                 for video in videos:
-                    if video.get("title"):
+                    if video.get("video_id"):  # ✅ Changed from title to video_id
                         self.save_video_data(account_id, "douyin", video)
                         saved_count += 1
 
@@ -790,23 +818,76 @@ class VideoDataCollector:
                 if work_id and work_id not in seen_ids:
                     seen_ids.add(work_id)
                     # Try scraping stats on detail page
-                    stats = {"video_id": work_id, "title": "", "cover_url": "", "views": 0, "likes": 0, "comments": 0, "shares": 0}
+                    stats = {"video_id": work_id, "title": "", "cover_url": "", "play_count": 0, "like_count": 0, "comment_count": 0, "share_count": 0}  # ✅ Standardized
                     try:
-                        title_el = await detail_page.locator("h1, .video-title, [class*='title']").first
-                        if await title_el.count() > 0:
-                            stats["title"] = await title_el.inner_text()
-                        
-                        # Douyin detail stats often in .work-data-item or similar
-                        data_items = await detail_page.locator("[class*='work-data-item'], [class*='data-info-item']").all()
+                        # Wait for page to stabilize
+                        await detail_page.wait_for_load_state("domcontentloaded", timeout=5000)
+
+                        # Try multiple selectors for title
+                        title_selectors = [
+                            "textarea[placeholder*='添加标题']",  # 编辑框
+                            "input[placeholder*='标题']",
+                            ".title-input",
+                            "[class*='title-input']",
+                            "h1",
+                            ".video-title",
+                            "[class*='video-title']",
+                            "[class*='work-title']"
+                        ]
+
+                        for sel in title_selectors:
+                            try:
+                                title_loc = detail_page.locator(sel).first
+                                if await title_loc.count() > 0:
+                                    title_text = await title_loc.input_value() if 'textarea' in sel or 'input' in sel else await title_loc.inner_text()
+                                    if title_text and title_text.strip():
+                                        stats["title"] = title_text.strip()
+                                        break
+                            except: continue
+
+                        # Try multiple selectors for stats
+                        stat_selectors = [
+                            "[class*='data-card']",
+                            "[class*='work-data']",
+                            "[class*='data-item']",
+                            ".data-list",
+                            "[class*='stat']"
+                        ]
+
+                        data_items = []
+                        for sel in stat_selectors:
+                            try:
+                                items = await detail_page.locator(sel).all()
+                                if items:
+                                    data_items = items
+                                    break
+                            except: continue
+
                         for item in data_items:
-                            text = await item.inner_text()
-                            val_m = re.search(r'(\d+)', text.replace(',', ''))
-                            val = int(val_m.group(1)) if val_m else 0
-                            if "播放" in text: stats["views"] = val
-                            elif "点赞" in text: stats["likes"] = val
-                            elif "评论" in text: stats["comments"] = val
-                            elif "分享" in text: stats["shares"] = val
-                    except: pass
+                            try:
+                                text = await item.inner_text()
+                                # 提取数字 (支持万、亿等单位)
+                                val = 0
+                                if '万' in text:
+                                    num_m = re.search(r'([\d.]+)万', text)
+                                    if num_m: val = int(float(num_m.group(1)) * 10000)
+                                elif '亿' in text:
+                                    num_m = re.search(r'([\d.]+)亿', text)
+                                    if num_m: val = int(float(num_m.group(1)) * 100000000)
+                                else:
+                                    val_m = re.search(r'(\d+)', text.replace(',', ''))
+                                    val = int(val_m.group(1)) if val_m else 0
+
+                                # ✅ Standardized field names
+                                if "播放" in text or "观看" in text: stats["play_count"] = val
+                                elif "点赞" in text: stats["like_count"] = val
+                                elif "评论" in text: stats["comment_count"] = val
+                                elif "分享" in text or "转发" in text: stats["share_count"] = val
+                            except: pass
+
+                        logger.debug(f"Scraped douyin video {work_id}: {stats['title'][:30] if stats['title'] else 'NO_TITLE'}, play_count={stats['play_count']}")  # ✅ Updated log
+                    except Exception as e:
+                        logger.warning(f"Failed to scrape stats for {work_id}: {e}")
                     results.append(stats)
 
             except Exception:
