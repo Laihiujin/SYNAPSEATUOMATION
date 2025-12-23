@@ -56,6 +56,16 @@ function buildEnv(projectRoot, browsersPath) {
   // Playwright browsers path (优先使用解压后的浏览器)
   if (browsersPath && fs.existsSync(browsersPath)) {
     env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+
+    // 🆕 如果是打包模式，设置 LOCAL_CHROME_PATH 为解压后的 Chrome for Testing
+    if (app.isPackaged) {
+      const chromeExePath = path.join(browsersPath, "chrome-for-testing", "chrome-win64", "chrome.exe");
+      if (fs.existsSync(chromeExePath)) {
+        env.LOCAL_CHROME_PATH = chromeExePath;
+        // 禁用 Playwright 自动安装（已经打包了 Chrome for Testing）
+        env.PLAYWRIGHT_AUTO_INSTALL = "0";
+      }
+    }
   } else {
     const bundledBrowsers = path.join(bundledResourcesDir(), "playwright-browsers");
     const fallbackBrowsers = path.join(projectRoot, ".playwright-browsers");

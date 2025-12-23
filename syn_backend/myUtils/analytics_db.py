@@ -274,6 +274,7 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                     share_count = ?,
                     match_confidence = COALESCE(?, match_confidence),
                     raw_data = ?,
+                    collected_at = COALESCE(?, collected_at),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
@@ -291,6 +292,7 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                     data.get("share_count", 0),
                     data.get("match_confidence"),
                     raw_json,
+                    data.get("collected_at"),
                     row_id,
                 ),
             )
@@ -302,8 +304,8 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
             INSERT INTO video_analytics (
                 task_id, account_id, platform, video_id, video_url,
                 title, thumbnail, publish_date, play_count, like_count,
-                comment_count, collect_count, share_count, match_confidence, raw_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                comment_count, collect_count, share_count, match_confidence, raw_data, collected_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.get("task_id"),
@@ -321,12 +323,11 @@ def upsert_video_analytics_by_key(db_path: Path, *, platform: str, video_id: str
                 data.get("share_count", 0),
                 data.get("match_confidence"),
                 raw_json,
+                data.get("collected_at"),
             ),
         )
         conn.commit()
         return cursor.lastrowid
-        
-        conn.commit()
 
 
 def record_analytics_history(db_path: Path, video_analytics_id: int):

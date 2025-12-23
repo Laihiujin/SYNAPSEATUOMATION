@@ -205,8 +205,17 @@ class DouyinAdapter(PlatformAdapter):
             return
 
         try:
-            await session["browser"].close()
-            await session["playwright"].stop()
+            # ✅ 安全关闭 browser（检查是否为 None）
+            browser = session.get("browser")
+            if browser:
+                await browser.close()
+                logger.debug(f"[Douyin] Browser closed for session {session_id}")
+
+            # ✅ 安全停止 playwright（检查是否为 None）
+            playwright = session.get("playwright")
+            if playwright:
+                await playwright.stop()
+                logger.debug(f"[Douyin] Playwright stopped for session {session_id}")
         except Exception as e:
             logger.warning(f"[Douyin] Cleanup failed: {e}")
 

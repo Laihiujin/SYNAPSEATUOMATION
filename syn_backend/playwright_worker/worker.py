@@ -25,6 +25,12 @@ import uuid
 
 
 def _resolve_executable_path() -> str | None:
+    # 1. 优先从环境变量读取（Electron 打包模式）
+    env_path = os.getenv("LOCAL_CHROME_PATH")
+    if env_path and Path(env_path).exists():
+        return env_path
+
+    # 2. 从 config.conf 读取（开发模式）
     try:
         from config.conf import LOCAL_CHROME_PATH  # type: ignore
 
@@ -78,6 +84,13 @@ app = FastAPI(title="Playwright Worker", version="1.0.0")
 # Ensure bundled Playwright Chromium exists on worker host.
 @app.on_event("startup")
 async def _startup_bootstrap_playwright():
+    # 如果已经设置了 LOCAL_CHROME_PATH（Electron 打包模式），跳过 Playwright bootstrap
+    local_chrome = _resolve_executable_path()
+    if local_chrome:
+        logger.info(f"[Worker] Using LOCAL_CHROME_PATH: {local_chrome}")
+        logger.info(f"[Worker] Skipping Playwright Chromium bootstrap")
+        return
+
     try:
         from utils.playwright_bootstrap import ensure_playwright_chromium_installed
 

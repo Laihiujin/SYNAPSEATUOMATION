@@ -153,6 +153,21 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"[DB] MySQL table ensure failed (continuing): {e}")
 
+    # Initialize task queue manager (SQLite-backed)
+    try:
+        from myUtils.task_queue_manager import get_task_manager
+
+        task_db_path = Path(settings.BASE_DIR) / "db" / "task_queue.db"
+        app.state.task_manager = get_task_manager(
+            db_path=task_db_path,
+            max_workers=settings.TASK_QUEUE_MAX_WORKERS,
+        )
+        logger.info(
+            f"[TaskQueue] Initialized: db={task_db_path} workers={settings.TASK_QUEUE_MAX_WORKERS}"
+        )
+    except Exception as e:
+        logger.warning(f"[TaskQueue] Init failed (tasks API disabled): {e}")
+
     # 初始化批量发布服务（不再需要 TaskQueueManager）
     try:
         from myUtils.batch_publish_service import get_batch_publish_service

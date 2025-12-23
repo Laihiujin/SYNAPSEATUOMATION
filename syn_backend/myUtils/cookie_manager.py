@@ -118,7 +118,7 @@ class CookieManager:
                     ),
                 )
         except Exception as e:
-            print(f"⚠️ [CookieManager] 持久化账号失败 {account.get('account_id')}: {e}")
+            logger.warning(f"[CookieManager] 持久化账号失败 {account.get('account_id')}: {e}")
 
     def _write_cookie_file(self, cookie_file: str, payload: Any):
         target = self.cookies_dir / cookie_file
@@ -193,7 +193,7 @@ class CookieManager:
             return None
 
         except Exception as e:
-            print(f"⚠️ [CookieManager] 提取UserID失败: {e}")
+            logger.warning(f"[CookieManager] 提取UserID失败: {e}")
             return None
 
     def _extract_user_info_from_cookie(self, platform: str, cookie_data: Any) -> Dict[str, Any]:
@@ -255,7 +255,7 @@ class CookieManager:
                             info["name"] = str(ck.get("value"))
             return info
         except Exception as e:
-            print(f"⚠️ [CookieManager] 提取用户信息失败: {e}")
+            logger.warning(f"[CookieManager] 提取用户信息失败: {e}")
             return info
 
     def _enrich_with_fast_validator(self, platform: str, cookie_file: str, account: Dict[str, Any]):
@@ -305,7 +305,7 @@ class CookieManager:
             if enriched.get("avatar") and not account.get("avatar"):
                 account["avatar"] = enriched["avatar"]
         except Exception as e:
-            print(f"⚠️ [CookieManager] Fast validator enrich failed: {e}")
+            logger.warning(f"[CookieManager] Fast validator enrich failed: {e}")
 
     def _resolve_platform(self, platform_name: str) -> int:
         normalized = self._normalize_platform(platform_name)
@@ -324,7 +324,7 @@ class CookieManager:
         if not user_id and cookie_data:
             user_id = self._extract_user_id_from_cookie(normalized_platform, cookie_data)
             if user_id:
-                print(f"✅ [CookieManager] 从Cookie中提取到UserID: {user_id}")
+                logger.info(f"[CookieManager] 从Cookie中提取到UserID: {user_id}")
                 account_details["user_id"] = user_id
         
         # 尝试补全 name/avatar（直接从 cookie 数据结构中获取）
@@ -362,7 +362,7 @@ class CookieManager:
                     existing_account_id = row['account_id']
                     existing_note = row['note']
                     existing_cookie_file = row['cookie_file']
-                    print(f"♻️ [CookieManager] 检测到已存在的账号: {existing_account_id} (UserID: {user_id}, Note: {existing_note})")
+                    logger.info(f"[CookieManager] 检测到已存在的账号: {existing_account_id} (UserID: {user_id}, Note: {existing_note})")
 
         # 智能备注更新逻辑
         new_note = account_details.get("note") or "-"  # 默认备注为 "-"
@@ -374,27 +374,27 @@ class CookieManager:
                 # 新备注包含"派发"，优先级最高，覆盖现有账号
                 account_id = existing_account_id
                 note = new_note
-                print(f"📝 [CookieManager] 派发账号覆盖: {existing_note} -> {new_note} (UserID: {user_id})")
+                logger.info(f"[CookieManager] 派发账号覆盖: {existing_note} -> {new_note} (UserID: {user_id})")
             elif existing_note and "派发" in existing_note:
                 # 现有备注包含"派发"，保持现有备注（派发账号不被普通账号覆盖）
                 account_id = existing_account_id
                 note = existing_note
-                print(f"🔒 [CookieManager] 保留派发账号备注: {existing_note} (UserID: {user_id})")
+                logger.info(f"[CookieManager] 保留派发账号备注: {existing_note} (UserID: {user_id})")
             elif existing_note and existing_note != "-":
                 # 现有备注存在且不是默认值，保留现有备注
                 account_id = existing_account_id
                 note = existing_note
-                print(f"📌 [CookieManager] 保留现有备注: {existing_note} (UserID: {user_id})")
+                logger.info(f"[CookieManager] 保留现有备注: {existing_note} (UserID: {user_id})")
             else:
                 # 现有备注为空或默认值，使用新备注
                 account_id = existing_account_id
                 note = new_note
-                print(f"📝 [CookieManager] 更新账号备注: {existing_note} -> {new_note} (UserID: {user_id})")
+                logger.info(f"[CookieManager] 更新账号备注: {existing_note} -> {new_note} (UserID: {user_id})")
         else:
             # 新账号，使用新的账号ID和备注
             account_id = account_details.get("id") or account_details.get("account_id")
             note = new_note
-            print(f"✨ [CookieManager] 创建新账号: ID={account_id}, Note={note}, UserID={user_id}")
+            logger.info(f"[CookieManager] 创建新账号: ID={account_id}, Note={note}, UserID={user_id}")
 
         if not account_id:
             raise ValueError("Account id is required")
@@ -411,21 +411,21 @@ class CookieManager:
                     import shutil
                     shutil.move(str(old_path), str(new_path))
                     cookie_file = expected_filename
-                    print(f"📝 [CookieManager] Cookie文件重命名为规范格式: {existing_cookie_file} -> {expected_filename}")
+                    logger.info(f"[CookieManager] Cookie文件重命名为规范格式: {existing_cookie_file} -> {expected_filename}")
                 else:
                     cookie_file = expected_filename
             else:
                 cookie_file = existing_cookie_file
-            print(f"🔄 [CookieManager] 覆盖已有账号的Cookie文件: {cookie_file} (UserID: {user_id})")
+            logger.info(f"[CookieManager] 覆盖已有账号的Cookie文件: {cookie_file} (UserID: {user_id})")
         else:
             # 新账号：使用规范格式
             if user_id:
                 cookie_file = f"{normalized_platform}_{user_id}.json"
-                print(f"✨ [CookieManager] 新账号使用规范命名: {cookie_file}")
+                logger.info(f"[CookieManager] 新账号使用规范命名: {cookie_file}")
             else:
                 # 没有user_id，使用account_id兜底
                 cookie_file = f"{account_id}.json"
-                print(f"⚠️ [CookieManager] 无user_id，使用account_id命名: {cookie_file}")
+                logger.warning(f"[CookieManager] 无user_id，使用account_id命名: {cookie_file}")
 
         # 写入cookie文件
         self._write_cookie_file(cookie_file, account_details.get("cookie", {}))
@@ -439,7 +439,7 @@ class CookieManager:
         # 如果是覆盖已有账号（重新登录），强制设置status为valid
         if existing_account_id:
             status = "valid"
-            print(f"✅ [CookieManager] 账号状态更新为valid (UserID: {user_id})")
+            logger.info(f"[CookieManager] 账号状态更新为valid (UserID: {user_id})")
         else:
             status = account_details.get("status") or "valid"
         last_checked = account_details.get("last_checked") or datetime.now(timezone.utc).isoformat()
@@ -478,7 +478,7 @@ class CookieManager:
                     user_id,
                 ),
             )
-            print(f"✅ [CookieManager] 数据库插入/更新成功: ID={account_id}, Name={account_name}, Note={note}, UserID={user_id}")
+            logger.info(f"[CookieManager] 数据库插入/更新成功: ID={account_id}, Name={account_name}, Note={note}, UserID={user_id}")
             conn.commit()
 
     def _group_accounts(self, rows: List[sqlite3.Row]) -> List[Dict[str, Any]]:
@@ -769,7 +769,7 @@ class CookieManager:
         for acc in accounts:
             if not acc['cookie_file']: continue
             
-            print(f"🚀 开始维护账号: {acc['name']}")
+            logger.info(f"[CookieManager] 开始维护账号: {acc['name']}")
             status = await maintain_account(acc['platform_code'], acc['cookie_file'])
             
             results[status] = results.get(status, 0) + 1

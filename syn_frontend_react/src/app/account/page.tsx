@@ -220,7 +220,7 @@ function AccountPageContent() {
       }
 
       const platform = platformMap[formState.platform]
-      const qrRes = await fetch(`${backendBaseUrl}/api/v1/auth/qrcode/generate?platform=${platform}&account_id=${encodeURIComponent(loginId)}`, {
+      const qrRes = await fetch(`/api/v1/auth/qrcode/generate?platform=${platform}&account_id=${encodeURIComponent(loginId)}`, {
         method: 'POST'
       })
 
@@ -251,7 +251,7 @@ function AccountPageContent() {
       const sessionId = qrData.qr_id
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`${backendBaseUrl}/api/v1/auth/qrcode/poll?session_id=${sessionId}`)
+          const statusRes = await fetch(`/api/v1/auth/qrcode/poll?session_id=${sessionId}`)
           const statusData = await statusRes.json()
 
           if (statusData.status === 'confirmed') {
@@ -263,8 +263,11 @@ function AccountPageContent() {
               description: "账号已绑定成功，正在同步信息...",
             })
 
-            setTimeout(async () => {
-              await refetch()
+            // 立即刷新账号列表
+            await queryClient.invalidateQueries({ queryKey: ["accounts"] })
+            await refetch()
+
+            setTimeout(() => {
               setDialogOpen(false)
               setFormState({ id: "", name: "", platform: "kuaishou" })
               setBindingStatus("idle")
@@ -273,7 +276,7 @@ function AccountPageContent() {
                 title: "账号添加完成",
                 description: "账号信息已同步，可以开始使用了",
               })
-            }, 2000)
+            }, 500)
           } else if (statusData.status === 'scanned') {
             toast({
               title: "已扫码",
@@ -394,7 +397,7 @@ function AccountPageContent() {
       }
       toast({
         title: "已打开创作中心",
-        description: "浏览器窗口会在本机弹出（需已启动 Playwright Worker）",
+        // description: "浏览器窗口已启动）",
       })
     } catch (e) {
       toast({ variant: "destructive", title: "打开失败", description: String(e) })

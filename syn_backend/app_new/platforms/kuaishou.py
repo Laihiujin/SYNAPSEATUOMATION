@@ -175,8 +175,17 @@ class KuaishouAdapter(PlatformAdapter):
             return
 
         try:
-            await session["browser"].close()
-            await session["playwright"].stop()
+            # ✅ 安全关闭 browser（检查是否为 None）
+            browser = session.get("browser")
+            if browser:
+                await browser.close()
+                logger.debug(f"[Kuaishou] Browser closed for session {session_id}")
+
+            # ✅ 安全停止 playwright（检查是否为 None）
+            playwright = session.get("playwright")
+            if playwright:
+                await playwright.stop()
+                logger.debug(f"[Kuaishou] Playwright stopped for session {session_id}")
         except Exception as e:
             logger.warning(f"[Kuaishou] Cleanup failed: {e}")
 
@@ -207,8 +216,8 @@ class KuaishouAdapter(PlatformAdapter):
             try:
                 import re
                 # text=/快手号[:：]?\s*\w+/
-                logger.info(f"[Kuaishou] Attempting DOM text extraction with 12s timeout...")
-                elem = await page.wait_for_selector('text=/快手号[:：]?\\s*[\\w-]+/', timeout=12000)
+                logger.info("[Kuaishou] Attempting DOM text extraction (no wait)...")
+                elem = await page.query_selector('text=/快手号[:：]?\\s*[\\w-]+/')
                 if elem:
                     text = await elem.inner_text()
                     logger.info(f"[Kuaishou] Found DOM text: {text}")
