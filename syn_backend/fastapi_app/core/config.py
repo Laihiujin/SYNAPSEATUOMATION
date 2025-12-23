@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "矩阵平台自动化发布系统"
     API_V1_PREFIX: str = "/api/v1"
 
+    # 时区配置
+    TIMEZONE: str = "Asia/Shanghai"  # 北京时间 UTC+8
+    USE_BEIJING_TIME: bool = True  # 全局使用北京时间
+
     # 服务器配置
     HOST: str = "0.0.0.0"
     PORT: int = 7000  # FastAPI专用端口

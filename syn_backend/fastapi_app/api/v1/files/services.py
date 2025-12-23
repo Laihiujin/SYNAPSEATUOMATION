@@ -18,6 +18,7 @@ from fastapi_app.schemas.file import FileResponse, FileListResponse, FileStatsRe
 from fastapi_app.core.logger import logger
 from fastapi_app.db.runtime import mysql_enabled, sa_connection
 from fastapi_app.cache.redis_client import get_redis
+from fastapi_app.core.timezone_utils import now_beijing_naive, now_beijing_iso
 from utils.video_frames import extract_first_frame
 from utils.video_probe import probe_video_metadata
 from platforms.path_utils import resolve_video_file
@@ -44,7 +45,7 @@ class FileService:
 
     def _ai_cover_filename(self, file_id: int, platform_name: str, *, ext: str = "png") -> str:
         safe_platform = "".join([c for c in (platform_name or "all") if c.isalnum() or c in ("-", "_")])[:32] or "all"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = now_beijing_naive().strftime("%Y%m%d_%H%M%S")
         safe_ext = "".join([c for c in (ext or "png").lower() if c.isalnum()])[:6] or "png"
         if safe_ext not in ("png", "jpg", "jpeg", "webp"):
             safe_ext = "png"
@@ -634,7 +635,7 @@ class FileService:
         """Save file record to database"""
         if mysql_enabled():
             warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
-            upload_time = datetime.now().isoformat()
+            upload_time = now_beijing_iso()
             title = Path(filename).stem
             meta = self._probe_video_metadata(file_path)
             duration = meta.get("duration")
@@ -716,7 +717,7 @@ class FileService:
         cursor = db.cursor()
         self._ensure_file_record_columns(cursor, db)
 
-        upload_time = datetime.now().isoformat()
+        upload_time = now_beijing_iso()
         
         # Auto-generate title from filename (remove extension)
         title = Path(filename).stem
