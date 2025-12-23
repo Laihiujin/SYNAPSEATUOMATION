@@ -47,7 +47,10 @@
           "!**/.git/**",
           "!**/logs/**",
           "!**/temp/**",
-          "!**/cache/**"
+          "!**/cache/**",
+          "!**/browser_profiles/**",
+          "!**/cookies/**",
+          "!**/sessions/**"
         ]
       },
       {
