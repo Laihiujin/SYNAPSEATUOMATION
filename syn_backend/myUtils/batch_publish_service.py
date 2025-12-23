@@ -18,6 +18,7 @@ from myUtils.cookie_manager import cookie_manager
 from loguru import logger
 from platforms.registry import get_uploader_by_platform_code
 from platforms.path_utils import resolve_cookie_file, resolve_video_file
+from fastapi_app.core.timezone_utils import now_beijing_iso
 
 class BatchPublishService:
     """批量发布服务（已迁移到 Celery）"""
@@ -128,7 +129,7 @@ class BatchPublishService:
                     "account_id": account_id,
                     "platform": platform,
                     "video_url": None,
-                    "published_at": datetime.now().isoformat()
+                    "published_at": now_beijing_iso()
                 }
 
             if result and result.get('captcha_required'):
@@ -159,7 +160,7 @@ class BatchPublishService:
                     "account_id": account_id,
                     "platform": platform,
                     "video_url": result.get('video_url'),
-                    "published_at": datetime.now().isoformat()
+                    "published_at": now_beijing_iso()
                 }
             else:
                 error = result.get('error', '未知错误') if result else '发布函数返回空'

@@ -2,8 +2,18 @@ const normalizeDateInput = (value: Date | string | number): Date => {
   if (typeof value === "string") {
     const trimmed = value.trim()
     const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(trimmed)
+
+    // 如果时间字符串是 ISO 格式但没有时区信息，假设它是北京时间（而非 UTC）
+    // 我们需要添加 +08:00 后缀来明确指定北京时区
     if (trimmed.includes("T") && !hasTimezone) {
-      return new Date(`${trimmed}Z`)
+      return new Date(`${trimmed}+08:00`)
+    }
+
+    // 处理 "YYYY-MM-DD HH:MM:SS" 格式（无 T 分隔符）
+    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test(trimmed) && !hasTimezone) {
+      // 替换空格为 T，并添加北京时区后缀
+      const isoFormat = trimmed.replace(' ', 'T')
+      return new Date(`${isoFormat}+08:00`)
     }
   }
   return new Date(value)
