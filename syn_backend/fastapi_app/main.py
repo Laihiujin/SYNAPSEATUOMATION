@@ -112,7 +112,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """处理未捕获的异常"""
-    logger.error("未处理的异常: %s", str(exc), exc_info=True)
+    logger.error("未处理的异常: {}", str(exc), exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

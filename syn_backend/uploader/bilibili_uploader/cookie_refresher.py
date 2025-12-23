@@ -62,19 +62,19 @@ def to_biliup_cookie_format(cookie_data: dict) -> dict:
 async def refresh_bilibili_cookies(cookie_data: dict, proxy: dict = None) -> dict:
     """
     使用现有的 Bilibili Cookie，通过无头浏览器访问 B站并刷新 Cookie
-    
+
     Args:
         cookie_data: 现有的 Cookie 字典（包含 SESSDATA, bili_jct 等）
-    
+
     Returns:
         dict: 刷新后的完整 Cookie 字典
     """
     bilibili_logger.info("[Cookie Refresher] 开始刷新 B站 Cookie...")
-    
+
     # Normalize to biliup cookie format, then extract cookie list for Playwright injection
     biliup_cookie = to_biliup_cookie_format(cookie_data)
     cookies_list = biliup_cookie["cookie_info"]["cookies"]
-    
+
     async with async_playwright() as playwright:
         try:
             # 启动浏览器
@@ -82,7 +82,7 @@ async def refresh_bilibili_cookies(cookie_data: dict, proxy: dict = None) -> dic
             if proxy:
                  launch_kwargs["proxy"] = proxy
                  bilibili_logger.info(f"Using Proxy: {proxy.get('server')}")
-            
+
             browser = await playwright.chromium.launch(**launch_kwargs)
             
             # 创建上下文并注入 Cookie

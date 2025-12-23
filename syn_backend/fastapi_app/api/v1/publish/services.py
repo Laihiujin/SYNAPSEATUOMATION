@@ -155,6 +155,10 @@ class PublishService:
         items: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
+        logger.info(
+            "[PublishService] External publish request via /publish/batch; "
+            "will split into publish.single sub-tasks per account/video."
+        )
         批量发布
         支持单平台和多平台发布
         - 如果指定了 platform，则只发布到该平台（验证账号必须属于该平台）
@@ -266,6 +270,10 @@ class PublishService:
     ):
         """创建批量发布任务的内部方法"""
         import random  # 导入 random 模块用于随机偏移
+        logger.info(
+            f"[PublishService] Splitting batch_id={batch_id} into publish.single tasks: "
+            f"files={len(file_ids)}, accounts={len(accounts)}, platform={platform}"
+        )
 
         base_time = now_beijing_naive()
         interval_s = int(interval_seconds or 0)

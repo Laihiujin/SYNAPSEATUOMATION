@@ -391,7 +391,8 @@ class DeviceFingerprint:
                     const origCreateOffer = RTCPeerConnection.prototype.createOffer;
                     RTCPeerConnection.prototype.createOffer = async function() {{
                         const offer = await origCreateOffer.apply(this, arguments);
-                        offer.sdp = offer.sdp.replace(/a=candidate:.*
+                        offer.sdp = offer.sdp.replace(/a=candidate:.*
+
 /g, '');
                         return offer;
                     }};

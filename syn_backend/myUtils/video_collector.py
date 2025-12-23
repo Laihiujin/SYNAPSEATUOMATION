@@ -15,13 +15,15 @@ import httpx
 from playwright.async_api import Page, async_playwright, TimeoutError as PlaywrightTimeoutError
 from loguru import logger
 
+# Always define BASE_DIR first
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 try:
     from fastapi_app.core.config import settings
     DB_PATH = Path(settings.DATABASE_PATH)
     from config.conf import PLAYWRIGHT_HEADLESS
     from fastapi_app.core.timezone_utils import now_beijing_naive
 except ImportError:
-    BASE_DIR = Path(__file__).resolve().parent.parent
     DB_PATH = BASE_DIR / os.getenv("DB_PATH_REL", "db/database.db")
     PLAYWRIGHT_HEADLESS = True  # Default to headless if config missing
     # Fallback timezone helper

@@ -134,6 +134,55 @@ _PLATFORM_PROFILE_URL = {
 }
 
 
+async def _apply_storage_state(context, storage_state: Dict[str, Any]) -> None:
+    if not storage_state:
+        return
+    cookies = storage_state.get("cookies") or []
+    if isinstance(cookies, list) and cookies:
+        safe_cookies = [c for c in cookies if isinstance(c, dict)]
+        if safe_cookies:
+            await context.add_cookies(safe_cookies)
+
+    origins = storage_state.get("origins") or []
+    if not isinstance(origins, list) or not origins:
+        return
+    local_storage_map: Dict[str, Dict[str, str]] = {}
+    for origin in origins:
+        if not isinstance(origin, dict):
+            continue
+        origin_url = origin.get("origin")
+        if not origin_url:
+            continue
+        items = {}
+        for entry in origin.get("localStorage") or []:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            value = entry.get("value")
+            if not name:
+                continue
+            items[str(name)] = "" if value is None else str(value)
+        if items:
+            local_storage_map[str(origin_url)] = items
+    if not local_storage_map:
+        return
+    await context.add_init_script(
+        """
+        arg => {
+          try {
+            const origin = window.location.origin;
+            const items = arg[origin];
+            if (!items) return;
+            for (const [k, v] of Object.entries(items)) {
+              try { localStorage.setItem(k, v); } catch (e) {}
+            }
+          } catch (e) {}
+        }
+        """,
+        arg=local_storage_map,
+    )
+
+
 @app.get("/health")
 async def health_check():
     """健康检查"""
@@ -250,7 +299,12 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 except Exception:
                     custom_manager = persistent_browser_manager
             user_data_dir = custom_manager.get_user_data_dir(req.account_id, platform_code)
-            context = await pw.chromium.launch_persistent_context(str(user_data_dir), **context_opts, **launch_kwargs)
+            persistent_context_opts = {k: v for k, v in context_opts.items() if k != "storage_state"}
+            context = await pw.chromium.launch_persistent_context(
+                str(user_data_dir),
+                **persistent_context_opts,
+                **launch_kwargs,
+            )
             try:
                 browser = context.browser()
             except Exception:

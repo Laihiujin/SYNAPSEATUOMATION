@@ -34,7 +34,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { DataTable } from "@/components/ui/data-table"
-import { PageHeader, PageSection } from "@/components/layout/page-scaffold"
 import { fetcher } from "@/lib/api"
 import { backendBaseUrl } from "@/lib/env"
 import { type Account, type PlatformKey } from "@/lib/mock-data"
@@ -42,6 +41,7 @@ import { accountsResponseSchema } from "@/lib/schemas"
 import { type ColumnDef } from "@tanstack/react-table"
 import { Progress } from "@/components/ui/progress"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { PageHeader, PageSection } from "@/components/layout/page-scaffold"
 
 const platformTabs: { label: string; value: PlatformKey }[] = [
   { label: "全部", value: "all" },
@@ -379,10 +379,13 @@ function AccountPageContent() {
     }
   }
 
-  const handleOpenCreatorCenter = async (accountId: string) => {
+  const handleOpenCreatorCenter = async (account: Account) => {
+    const accountId = account.id
+    const isBilibili = account.platform === "bilibili"
+    const endpoint = isBilibili ? "creator-center/open-biliup" : "creator-center/open"
     try {
       const response = await fetch(
-        `${backendBaseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/creator-center/open`,
+        `${backendBaseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/${endpoint}`,
         { method: "POST" }
       )
       const json = await response.json().catch(() => ({}))
@@ -423,7 +426,7 @@ function AccountPageContent() {
                     <button
                       type="button"
                       className="flex items-center gap-1 text-left font-medium text-sm hover:underline underline-offset-4"
-                      onClick={() => handleOpenCreatorCenter(row.original.id)}
+                      onClick={() => handleOpenCreatorCenter(row.original)}
                     >
                       <span>{displayName}</span>
                       <ExternalLink className="h-3.5 w-3.5 text-white/50" />
@@ -626,7 +629,7 @@ function AccountPageContent() {
                   <div className="space-y-2">
                     <Label>备注（可选）</Label>
                     <Input
-                      placeholder="为账号添加备注，如：推广账号A"
+                      placeholder="为账号添加备注"
                       value={formState.name}
                       onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
                     />

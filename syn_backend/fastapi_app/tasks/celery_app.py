@@ -17,5 +17,6 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Asia/Shanghai",
     enable_utc=False,
+    # Ensure non-default task modules are loaded by the worker.
+    include=["fastapi_app.tasks.publish_tasks"],
 )
-

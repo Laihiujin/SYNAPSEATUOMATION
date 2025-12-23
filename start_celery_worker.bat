@@ -32,7 +32,7 @@ echo.
 echo [3/3] 启动 Celery Worker...
 echo.
 echo 任务队列: 发布任务（publish.single, publish.batch）
-echo Broker: Redis (从 .env 读取 REDIS_URL)
+echo Broker: Redis (read from .env REDIS_URL)
 echo.
 
 REM 使用 --pool=solo 避免 Windows 多进程问题

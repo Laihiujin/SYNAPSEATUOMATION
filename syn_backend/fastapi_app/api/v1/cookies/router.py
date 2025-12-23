@@ -21,6 +21,7 @@ class FastCookieVerifyRequest(BaseModel):
     cookie_data: Optional[Any] = Field(None, description="可选：直接传 cookie JSON 或字符串")
     timeout: float = Field(default=3.0, description="请求超时(秒)")
     include_raw: bool = Field(default=False, description="是否返回原始响应")
+    fallback: bool = Field(default=False, description="是否在快速验证失败时启用 Playwright 备用")
 
 
 class FastCookieVerifyItem(BaseModel):
@@ -34,6 +35,7 @@ class FastCookieVerifyBatchRequest(BaseModel):
     items: List[FastCookieVerifyItem]
     timeout: float = Field(default=3.0, description="请求超时(秒)")
     include_raw: bool = Field(default=False, description="是否返回原始响应")
+    fallback: bool = Field(default=False, description="是否在快速验证失败时启用 Playwright 备用")
     concurrency: int = Field(default=10, description="并发数")
 
 
@@ -73,6 +75,7 @@ async def fast_verify_cookie(payload: FastCookieVerifyRequest):
         cookie_data=resolved.get("cookie_data"),
         timeout=payload.timeout,
         include_raw=payload.include_raw,
+        fallback=payload.fallback,
     )
     is_valid = result.get("status") == "valid"
     if result.get("status") in ("error", "network_error"):
@@ -111,6 +114,7 @@ async def fast_verify_cookie_batch(payload: FastCookieVerifyBatchRequest):
                 cookie_data=resolved.get("cookie_data"),
                 timeout=payload.timeout,
                 include_raw=payload.include_raw,
+                fallback=payload.fallback,
             )
             is_valid = result.get("status") == "valid"
             return {
