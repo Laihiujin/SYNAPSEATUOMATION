@@ -33,6 +33,9 @@ class CallbackTask(Task):
             completed_at=now_beijing_naive()
         )
 
+        # ✅ 同时写入 SQLite 任务历史（保存7天）
+        self._save_to_publish_tasks(task_id, kwargs.get('task_data', {}), status="success", result=retval)
+
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         """任务失败回调"""
         logger.error(f"[Celery] Task {task_id} failed: {exc}")
@@ -44,6 +47,9 @@ class CallbackTask(Task):
             error_message=error_msg,
             completed_at=now_beijing_naive()
         )
+
+        # ✅ 同时写入 SQLite 任务历史
+        self._save_to_publish_tasks(task_id, kwargs.get('task_data', {}), status="failed", error_message=error_msg)
 
         # 检查是否需要短信验证（转入人工任务）
         if "SMS_VERIFICATION_REQUIRED" in str(exc):
@@ -84,6 +90,70 @@ class CallbackTask(Task):
             logger.info(f"[Celery] Task {task_id} saved to manual tasks")
         except Exception as e:
             logger.error(f"[Celery] Failed to save to manual tasks: {e}")
+
+    def _save_to_publish_tasks(self, task_id: str, task_data: Dict, status: str, result: Any = None, error_message: str = None):
+        """保存任务到 SQLite publish_tasks 表（保留7天）"""
+        try:
+            from fastapi_app.db.session import main_db_pool
+
+            platform = task_data.get('platform', 'unknown')
+            account_id = task_data.get('account_id', 'unknown')
+            material_id = task_data.get('file_id', '')
+            title = task_data.get('title', '')
+            tags = json.dumps(task_data.get('tags', []), ensure_ascii=False) if task_data.get('tags') else None
+
+            with main_db_pool.get_connection() as db:
+                cursor = db.cursor()
+
+                # 检查任务是否已存在（通过 celery_task_id）
+                cursor.execute("SELECT task_id FROM publish_tasks WHERE celery_task_id = ?", (task_id,))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # 更新已有任务
+                    cursor.execute(
+                        """
+                        UPDATE publish_tasks
+                        SET status = ?, error_message = ?, updated_at = ?, published_at = ?
+                        WHERE celery_task_id = ?
+                        """,
+                        (
+                            status,
+                            error_message,
+                            now_beijing_iso(),
+                            now_beijing_iso() if status == "success" else None,
+                            task_id
+                        )
+                    )
+                else:
+                    # 插入新任务
+                    cursor.execute(
+                        """
+                        INSERT INTO publish_tasks (
+                            celery_task_id, platform, account_id, material_id, title, tags,
+                            status, error_message, created_at, updated_at, published_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            task_id,
+                            str(platform),
+                            str(account_id),
+                            str(material_id) if material_id else None,
+                            title,
+                            tags,
+                            status,
+                            error_message,
+                            now_beijing_iso(),
+                            now_beijing_iso(),
+                            now_beijing_iso() if status == "success" else None
+                        )
+                    )
+
+                db.commit()
+                logger.debug(f"[Celery] Saved task to SQLite publish_tasks: {task_id}")
+
+        except Exception as e:
+            logger.error(f"[Celery] Failed to save to publish_tasks: {e}")
 
 
 @celery_app.task(name="publish.single", base=CallbackTask, bind=True, max_retries=0)

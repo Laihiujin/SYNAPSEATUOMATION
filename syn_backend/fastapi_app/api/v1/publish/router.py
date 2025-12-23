@@ -112,6 +112,62 @@ async def publish_batch_videos(
         raise HTTPException(status_code=500, detail=f"批量发布失败: {str(e)}")
 
 
+@router.post(
+    "/single",
+    response_model=Response[BatchPublishResponse],
+    summary="单次发布（向后兼容，推荐使用 /batch）",
+    description="""
+    单次发布接口（向后兼容）。
+
+    ⚠️ 该接口已废弃，建议使用统一的 /batch 接口。
+
+    功能与 /batch 完全相同，但参数会自动转换为批量格式：
+    - file_ids: 单个文件ID会转换为列表
+    - accounts: 单个账号ID会转换为列表
+    """
+)
+async def publish_single_video(
+    request: BatchPublishRequest,
+    db=Depends(get_main_db),
+    service: PublishService = Depends(get_service)
+):
+    """单次发布视频（向后兼容接口）"""
+    try:
+        logger.warning("[PublishRouter] /publish/single is deprecated, use /publish/batch instead")
+        logger.info(f"[PublishRouter] Single publish request: file_ids={request.file_ids}, accounts={request.accounts}")
+
+        # 直接使用 batch 接口处理（支持单个或多个文件/账号）
+        result = await service.publish_batch(
+            db=db,
+            file_ids=request.file_ids,
+            accounts=request.accounts,
+            platform=request.platform if request.platform else None,
+            title=request.title,
+            description=request.description,
+            topics=request.topics,
+            cover_path=request.cover_path,
+            scheduled_time=request.scheduled_time,
+            interval_control_enabled=request.interval_control_enabled,
+            interval_mode=request.interval_mode,
+            interval_seconds=request.interval_seconds,
+            random_offset=request.random_offset,
+            priority=request.priority,
+            items=request.items
+        )
+
+        return Response(
+            success=True,
+            message=f"任务已创建: 成功 {result['success_count']}, 失败 {result['failed_count']}",
+            data=result
+        )
+
+    except (NotFoundException, BadRequestException) as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        logger.error(f"单次发布失败: {e}")
+        raise HTTPException(status_code=500, detail=f"发布失败: {str(e)}")
+
+
 @router.get(
     "/presets",
     response_model=Response[List[PresetResponse]],

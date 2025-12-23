@@ -127,11 +127,16 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
         "usage_count": "ALTER TABLE publish_presets ADD COLUMN usage_count INTEGER DEFAULT 0",
     }
 
+    publish_tasks_required: Dict[str, str] = {
+        "celery_task_id": "ALTER TABLE publish_tasks ADD COLUMN celery_task_id TEXT UNIQUE",
+    }
+
     # --- publish_tasks ---
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS publish_tasks (
             task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            celery_task_id TEXT UNIQUE,
             plan_id INTEGER,
             package_id INTEGER,
             platform TEXT,
@@ -177,7 +182,7 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
     added = 0
     added += _ensure_columns(conn, "file_records", file_records_required)
     added += _ensure_columns(conn, "publish_presets", publish_presets_required)
-    # publish_tasks + ai_model_configs are created with a superset schema; no column-alter needed now.
+    added += _ensure_columns(conn, "publish_tasks", publish_tasks_required)  # 添加celery_task_id字段迁移
 
     if added:
         conn.commit()

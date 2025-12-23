@@ -14,6 +14,7 @@ from queue import Queue as ThreadQueue
 from loguru import logger
 import sqlite3
 from typing import Any
+from datetime import datetime, timezone
 
 from .schemas import (
     PlatformType,
@@ -126,6 +127,70 @@ def _merge_from_cookie_file(account_details: Dict[str, Any], file_path: Path, pl
             account_details["name"] = extracted["name"]
     except Exception as e:
         logger.warning(f"[Login] merge_from_cookie_file failed for {file_path}: {e}")
+
+
+def _normalize_cookie_list(cookies: Any) -> list:
+    """Normalize cookies payload into a list of {name, value} dicts."""
+    if isinstance(cookies, list):
+        return cookies
+    if isinstance(cookies, dict):
+        return [{"name": name, "value": value} for name, value in cookies.items()]
+    return []
+
+
+def _ensure_account_persisted(platform_name: str, account_id: str, account_details: Dict[str, Any], cookie_file: Path):
+    """Ensure login account is persisted to cookie_store.db even if cookie_manager fails."""
+    try:
+        from myUtils.cookie_manager import cookie_manager
+        if cookie_manager.get_account_by_id(account_id):
+            return
+        platform_code = cookie_manager._resolve_platform(platform_name)
+        name = account_details.get("name") or account_details.get("user_id") or account_id
+        status = account_details.get("status") or "valid"
+        last_checked = account_details.get("last_checked") or datetime.now(timezone.utc).isoformat()
+        avatar = account_details.get("avatar")
+        original_name = account_details.get("original_name")
+        note = account_details.get("note") or "-"
+        user_id = account_details.get("user_id")
+
+        with sqlite3.connect(cookie_manager.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO cookie_accounts (
+                    account_id, platform, platform_code, name, status, cookie_file,
+                    last_checked, avatar, original_name, note, user_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(account_id) DO UPDATE SET
+                    platform=excluded.platform,
+                    platform_code=excluded.platform_code,
+                    name=excluded.name,
+                    status=excluded.status,
+                    cookie_file=excluded.cookie_file,
+                    last_checked=excluded.last_checked,
+                    avatar=excluded.avatar,
+                    original_name=excluded.original_name,
+                    note=excluded.note,
+                    user_id=excluded.user_id
+                """,
+                (
+                    account_id,
+                    platform_name,
+                    platform_code,
+                    name,
+                    status,
+                    cookie_file.name,
+                    last_checked,
+                    avatar,
+                    original_name,
+                    note,
+                    user_id,
+                ),
+            )
+            conn.commit()
+            logger.info(f"[Login] Fallback DB insert ok: {platform_name} {account_id}")
+    except Exception as e:
+        logger.warning(f"[Login] Fallback DB insert failed: {e}")
 
 
 @router.post("/qrcode/generate", response_model=QRCodeResponse, summary="生成登录二维码")
@@ -354,16 +419,13 @@ async def _save_bilibili_login(session: dict, login_data: dict):
         from config.conf import BASE_DIR
 
         account_id = session["account_id"]
-        cookies = login_data.get("cookies", {}) or {}
+        cookies_list = _normalize_cookie_list(login_data.get("cookies"))
         user_info = login_data.get("user_info", {}) or {}
 
         # 构建cookie数据（保留B站原有格式，同时添加user_info）
         cookie_data = {
             "cookie_info": {
-                "cookies": [
-                    {"name": name, "value": value}
-                    for name, value in cookies.items()
-                ]
+                "cookies": cookies_list
             },
             "token_info": {
                 "user_id": user_info.get("user_id", ""),
@@ -405,6 +467,7 @@ async def _save_bilibili_login(session: dict, login_data: dict):
             cookie_manager.add_account(platform_name='bilibili', account_details=account_details)
         except Exception as e:
             logger.warning(f"[Login] Cookie manager update failed: {e}")
+        _ensure_account_persisted("bilibili", account_id, account_details, account_file)
 
     except Exception as e:
         logger.error(f"[Login] Save Bilibili login failed: account={session.get('account_id')} error={str(e)}")
@@ -463,6 +526,7 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
             cookie_manager.add_account(platform_name='xiaohongshu', account_details=account_details)
         except Exception as e:
             logger.warning(f"更新cookie管理器失败: {e}")
+        _ensure_account_persisted("xiaohongshu", account_id, account_details, account_file)
 
     except Exception as e:
         logger.error(f"保存小红书登录信息失败: {e}")
@@ -475,7 +539,7 @@ async def _save_douyin_login(session: dict, login_data: dict):
         from config.conf import BASE_DIR
 
         account_id = session["account_id"]
-        cookies = login_data.get("cookies", {}) or {}
+        cookies_list = _normalize_cookie_list(login_data.get("cookies"))
         user_info = login_data.get("user_info", {}) or {}
         full_state = login_data.get("full_state")
 
@@ -489,7 +553,7 @@ async def _save_douyin_login(session: dict, login_data: dict):
             cookie_data["user_info"] = user_info
         else:
             cookie_data = {
-                "cookies": [{"name": k, "value": v} for k, v in cookies.items()],
+                "cookies": cookies_list,
                 "user_info": user_info
             }
 
@@ -517,6 +581,7 @@ async def _save_douyin_login(session: dict, login_data: dict):
             cookie_manager.add_account(platform_name='douyin', account_details=account_details)
         except Exception as e:
             logger.warning(f"更新cookie管理器失败: {e}")
+        _ensure_account_persisted("douyin", account_id, account_details, account_file)
 
     except Exception as e:
         logger.error(f"保存抖音登录信息失败: {e}")
@@ -528,7 +593,7 @@ async def _save_kuaishou_login(session: dict, login_data: dict):
     try:
         from config.conf import BASE_DIR
         account_id = session["account_id"]
-        cookies = login_data.get("cookies", {}) or {}
+        cookies_list = _normalize_cookie_list(login_data.get("cookies"))
         user_info = login_data.get("user_info", {}) or {}
         full_state = login_data.get("full_state")
 
@@ -543,7 +608,7 @@ async def _save_kuaishou_login(session: dict, login_data: dict):
             cookie_data["user_info"] = user_info
         else:
             cookie_data = {
-                "cookies": cookies,
+                "cookies": cookies_list,
                 "user_info": user_info
             }
 
@@ -569,6 +634,7 @@ async def _save_kuaishou_login(session: dict, login_data: dict):
             cookie_manager.add_account(platform_name='kuaishou', account_details=account_details)
         except Exception as e:
             logger.warning(f"更新cookie管理器失败: {e}")
+        _ensure_account_persisted("kuaishou", account_id, account_details, account_file)
             
     except Exception as e:
         logger.error(f"保存快手登录信息失败: {e}")
@@ -580,7 +646,7 @@ async def _save_tencent_login(session: dict, login_data: dict):
     try:
         from config.conf import BASE_DIR
         account_id = session["account_id"]
-        cookies = login_data.get("cookies", {}) or {}
+        cookies_list = _normalize_cookie_list(login_data.get("cookies"))
         user_info = login_data.get("user_info", {}) or {}
         full_state = login_data.get("full_state")
 
@@ -595,7 +661,7 @@ async def _save_tencent_login(session: dict, login_data: dict):
             cookie_data["user_info"] = user_info
         else:
             cookie_data = {
-                "cookies": cookies,
+                "cookies": cookies_list,
                 "user_info": user_info
             }
 
@@ -621,6 +687,7 @@ async def _save_tencent_login(session: dict, login_data: dict):
             cookie_manager.add_account(platform_name='channels', account_details=account_details)
         except Exception as e:
             logger.warning(f"更新cookie管理器失败: {e}")
+        _ensure_account_persisted("channels", account_id, account_details, account_file)
 
     except Exception as e:
         logger.error(f"保存视频号登录信息失败: {e}")

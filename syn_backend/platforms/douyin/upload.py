@@ -260,6 +260,18 @@ class DouyinUpload(BasePlatform):
                 context = await set_init_script(context)
                 page = await context.new_page()
 
+                # ✅ 添加 dialog 事件监听器，自动关闭浏览器确认对话框（避免按钮失效）
+                async def handle_dialog(dialog):
+                    logger.warning(f"[DouyinUpload] 检测到浏览器弹窗: type={dialog.type}, message={dialog.message}")
+                    try:
+                        # 自动接受所有对话框（alert/confirm/prompt）
+                        await dialog.accept()
+                        logger.info(f"[DouyinUpload] 已自动关闭弹窗: {dialog.type}")
+                    except Exception as e:
+                        logger.error(f"[DouyinUpload] 关闭弹窗失败: {e}")
+
+                page.on("dialog", handle_dialog)
+
                 # 访问上传页面
                 await page.goto(self.upload_url, wait_until="domcontentloaded", timeout=60000)
 
