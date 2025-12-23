@@ -14,6 +14,9 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8"
   },
+  "dependencies": {
+    "unzipper": "^0.12.3"
+  },
   "build": {
     "appId": "com.synapseautomation.desktop",
     "productName": "SynapseAutomation",
@@ -24,7 +27,12 @@
       {
         "from": "resources",
         "to": "synapse-resources",
-        "filter": ["**/*"]
+        "filter": ["**/*", "!**/browsers-zip/**"]
+      },
+      {
+        "from": "resources/browsers-zip",
+        "to": "synapse-resources/browsers-zip",
+        "filter": ["**/*.zip"]
       },
       {
         "from": "../syn_backend",

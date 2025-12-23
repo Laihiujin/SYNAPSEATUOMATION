@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { ensurePlaywrightBrowsers } = require("./browserExtractor");
 
 function bundledResourcesDir() {
   return app.isPackaged
@@ -47,17 +48,21 @@ function guessProjectRoot() {
   return "";
 }
 
-function buildEnv(projectRoot) {
+function buildEnv(projectRoot, browsersPath) {
   const env = { ...process.env };
   env.PYTHONUTF8 = env.PYTHONUTF8 || "1";
   env.PYTHONIOENCODING = env.PYTHONIOENCODING || "utf-8";
 
-  // Playwright browsers path
-  const bundledBrowsers = path.join(bundledResourcesDir(), "playwright-browsers");
-  const fallbackBrowsers = path.join(projectRoot, ".playwright-browsers");
-  env.PLAYWRIGHT_BROWSERS_PATH =
-    env.PLAYWRIGHT_BROWSERS_PATH ||
-    (fs.existsSync(bundledBrowsers) ? bundledBrowsers : fallbackBrowsers);
+  // Playwright browsers path (优先使用解压后的浏览器)
+  if (browsersPath && fs.existsSync(browsersPath)) {
+    env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+  } else {
+    const bundledBrowsers = path.join(bundledResourcesDir(), "playwright-browsers");
+    const fallbackBrowsers = path.join(projectRoot, ".playwright-browsers");
+    env.PLAYWRIGHT_BROWSERS_PATH =
+      env.PLAYWRIGHT_BROWSERS_PATH ||
+      (fs.existsSync(bundledBrowsers) ? bundledBrowsers : fallbackBrowsers);
+  }
 
   // SQLite database paths (使用用户数据目录)
   const userDataPath = app.getPath("userData");
@@ -272,7 +277,14 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
 
   const backendDir = path.join(projectRoot, "syn_backend");
   const frontendDir = path.join(projectRoot, "syn_frontend_react");
-  const env = buildEnv(projectRoot);
+
+  // 🆕 首先解压浏览器（如果需要）
+  emitLog("browser-extract", "[info] 准备浏览器文件...\n");
+  const browserResult = await ensurePlaywrightBrowsers(app, emitLog);
+  const browsersPath = browserResult.success ? browserResult.browsersPath : null;
+
+  // 构建环境变量
+  const env = buildEnv(projectRoot, browsersPath);
 
   if (startRedis && !processes.redis) {
     const redis = resolveRedisServer();
