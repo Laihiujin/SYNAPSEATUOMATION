@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # 添加syn_backend到路径
-sys.path.insert(0, str(Path(__file__).parent / "syn_backend"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "syn_backend"))
 
 try:
     print("Testing imports...")

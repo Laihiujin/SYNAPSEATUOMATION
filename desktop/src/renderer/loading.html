@@ -172,10 +172,6 @@
           <div class="step-icon">🔄</div>
           <div class="step-text">启动 Redis 缓存</div>
         </div>
-        <div class="step" data-step="mysql">
-          <div class="step-icon">🗄️</div>
-          <div class="step-text">启动 MySQL (可选)</div>
-        </div>
         <div class="step" data-step="worker">
           <div class="step-icon">🤖</div>
           <div class="step-text">启动 Playwright Worker</div>
@@ -209,7 +205,7 @@
     <script>
       let currentProgress = 0;
       let currentStep = 0;
-      const steps = ['init', 'redis', 'mysql', 'worker', 'celery', 'backend', 'frontend', 'complete'];
+      const steps = ['init', 'redis', 'worker', 'celery', 'backend', 'frontend', 'complete'];
       const logLines = [];
       const maxLogLines = 15;
 
@@ -277,9 +273,6 @@
             if (msg.includes('redis') || data.source === 'redis') {
               activateStep('redis');
               updateStatus('正在启动 Redis...');
-            } else if (msg.includes('mysql') || data.source === 'mysql') {
-              activateStep('mysql');
-              updateStatus('正在启动 MySQL...');
             } else if (msg.includes('worker') || data.source === 'worker') {
               activateStep('worker');
               updateStatus('正在启动 Playwright Worker...');

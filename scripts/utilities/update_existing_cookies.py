@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "syn_backend"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "syn_backend"))
 from myUtils.cookie_manager import cookie_manager
 
 print("="*70)
@@ -36,10 +36,10 @@ for i, account in enumerate(all_accounts, 1):
         stats['no_file'] += 1
         continue
 
-    cookie_path = Path(__file__).parent / 'syn_backend' / 'cookiesFile' / cookie_file
+    cookie_path = Path(__file__).parent.parent.parent / 'syn_backend' / 'cookiesFile' / cookie_file
     if not cookie_path.exists():
         # 尝试config目录
-        cookie_path = Path(__file__).parent / 'config' / 'cookiesFile' / cookie_file
+        cookie_path = Path(__file__).parent.parent.parent / 'config' / 'cookiesFile' / cookie_file
         if not cookie_path.exists():
             print(f"  -> 跳过: 文件不存在")
             stats['no_file'] += 1

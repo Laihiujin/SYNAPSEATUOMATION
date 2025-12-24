@@ -181,7 +181,6 @@ const processes = {
   backend: null,
   worker: null,
   redis: null,
-  mysql: null,
   celery: null,
   frontend: null,
 };
@@ -232,12 +231,7 @@ ipcMain.handle("settings:get", () => {
     projectRoot: s.projectRoot || guessProjectRoot(),
     pythonCmd: s.pythonCmd || "python",
     startRedis: s.startRedis ?? true,
-    startMysql: s.startMysql ?? false,
     redisPort: s.redisPort || 6379,
-    mysqlPort: s.mysqlPort || 3306,
-    mysqlDatabase: s.mysqlDatabase || "synapse",
-    mysqlUser: s.mysqlUser || "root",
-    mysqlPassword: s.mysqlPassword || "",
   };
 });
 
@@ -250,7 +244,6 @@ ipcMain.handle("service:status", () => {
     backend: !!processes.backend && !processes.backend.killed,
     worker: !!processes.worker && !processes.worker.killed,
     redis: !!processes.redis && !processes.redis.killed,
-    mysql: !!processes.mysql && !processes.mysql.killed,
     celery: !!processes.celery && !processes.celery.killed,
     frontend: !!processes.frontend && !processes.frontend.killed,
   };
@@ -273,12 +266,7 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
   const projectRoot = (opts?.projectRoot || "").trim();
   const pythonCmd = resolvePythonCmd(opts?.pythonCmd);
   const startRedis = !!opts?.startRedis;
-  const startMysql = !!opts?.startMysql;
   const redisPort = Number(opts?.redisPort || 6379);
-  const mysqlPort = Number(opts?.mysqlPort || 3306);
-  const mysqlDatabase = String(opts?.mysqlDatabase || "synapse");
-  const mysqlUser = String(opts?.mysqlUser || "root");
-  const mysqlPassword = String(opts?.mysqlPassword || "");
 
   if (!projectRoot) return { ok: false, error: "Project Root 不能为空" };
   if (!fs.existsSync(path.join(projectRoot, "syn_backend"))) {
@@ -312,56 +300,6 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
         onLog: emitLog,
       });
       await waitForPort("127.0.0.1", redisPort, 8000);
-    }
-  }
-
-  if (startMysql && !processes.mysql) {
-    const mysqld = resolveMysqlServer();
-    if (!mysqld) {
-      emitLog("mysql", "[warn] 未找到内置 mysqld/mariadbd，已跳过（见 desktop/resources/README.md）\n");
-    } else {
-      const baseDir = path.resolve(path.dirname(mysqld), "..");
-      const dataDir = ensureDir(path.join(app.getPath("userData"), "mysql-data"));
-      const hasSystemTables = fs.existsSync(path.join(dataDir, "mysql"));
-      const charset = "utf8mb4";
-
-      if (!hasSystemTables) {
-        emitLog("mysql", `[info] 初始化数据目录: ${dataDir}\n`);
-        try {
-          const init = spawnService({
-            name: "mysql",
-            cmd: mysqld,
-            args: ["--initialize-insecure", `--basedir=${baseDir}`, `--datadir=${dataDir}`],
-            cwd: path.dirname(mysqld),
-            env,
-            onLog: emitLog,
-          });
-          await new Promise((r) => init.on("exit", r));
-        } catch (e) {
-          emitLog("mysql", `[warn] 初始化失败（可忽略/手动初始化）：${String(e)}\n`);
-        }
-      }
-
-      env.DATABASE_URL =
-        env.DATABASE_URL ||
-        `mysql+pymysql://${encodeURIComponent(mysqlUser)}:${encodeURIComponent(mysqlPassword)}@127.0.0.1:${mysqlPort}/${encodeURIComponent(mysqlDatabase)}?charset=${charset}`;
-
-      processes.mysql = spawnService({
-        name: "mysql",
-        cmd: mysqld,
-        args: [
-          `--basedir=${baseDir}`,
-          `--datadir=${dataDir}`,
-          "--bind-address=127.0.0.1",
-          `--port=${mysqlPort}`,
-          "--mysqlx=0",
-        ],
-        cwd: path.dirname(mysqld),
-        env,
-        onLog: emitLog,
-      });
-
-      await waitForPort("127.0.0.1", mysqlPort, 15000);
     }
   }
 

@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "syn_backend"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "syn_backend"))
 
 import sqlite3
 from datetime import datetime
@@ -17,9 +17,10 @@ print()
 # 1. 检查数据库文件
 print("[1] 检查数据库文件")
 print("-" * 80)
+project_root = Path(__file__).parent.parent.parent
 db_files = {
-    "task_queue.db": Path("syn_backend/db/task_queue.db"),
-    "database.db": Path("syn_backend/db/database.db"),
+    "task_queue.db": project_root / "syn_backend/db/task_queue.db",
+    "database.db": project_root / "syn_backend/db/database.db",
 }
 
 for name, path in db_files.items():
