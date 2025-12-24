@@ -17,7 +17,6 @@ import {
     ChevronsLeft,
     Video,
     TrendingUp,
-    Search,
     Bot,
     Settings,
     Globe,
@@ -68,17 +67,16 @@ const navSections: NavSection[] = [
     {
         label: "Analytics",
         items: [
-            { label: "数据中心", href: "/analytics", icon: BarChart3 },
+            // { label: "数据中心", href: "/analytics", icon: BarChart3 },
             { label: "视频数据", href: "/analytics/videos", icon: Video },
             { label: "数据趋势", href: "/analytics/trends", icon: TrendingUp },
-            { label: "数据查询", href: "/analytics/query", icon: Search },
         ],
     },
     {
         label: "AI",
         items: [
-            { label: "AI 助手", href: "/ai-agent", icon: Bot },
-            { label: "AI 配置", href: "/ai-agent/settings", icon: Settings },
+            { label: "SynapseAI", href: "/ai-agent", icon: Bot },
+            { label: "AI模型配置", href: "/ai-agent/settings", icon: Settings },
         ],
     },
 ]

@@ -58,6 +58,6 @@ echo ============================================
 echo.
 echo 文件位置: %BROWSERS_ZIP_DIR%
 echo.
-echo 下一步：运行 build-installer-ADMIN.bat 打包应用
+echo 下一步：以管理员身份运行 build-innosetup.bat 打包应用
 echo.
 pause

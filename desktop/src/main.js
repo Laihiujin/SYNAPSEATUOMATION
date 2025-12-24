@@ -276,10 +276,21 @@ ipcMain.handle("service:startAll", async (_evt, opts) => {
   const backendDir = path.join(projectRoot, "syn_backend");
   const frontendDir = path.join(projectRoot, "syn_frontend_react");
 
-  // 🆕 首先解压浏览器（如果需要）
-  emitLog("browser-extract", "[info] 准备浏览器文件...\n");
-  const browserResult = await ensurePlaywrightBrowsers(app, emitLog);
-  const browsersPath = browserResult.success ? browserResult.browsersPath : null;
+  // 获取已安装的浏览器路径（安装时已解压，无需再次解压）
+  const userDataPath = app.getPath("userData");
+  const browsersPath = path.join(userDataPath, "playwright-browsers");
+
+  // 检查浏览器是否已安装
+  const browsersInstalled = fs.existsSync(path.join(browsersPath, ".installed"));
+  if (browsersInstalled) {
+    emitLog("browser-check", "[info] 浏览器已预装，跳过解压\n");
+  } else {
+    emitLog("browser-check", "[warn] 浏览器未预装，将尝试解压（如果有 ZIP 文件）\n");
+    const browserResult = await ensurePlaywrightBrowsers(app, emitLog);
+    if (!browserResult.success) {
+      emitLog("browser-check", "[warn] 浏览器解压失败，将使用系统浏览器或 Playwright 自动下载\n");
+    }
+  }
 
   // 构建环境变量
   const env = buildEnv(projectRoot, browsersPath);

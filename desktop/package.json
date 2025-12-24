@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "electron .",
     "prepare:resources": "node scripts/prepare_resources.js",
-    "build": "npm run prepare:resources && electron-builder"
+    "build:electron": "npm run prepare:resources && electron-builder --dir",
+    "build:installer": "npm run build:electron && iscc installer.iss",
+    "build": "npm run build:installer"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -72,27 +74,7 @@
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ],
-      "signAndEditExecutable": false,
-      "signDlls": false,
-      "sign": null,
-      "verifyUpdateCodeSignature": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "allowElevation": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "SynapseAutomation",
-      "include": "build/installer.nsh",
-      "perMachine": true,
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "target": "dir"
     }
   }
 }
