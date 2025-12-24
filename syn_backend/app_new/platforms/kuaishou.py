@@ -13,10 +13,7 @@ from playwright.async_api import async_playwright, Page
 from myUtils.playwright_context_factory import create_context_with_policy
 
 from .base import PlatformAdapter, QRCodeData, UserInfo, LoginResult, LoginStatus
-
-
-# 全局Playwright会话存储
-_KUAISHOU_SESSIONS: Dict[str, Dict[str, Any]] = {}
+from ..session_manager import kuaishou_session_manager
 
 
 class KuaishouAdapter(PlatformAdapter):
@@ -50,13 +47,13 @@ class KuaishouAdapter(PlatformAdapter):
             )
             page = await context.new_page()
 
-            # 存储会话
-            _KUAISHOU_SESSIONS[session_id] = {
+            # ✅ 使用 SessionManager 存储会话（内存 + Redis）
+            kuaishou_session_manager.create_session(session_id, {
                 "playwright": playwright,
                 "browser": browser,
                 "context": context,
                 "page": page
-            }
+            })
 
             # 访问快手创作者中心
             await page.goto("https://cp.kuaishou.com/profile", timeout=60000)
@@ -119,10 +116,11 @@ class KuaishouAdapter(PlatformAdapter):
         判断标准:
         - URL为 cp.kuaishou.com/profile 且不含 'login'
         """
-        if session_id not in _KUAISHOU_SESSIONS:
+        # ✅ 使用 SessionManager 获取会话（内存优先，Redis 兜底）
+        session = kuaishou_session_manager.get_session(session_id)
+        if not session:
             return LoginResult(status=LoginStatus.EXPIRED, message="Session expired")
 
-        session = _KUAISHOU_SESSIONS[session_id]
         page = session["page"]
         context = session["context"]
 
@@ -170,7 +168,8 @@ class KuaishouAdapter(PlatformAdapter):
 
     async def cleanup_session(self, session_id: str):
         """清理Playwright会话"""
-        session = _KUAISHOU_SESSIONS.pop(session_id, None)
+        # ✅ 使用 SessionManager 移除会话（内存 + Redis）
+        session = kuaishou_session_manager.remove_session(session_id)
         if not session:
             return
 

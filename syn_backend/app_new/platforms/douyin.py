@@ -13,10 +13,7 @@ from playwright.async_api import async_playwright, Page
 from myUtils.playwright_context_factory import create_context_with_policy
 
 from .base import PlatformAdapter, QRCodeData, UserInfo, LoginResult, LoginStatus
-
-
-# 全局Playwright会话存储
-_DOUYIN_SESSIONS: Dict[str, Dict[str, Any]] = {}
+from ..session_manager import douyin_session_manager
 
 
 class DouyinAdapter(PlatformAdapter):
@@ -50,13 +47,13 @@ class DouyinAdapter(PlatformAdapter):
             )
             page = await context.new_page()
 
-            # 存储会话
-            _DOUYIN_SESSIONS[session_id] = {
+            # ✅ 使用 SessionManager 存储会话（内存 + Redis）
+            douyin_session_manager.create_session(session_id, {
                 "playwright": playwright,
                 "browser": browser,
                 "context": context,
                 "page": page
-            }
+            })
 
             # 访问登录页
             try:
@@ -146,10 +143,11 @@ class DouyinAdapter(PlatformAdapter):
         - 关键Cookie存在 (sessionid, sid_guard等)
         - 可提取用户信息
         """
-        if session_id not in _DOUYIN_SESSIONS:
+        # ✅ 使用 SessionManager 获取会话（内存优先，Redis 兜底）
+        session = douyin_session_manager.get_session(session_id)
+        if not session:
             return LoginResult(status=LoginStatus.EXPIRED, message="Session expired")
 
-        session = _DOUYIN_SESSIONS[session_id]
         page = session["page"]
         context = session["context"]
 
@@ -200,7 +198,8 @@ class DouyinAdapter(PlatformAdapter):
 
     async def cleanup_session(self, session_id: str):
         """清理Playwright会话"""
-        session = _DOUYIN_SESSIONS.pop(session_id, None)
+        # ✅ 使用 SessionManager 移除会话（内存 + Redis）
+        session = douyin_session_manager.remove_session(session_id)
         if not session:
             return
 

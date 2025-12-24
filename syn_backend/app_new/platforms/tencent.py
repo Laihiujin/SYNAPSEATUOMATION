@@ -13,10 +13,7 @@ from playwright.async_api import async_playwright, Page
 from myUtils.playwright_context_factory import create_context_with_policy
 
 from .base import PlatformAdapter, QRCodeData, UserInfo, LoginResult, LoginStatus
-
-
-# 全局Playwright会话存储
-_TENCENT_SESSIONS: Dict[str, Dict[str, Any]] = {}
+from ..session_manager import tencent_session_manager
 
 
 class TencentAdapter(PlatformAdapter):
@@ -50,13 +47,13 @@ class TencentAdapter(PlatformAdapter):
             )
             page = await context.new_page()
 
-            # 存储会话
-            _TENCENT_SESSIONS[session_id] = {
+            # ✅ 使用 SessionManager 存储会话（内存 + Redis）
+            tencent_session_manager.create_session(session_id, {
                 "playwright": playwright,
                 "browser": browser,
                 "context": context,
                 "page": page
-            }
+            })
 
             # 访问视频号平台
             await page.goto("https://channels.weixin.qq.com", timeout=60000)
@@ -103,10 +100,11 @@ class TencentAdapter(PlatformAdapter):
         判断标准:
         - 关键Cookie存在 (session_key, ticket, wxuin, uin, finder_username等)
         """
-        if session_id not in _TENCENT_SESSIONS:
+        # ✅ 使用 SessionManager 获取会话（内存优先，Redis 兜底）
+        session = tencent_session_manager.get_session(session_id)
+        if not session:
             return LoginResult(status=LoginStatus.EXPIRED, message="Session expired")
 
-        session = _TENCENT_SESSIONS[session_id]
         page = session["page"]
         context = session["context"]
 
@@ -154,7 +152,8 @@ class TencentAdapter(PlatformAdapter):
 
     async def cleanup_session(self, session_id: str):
         """清理Playwright会话"""
-        session = _TENCENT_SESSIONS.pop(session_id, None)
+        # ✅ 使用 SessionManager 移除会话（内存 + Redis）
+        session = tencent_session_manager.remove_session(session_id)
         if not session:
             return
 

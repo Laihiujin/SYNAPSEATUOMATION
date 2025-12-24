@@ -13,10 +13,7 @@ from playwright.async_api import async_playwright, Page
 from myUtils.playwright_context_factory import create_context_with_policy
 
 from .base import PlatformAdapter, QRCodeData, UserInfo, LoginResult, LoginStatus
-
-
-# 全局Playwright会话存储
-_XHS_SESSIONS: Dict[str, Dict[str, Any]] = {}
+from ..session_manager import xiaohongshu_session_manager
 
 
 class XiaohongshuAdapter(PlatformAdapter):
@@ -50,13 +47,13 @@ class XiaohongshuAdapter(PlatformAdapter):
             )
             page = await context.new_page()
 
-            # 存储会话
-            _XHS_SESSIONS[session_id] = {
+            # ✅ 使用 SessionManager 存储会话（内存 + Redis）
+            xiaohongshu_session_manager.create_session(session_id, {
                 "playwright": playwright,
                 "browser": browser,
                 "context": context,
                 "page": page
-            }
+            })
 
             # 访问小红书创作者中心
             await page.goto("https://creator.xiaohongshu.com/creator/home", timeout=60000)
@@ -130,10 +127,11 @@ class XiaohongshuAdapter(PlatformAdapter):
         - 关键Cookie存在 (web_session, xhsuid, customer-sso-sid等)
         - URL不含 'login'
         """
-        if session_id not in _XHS_SESSIONS:
+        # ✅ 使用 SessionManager 获取会话（内存优先，Redis 兜底）
+        session = xiaohongshu_session_manager.get_session(session_id)
+        if not session:
             return LoginResult(status=LoginStatus.EXPIRED, message="Session expired")
 
-        session = _XHS_SESSIONS[session_id]
         page = session["page"]
         context = session["context"]
 
@@ -179,7 +177,8 @@ class XiaohongshuAdapter(PlatformAdapter):
 
     async def cleanup_session(self, session_id: str):
         """清理Playwright会话"""
-        session = _XHS_SESSIONS.pop(session_id, None)
+        # ✅ 使用 SessionManager 移除会话（内存 + Redis）
+        session = xiaohongshu_session_manager.remove_session(session_id)
         if not session:
             return
 
