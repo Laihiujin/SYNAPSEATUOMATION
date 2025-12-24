@@ -69,14 +69,24 @@ cd syn_frontend_react
 npm install
 echo -e "${GREEN}✅ 前端依赖安装完成${NC}"
 
-# 步骤6：构建前端
-echo -e "\n${GREEN}[6/8] 构建前端应用...${NC}"
+# 步骤6：安装 Chrome for Testing
+echo -e "\n${GREEN}[6/9] 安装 Chrome for Testing...${NC}"
+if [ -f "scripts/install_chrome_for_testing_linux.sh" ]; then
+  chmod +x scripts/install_chrome_for_testing_linux.sh
+  ./scripts/install_chrome_for_testing_linux.sh
+  echo -e "${GREEN}✅ Chrome for Testing 安装完成${NC}"
+else
+  echo -e "${YELLOW}⚠️  未找到 Chrome 安装脚本，请手动安装${NC}"
+fi
+
+# 步骤7：构建前端
+echo -e "\n${GREEN}[7/9] 构建前端应用...${NC}"
 npm run build
 echo -e "${GREEN}✅ 前端构建完成${NC}"
 cd ..
 
-# 步骤7：启动Redis
-echo -e "\n${GREEN}[7/8] 启动Redis...${NC}"
+# 步骤8：启动Redis
+echo -e "\n${GREEN}[8/9] 启动Redis...${NC}"
 if pgrep redis-server > /dev/null; then
   echo -e "${YELLOW}⚠️  Redis已在运行${NC}"
 else
@@ -84,8 +94,8 @@ else
   echo -e "${GREEN}✅ Redis启动成功${NC}"
 fi
 
-# 步骤8：使用PM2启动服务
-echo -e "\n${GREEN}[8/8] 启动应用服务...${NC}"
+# 步骤9：使用PM2启动服务
+echo -e "\n${GREEN}[9/9] 启动应用服务...${NC}"
 if ! command -v pm2 &> /dev/null; then
   echo "安装PM2..."
   npm install -g pm2

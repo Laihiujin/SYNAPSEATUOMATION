@@ -64,14 +64,32 @@ npm install -g pm2
 pm2 start npm --name "synapse-frontend" -- start
 ```
 
-### 🎭 步骤4：安装Playwright（可选）
+### 🎭 步骤4：安装浏览器（重要）
+
+**推荐方案：Chrome for Testing**（完整版 Chrome，支持所有平台）
 
 ```bash
-# 如果需要数据采集功能
-playwright install chromium
+# 运行安装脚本
+chmod +x scripts/install_chrome_for_testing_linux.sh
+./scripts/install_chrome_for_testing_linux.sh
 
-# 或使用系统Chrome
-# 在 .env 中配置 LOCAL_CHROME_PATH
+# 脚本会自动：
+# 1. 下载 Chrome for Testing (约 150MB)
+# 2. 安装必要的系统依赖
+# 3. 配置 .env 中的 LOCAL_CHROME_PATH
+```
+
+**为什么选择 Chrome for Testing？**
+- ✅ 完整版 Chrome（非 Chromium）
+- ✅ 支持 H.265 编码（视频号必需）
+- ✅ 支持所有商业编解码器
+- ✅ 无需安装到系统，绿色便携
+- ✅ 版本固定，避免自动更新
+
+**❌ 不推荐 Playwright Chromium**
+```bash
+# Chromium 缺少商业编解码器，无法发布到视频号等平台
+playwright install chromium  # 不推荐！
 ```
 
 ### 🚀 步骤5：启动服务
