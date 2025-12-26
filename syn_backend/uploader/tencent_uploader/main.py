@@ -46,7 +46,8 @@ async def cookie_auth(account_file):
         # Do not pass empty executable_path, otherwise Playwright may try to spawn '.' (ENOENT)
         if not browser_args.get("executable_path"):
             browser_args.pop("executable_path", None)
-        browser = await playwright.chromium.launch(**browser_args)
+        # 🦊 使用 Firefox 替代 Chromium（更快、更稳定）
+        browser = await playwright.firefox.launch(**browser_args)
         context = await browser.new_context(**build_context_options(storage_state=account_file))
         context = await set_init_script(context)
         # 创建一个新的页面
@@ -117,7 +118,8 @@ async def get_tencent_cookie(account_file):
         # Make sure to run headed.
         if not browser_args.get("executable_path"):
             browser_args.pop("executable_path", None)
-        browser = await playwright.chromium.launch(**browser_args)
+        # 🦊 使用 Firefox 替代 Chromium（更快、更稳定）
+        browser = await playwright.firefox.launch(**browser_args)
         # Setup context however you like.
         context = await browser.new_context(**build_context_options())  # Pass any options
         # Pause the page, and start recording manually.
@@ -266,18 +268,14 @@ class TencentVideo(object):
                             tencent_logger.info(f"[+] 自动找到 Chrome for Testing")
                         break
 
-        # 设置浏览器路径（Playwright 需要绝对路径）
-        if chrome_for_testing_path:
-            # 转为绝对路径给 Playwright
-            browser_args['executable_path'] = str(chrome_for_testing_path.resolve())
-            tencent_logger.success(f"[+] ✅ 最终浏览器: Chrome for Testing (支持 H.265)")
-        else:
-            tencent_logger.error(f"[+] ❌ 未找到 Chrome for Testing！")
-            tencent_logger.error(f"[+]    视频号需要 Chrome for Testing 来支持 H.265 视频")
-            tencent_logger.error(f"[+]    请运行: python download_chrome_for_testing.py")
-            raise Exception("视频号上传需要 Chrome for Testing，但未找到可用的浏览器")
+        # 🦊 视频号改用 Firefox（比 Chrome for Testing 更快）
+        # Firefox 也支持 H.265 视频编解码
+        tencent_logger.info(f"[+] ✅ 使用 Firefox 浏览器（更快、更稳定）")
 
-        browser = await playwright.chromium.launch(**browser_args)
+        # 移除 executable_path（使用 Playwright 内置的 Firefox）
+        browser_args.pop('executable_path', None)
+
+        browser = await playwright.firefox.launch(**browser_args)
         # 创建一个浏览器上下文，使用指定的 cookie 文件
         context = await browser.new_context(**build_context_options(storage_state=f"{self.account_file}"))
         context = await set_init_script(context)

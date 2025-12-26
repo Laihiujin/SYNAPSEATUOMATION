@@ -121,6 +121,9 @@ syn_backend/.deps_installed
 # 使用 download_chrome_for_testing.py 下载
 /.chrome-for-testing*/
 
+# 浏览器文件夹（统一存放 Playwright 和 Chrome for Testing）
+/browsers/
+
 # Desktop Electron 构建产物
 desktop/node_modules/
 desktop/dist/
