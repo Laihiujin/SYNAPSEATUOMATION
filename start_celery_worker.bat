@@ -40,10 +40,12 @@ echo Broker: Redis (read from .env REDIS_URL)
 echo.
 
 REM 使用 --pool=solo 避免 Windows 多进程问题
+REM 并发数设为 1000（异步高并发，上不封顶）
+REM Celery solo pool 会通过异步 I/O 处理大量并发任务
 python -m celery -A fastapi_app.tasks.celery_app worker ^
     --loglevel=info ^
     --pool=solo ^
-    --concurrency=200 ^
+    --concurrency=1000 ^
     --hostname=synapse-worker@%%h
 
 pause
