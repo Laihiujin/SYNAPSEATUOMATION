@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # 数据采集共享服务配置
     # 兼容旧版“copilot server”模式的配置。
     # 当前项目默认采用 Playwright 在页面上下文执行 fetch（无需单独启动 copilot server）。
+    SOCIAL_COPILOT_MODE: str = "playwright"  # playwright | server
     SOCIAL_COPILOT_BASE_URL: str = "http://localhost:3000"
     SOCIAL_COPILOT_TIMEOUT: int = 20
 

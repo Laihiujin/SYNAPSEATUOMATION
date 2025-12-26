@@ -1,25 +1,25 @@
 # FastAPI核心依赖
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+fastapi
+uvicorn[standard]
+python-multipart
 
 # 数据验证
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic
+pydantic-settings
 
 # 日志
-loguru==0.7.2
+loguru
 
 # SSE支持
-sse-starlette==1.6.5
+sse-starlette
 
 # HTTP客户端
-httpx==0.25.2
+httpx
 
 # 测试
-pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest
+pytest-asyncio
 
 # 开发工具
-black==23.12.0
-flake8==6.1.0
+black
+flake8

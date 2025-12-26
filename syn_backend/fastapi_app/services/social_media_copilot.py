@@ -15,6 +15,7 @@ in the backend using Playwright:
 from __future__ import annotations
 
 import json
+import httpx
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
@@ -22,6 +23,7 @@ from loguru import logger
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 
 from config.conf import LOCAL_CHROME_PATH, PLAYWRIGHT_HEADLESS
+from fastapi_app.core.config import settings
 
 
 def _douyin_common_params() -> Dict[str, Any]:
@@ -90,6 +92,108 @@ async def _try_xhs_webmsxyw(page: Page, path: str, body: Any) -> Optional[str]:
         return await page.evaluate(js, {"path": path, "body": body})
     except Exception:
         return None
+
+
+def build_work_request(platform: str, work_id: str) -> Dict[str, Any]:
+    code = (platform or "").lower()
+    if code == "douyin":
+        return {
+            "url": "https://www.douyin.com/aweme/v1/web/aweme/detail/",
+            "method": "GET",
+            "params": {**_douyin_common_params(), "aweme_id": work_id},
+        }
+    if code == "xiaohongshu":
+        return {
+            "url": "https://edith.xiaohongshu.com/api/sns/web/v1/feed",
+            "method": "POST",
+            "data": {
+                "source_note_id": work_id,
+                "image_formats": ["jpg", "webp", "avif"],
+                "extra": {"need_body_topic": "1"},
+                "xsec_source": "pc_feed",
+            },
+        }
+    if code == "kuaishou":
+        return {
+            "url": "https://www.kuaishou.com/graphql",
+            "method": "POST",
+            "data": {
+                "operationName": "visionVideoDetail",
+                "query": (
+                    "query visionVideoDetail($photoId: String $type: String $page: String "
+                    "$webPageArea: String) { visionVideoDetail(photoId: $photoId type: $type "
+                    "page: $page webPageArea: $webPageArea) { status type author { id name "
+                    "following headerUrl livingInfo } photo { id duration caption likeCount "
+                    "realLikeCount coverUrl photoUrl liked timestamp expTag llsid viewCount "
+                    "videoRatio stereoType musicBlocked riskTagContent riskTagUrl manifest { "
+                    "mediaType businessType version adaptationSet { id duration representation "
+                    "{ id defaultSelect backupUrl codecs url height width avgBitrate maxBitrate "
+                    "m3u8Slice qualityType qualityLabel frameRate featureP2sp hidden "
+                    "disableAdaptive } } } manifestH265 photoH265Url coronaCropManifest "
+                    "coronaCropManifestH265 croppedPhotoH265Url croppedPhotoUrl videoResource } "
+                    "tags { type name } commentLimit { canAddComment } llsid danmakuSwitch }}"
+                ),
+                "variables": {
+                    "page": "detail",
+                    "photoId": work_id,
+                    "webPageArea": "brilliantxxunknown",
+                },
+            },
+        }
+    raise ValueError(f"Unsupported platform: {platform}")
+
+
+def build_work_comments_request(platform: str, work_id: str, *, limit: int, cursor: int) -> Dict[str, Any]:
+    code = (platform or "").lower()
+    if code == "douyin":
+        return {
+            "url": "https://www.douyin.com/aweme/v1/web/comment/list/",
+            "method": "GET",
+            "params": {
+                **_douyin_common_params(),
+                "aweme_id": work_id,
+                "cursor": int(cursor),
+                "count": int(limit),
+                "item_type": 0,
+            },
+        }
+    raise ValueError(f"Unsupported platform for comments: {platform}")
+
+
+def build_user_info_request(platform: str, user_id: str) -> Dict[str, Any]:
+    code = (platform or "").lower()
+    if code == "douyin":
+        return {
+            "url": "https://www.douyin.com/aweme/v1/web/user/profile/other/",
+            "method": "GET",
+            "params": {
+                **_douyin_common_params(),
+                "sec_user_id": user_id,
+                "source": "channel_pc_web",
+                "publish_video_strategy_type": 2,
+                "personal_center_strategy": 1,
+                "profile_other_record_enable": 1,
+                "land_to": 1,
+            },
+        }
+    raise ValueError(f"Unsupported platform for user info: {platform}")
+
+
+def build_user_works_request(platform: str, user_id: str, *, limit: int, cursor: int) -> Dict[str, Any]:
+    code = (platform or "").lower()
+    if code == "douyin":
+        return {
+            "url": "https://www.douyin.com/aweme/v1/web/aweme/post/",
+            "method": "GET",
+            "params": {
+                **_douyin_common_params(),
+                "sec_user_id": user_id,
+                "count": int(limit),
+                "max_cursor": int(cursor),
+                "cut_version": 1,
+            },
+        }
+    raise ValueError(f"Unsupported platform for user works: {platform}")
 
 
 class SocialMediaCopilotClient:
@@ -330,7 +434,7 @@ class SocialMediaCopilotClient:
         data_override: Optional[Any] = None,
         headers: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        payload = self._build_work_request(platform, work_id)
+        payload = build_work_request(platform, work_id)
         if params_override:
             payload["params"] = {**(payload.get("params") or {}), **params_override}
         if data_override is not None:
@@ -348,7 +452,7 @@ class SocialMediaCopilotClient:
         cursor: int = 0,
         headers: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        payload = self._build_work_comments_request(platform, work_id, limit=limit, cursor=cursor)
+        payload = build_work_comments_request(platform, work_id, limit=limit, cursor=cursor)
         if headers:
             payload["headers"] = {**(payload.get("headers") or {}), **headers}
         return await self.proxy_request(payload)
@@ -360,7 +464,7 @@ class SocialMediaCopilotClient:
         *,
         headers: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        payload = self._build_user_info_request(platform, user_id)
+        payload = build_user_info_request(platform, user_id)
         if headers:
             payload["headers"] = {**(payload.get("headers") or {}), **headers}
         return await self.proxy_request(payload)
@@ -374,112 +478,121 @@ class SocialMediaCopilotClient:
         cursor: int = 0,
         headers: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        payload = self._build_user_works_request(platform, user_id, limit=limit, cursor=cursor)
+        payload = build_user_works_request(platform, user_id, limit=limit, cursor=cursor)
         if headers:
             payload["headers"] = {**(payload.get("headers") or {}), **headers}
         return await self.proxy_request(payload)
 
-    def _build_work_request(self, platform: str, work_id: str) -> Dict[str, Any]:
-        code = (platform or "").lower()
-        if code == "douyin":
-            return {
-                "url": "https://www.douyin.com/aweme/v1/web/aweme/detail/",
-                "method": "GET",
-                "params": {**_douyin_common_params(), "aweme_id": work_id},
-            }
-        if code == "xiaohongshu":
-            return {
-                "url": "https://edith.xiaohongshu.com/api/sns/web/v1/feed",
-                "method": "POST",
-                "data": {
-                    "source_note_id": work_id,
-                    "image_formats": ["jpg", "webp", "avif"],
-                    "extra": {"need_body_topic": "1"},
-                    "xsec_source": "pc_feed",
-                },
-            }
-        if code == "kuaishou":
-            return {
-                "url": "https://www.kuaishou.com/graphql",
-                "method": "POST",
-                "data": {
-                    "operationName": "visionVideoDetail",
-                    "query": (
-                        "query visionVideoDetail($photoId: String $type: String $page: String "
-                        "$webPageArea: String) { visionVideoDetail(photoId: $photoId type: $type "
-                        "page: $page webPageArea: $webPageArea) { status type author { id name "
-                        "following headerUrl livingInfo } photo { id duration caption likeCount "
-                        "realLikeCount coverUrl photoUrl liked timestamp expTag llsid viewCount "
-                        "videoRatio stereoType musicBlocked riskTagContent riskTagUrl manifest { "
-                        "mediaType businessType version adaptationSet { id duration representation "
-                        "{ id defaultSelect backupUrl codecs url height width avgBitrate maxBitrate "
-                        "m3u8Slice qualityType qualityLabel frameRate featureP2sp hidden "
-                        "disableAdaptive } } } manifestH265 photoH265Url coronaCropManifest "
-                        "coronaCropManifestH265 croppedPhotoH265Url croppedPhotoUrl videoResource } "
-                        "tags { type name } commentLimit { canAddComment } llsid danmakuSwitch }}"
-                    ),
-                    "variables": {
-                        "page": "detail",
-                        "photoId": work_id,
-                        "webPageArea": "brilliantxxunknown",
-                    },
-                },
-            }
-        raise ValueError(f"Unsupported platform: {platform}")
 
-    def _build_work_comments_request(self, platform: str, work_id: str, *, limit: int, cursor: int) -> Dict[str, Any]:
-        code = (platform or "").lower()
-        if code == "douyin":
+class HttpSocialMediaCopilotClient:
+    """
+    Thin HTTP client for the `social-media-copilot` server branch.
+    It forwards /cookies and /request to the Node server, which proxies to the extension.
+    """
+
+    def __init__(self, *, base_url: Optional[str] = None, timeout_s: Optional[int] = None):
+        self.base_url = (base_url or settings.SOCIAL_COPILOT_BASE_URL).rstrip("/")
+        self.timeout_s = float(timeout_s or settings.SOCIAL_COPILOT_TIMEOUT)
+
+    async def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        url = f"{self.base_url}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                resp = await client.post(url, json=payload)
+        except Exception as exc:  # noqa: BLE001
+            return {"success": False, "error": str(exc), "status_code": 500}
+
+        if resp.status_code >= 400:
+            return {"success": False, "error": resp.text, "status_code": resp.status_code}
+
+        try:
+            data = resp.json()
+        except ValueError:
+            data = resp.text
+
+        # Normalize server branch responses to {success, data/error}.
+        if isinstance(data, dict) and "success" in data:
+            if data.get("success"):
+                return {"success": True, "data": data.get("data", data)}
             return {
-                "url": "https://www.douyin.com/aweme/v1/web/comment/list/",
-                "method": "GET",
-                "params": {
-                    **_douyin_common_params(),
-                    "aweme_id": work_id,
-                    "cursor": int(cursor),
-                    "count": int(limit),
-                    "item_type": 0,
-                },
+                "success": False,
+                "error": data.get("error") or data.get("message") or data,
+                "status_code": data.get("status") or resp.status_code,
             }
-        raise ValueError(f"Unsupported platform for comments: {platform}")
 
-    def _build_user_info_request(self, platform: str, user_id: str) -> Dict[str, Any]:
-        code = (platform or "").lower()
-        if code == "douyin":
-            return {
-                "url": "https://www.douyin.com/aweme/v1/web/user/profile/other/",
-                "method": "GET",
-                "params": {
-                    **_douyin_common_params(),
-                    # Align with social-media-copilot (sec_user_id)
-                    "sec_user_id": user_id,
-                    "source": "channel_pc_web",
-                    "publish_video_strategy_type": 2,
-                    "personal_center_strategy": 1,
-                    "profile_other_record_enable": 1,
-                    "land_to": 1,
-                },
-            }
-        raise ValueError(f"Unsupported platform for user info: {platform}")
+        return {"success": True, "data": data}
 
-    def _build_user_works_request(self, platform: str, user_id: str, *, limit: int, cursor: int) -> Dict[str, Any]:
-        code = (platform or "").lower()
-        if code == "douyin":
-            return {
-                "url": "https://www.douyin.com/aweme/v1/web/aweme/post/",
-                "method": "GET",
-                "params": {
-                    **_douyin_common_params(),
-                    # Align with social-media-copilot typings
-                    "sec_user_id": user_id,
-                    "count": int(limit),
-                    "max_cursor": int(cursor),
-                    "cut_version": 1,
-                },
-            }
-        raise ValueError(f"Unsupported platform for user works: {platform}")
+    async def set_cookies(self, url: str, cookies: List[Dict[str, Any]]) -> Dict[str, Any]:
+        payload = {"url": url, "cookies": cookies}
+        return await self._post("/cookies", payload)
+
+    async def proxy_request(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._post("/request", config)
+
+    async def fetch_work(
+        self,
+        platform: str,
+        work_id: str,
+        params_override: Optional[Dict[str, Any]] = None,
+        data_override: Optional[Any] = None,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload = build_work_request(platform, work_id)
+        if params_override:
+            payload["params"] = {**(payload.get("params") or {}), **params_override}
+        if data_override is not None:
+            payload["data"] = data_override
+        if headers:
+            payload["headers"] = {**(payload.get("headers") or {}), **headers}
+        return await self.proxy_request(payload)
+
+    async def fetch_work_comments(
+        self,
+        platform: str,
+        work_id: str,
+        *,
+        limit: int = 50,
+        cursor: int = 0,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload = build_work_comments_request(platform, work_id, limit=limit, cursor=cursor)
+        if headers:
+            payload["headers"] = {**(payload.get("headers") or {}), **headers}
+        return await self.proxy_request(payload)
+
+    async def fetch_user_info(
+        self,
+        platform: str,
+        user_id: str,
+        *,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload = build_user_info_request(platform, user_id)
+        if headers:
+            payload["headers"] = {**(payload.get("headers") or {}), **headers}
+        return await self.proxy_request(payload)
+
+    async def fetch_user_works(
+        self,
+        platform: str,
+        user_id: str,
+        *,
+        limit: int = 20,
+        cursor: int = 0,
+        headers: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload = build_user_works_request(platform, user_id, limit=limit, cursor=cursor)
+        if headers:
+            payload["headers"] = {**(payload.get("headers") or {}), **headers}
+        return await self.proxy_request(payload)
+
+    async def close(self) -> None:
+        return None
 
 
-def get_social_media_copilot_client() -> SocialMediaCopilotClient:
+def get_social_media_copilot_client() -> "SocialMediaCopilotClient | HttpSocialMediaCopilotClient":
+    mode = (settings.SOCIAL_COPILOT_MODE or "playwright").lower().strip()
+    if mode in {"server", "http"}:
+        return HttpSocialMediaCopilotClient()
     # Return a fresh client per request to avoid shared Playwright state issues.
     return SocialMediaCopilotClient()

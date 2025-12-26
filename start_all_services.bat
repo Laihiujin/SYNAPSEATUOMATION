@@ -9,8 +9,8 @@ echo   SynapseAutomation 全服务启动
 echo ============================================
 echo.
 
-REM 检查 Redis 是否已运行
-echo [1/5] 检查 Redis 服务...
+REM 
+echo [1] 检查 Redis 服务...
 redis-cli ping >nul 2>&1
 if errorlevel 1 (
     echo ⚠️ Redis 未运行，正在启动...
@@ -30,22 +30,22 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/5] 启动 Celery Worker（发布任务队列）...
+echo [2] 启动 Celery Worker（发布任务队列）...
 start "Celery Worker" "%~dp0start_celery_worker.bat"
 timeout /t 2 /nobreak >nul
 
 echo.
-echo [3/5] 启动 Playwright Worker（浏览器自动化，端口7001）...
+echo [3] 启动 Playwright Worker（浏览器自动化，端口7001）...
 start "Playwright Worker" "%~dp0scripts\launchers\start_worker.bat"
 timeout /t 3 /nobreak >nul
 
 echo.
-echo [4/5] 启动 FastAPI Backend（后端API，端口7000）...
+echo [4] 启动 FastAPI Backend（后端API，端口7000）...
 start "FastAPI Backend" "%~dp0scripts\launchers\start_backend.bat"
 timeout /t 3 /nobreak >nul
 
 echo.
-echo [5/5] 启动 Frontend（前端界面，端口3000）...
+echo [5] 启动 Frontend（前端界面，端口3000）...
 start "React Frontend" "%~dp0scripts\launchers\start_frontend.bat"
 
 echo.

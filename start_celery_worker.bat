@@ -4,6 +4,10 @@ chcp 65001 >nul
 REM Set UTF-8 encoding environment
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
+
+REM Fix Celery 5.5.x Windows thread-local storage bug
+set FORKED_BY_MULTIPROCESSING=1
+
 REM Celery Worker 启动脚本 (Windows)
 REM 用于运行发布任务队列
 
@@ -39,7 +43,7 @@ REM 使用 --pool=solo 避免 Windows 多进程问题
 python -m celery -A fastapi_app.tasks.celery_app worker ^
     --loglevel=info ^
     --pool=solo ^
-    --concurrency=3 ^
+    --concurrency=200 ^
     --hostname=synapse-worker@%%h
 
 pause

@@ -48,7 +48,7 @@ class ConcurrencyController:
                 "bilibili": 0,
                 "channels": 0
             },
-            "account_max": 1,           # 每个账号最大1个并发（防止同账号冲突）
+            "account_max": 0,           # 每个账号最大1个并发（防止同账号冲突）
             "task_type_max": {          # 任务类型级并发无限制
                 "publish": 0,           # 发布任务不限制
                 "batch_publish": 0      # 批量发布任务不限制

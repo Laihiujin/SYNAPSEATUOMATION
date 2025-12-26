@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 from celery import Celery
 
 from fastapi_app.core.config import resolved_celery_broker_url, resolved_celery_result_backend
 
+# Fix for Celery 5.5.x Windows thread-local storage bug
+os.environ.setdefault('FORKED_BY_MULTIPROCESSING', '1')
 
 celery_app = Celery(
     "synapse",
@@ -19,4 +22,6 @@ celery_app.conf.update(
     enable_utc=False,
     # Ensure non-default task modules are loaded by the worker.
     include=["fastapi_app.tasks.publish_tasks"],
+    # Worker pool configuration for Windows
+    worker_pool_restarts=True,
 )

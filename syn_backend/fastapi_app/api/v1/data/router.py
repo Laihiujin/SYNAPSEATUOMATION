@@ -315,7 +315,37 @@ async def trigger_collect(payload: CollectRequest):
             account_ids=payload.account_ids,
             platform_filter=payload.platform
         )
-        return {"status": "success", "data": results}
+
+        copilot_batches: List[Dict[str, Any]] = []
+        for detail in results.get("details", []):
+            platform = (detail.get("platform") or "").lower()
+            if platform not in {"douyin", "kuaishou"}:
+                continue
+            if not detail.get("success"):
+                continue
+            account_id = detail.get("account_id")
+            if not account_id:
+                continue
+            try:
+                batch_payload = CopilotWorksBatchRequest(
+                    platform=platform,
+                    account_id=account_id,
+                    refresh_work_ids=False,
+                )
+                batch_result = await copilot_fetch_works_batch(batch_payload)
+                copilot_batches.append(
+                    {"platform": platform, "account_id": account_id, "result": batch_result}
+                )
+            except HTTPException as exc:
+                copilot_batches.append(
+                    {"platform": platform, "account_id": account_id, "error": exc.detail}
+                )
+            except Exception as exc:  # noqa: BLE001
+                copilot_batches.append(
+                    {"platform": platform, "account_id": account_id, "error": str(exc)}
+                )
+
+        return {"status": "success", "data": results, "copilot_batches": copilot_batches}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

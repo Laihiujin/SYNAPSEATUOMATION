@@ -127,8 +127,10 @@ def ensure_main_db_schema(conn: sqlite3.Connection) -> None:
         "usage_count": "ALTER TABLE publish_presets ADD COLUMN usage_count INTEGER DEFAULT 0",
     }
 
+    # Note: celery_task_id was added to the CREATE TABLE statement with UNIQUE constraint
+    # SQLite doesn't allow adding UNIQUE constraint via ALTER TABLE, so we only add the column if it doesn't exist
     publish_tasks_required: Dict[str, str] = {
-        "celery_task_id": "ALTER TABLE publish_tasks ADD COLUMN celery_task_id TEXT UNIQUE",
+        "celery_task_id": "ALTER TABLE publish_tasks ADD COLUMN celery_task_id TEXT",
     }
 
     # --- publish_tasks ---
