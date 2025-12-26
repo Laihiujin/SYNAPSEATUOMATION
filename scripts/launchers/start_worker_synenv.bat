@@ -1,22 +1,29 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   Playwright Worker Startup
+echo   Playwright Worker Startup (synenv)
 echo ========================================
 echo.
 
 set "ROOT=%~dp0..\.."
 set "BACKEND_DIR=%ROOT%\syn_backend"
+set "VENV_PATH=%ROOT%\synenv"
 
-REM Activate conda environment (syn)
-call conda activate syn
-if errorlevel 1 (
-    echo [ERROR] Failed to activate conda environment 'syn'
-    echo Please run: conda create -n syn python=3.11
+REM Activate synenv virtual environment
+if not exist "%VENV_PATH%\Scripts\activate.bat" (
+    echo [ERROR] Virtual environment 'synenv' not found at: %VENV_PATH%
+    echo Please run: python -m venv synenv
     pause
     exit /b 1
 )
-echo OK Activated conda environment 'syn'
+
+call "%VENV_PATH%\Scripts\activate.bat"
+if errorlevel 1 (
+    echo [ERROR] Failed to activate virtual environment 'synenv'
+    pause
+    exit /b 1
+)
+echo OK Activated virtual environment 'synenv'
 set "PY=python"
 echo.
 

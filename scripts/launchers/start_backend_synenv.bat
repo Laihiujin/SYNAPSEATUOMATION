@@ -7,21 +7,28 @@ set PYTHONIOENCODING=utf-8
 
 set "ROOT=%~dp0..\.."
 set "BACKEND_DIR=%ROOT%\syn_backend"
+set "VENV_PATH=%ROOT%\synenv"
 
 echo ========================================
-echo   Synapse Backend Startup (Windows)
+echo   Synapse Backend Startup (synenv)
 echo ========================================
 echo.
 
-REM Activate conda environment (syn)
-call conda activate syn
-if errorlevel 1 (
-    echo [ERROR] Failed to activate conda environment 'syn'
-    echo Please run: conda create -n syn python=3.11
+REM Activate synenv virtual environment
+if not exist "%VENV_PATH%\Scripts\activate.bat" (
+    echo [ERROR] Virtual environment 'synenv' not found at: %VENV_PATH%
+    echo Please run: python -m venv synenv
     pause
     exit /b 1
 )
-echo OK Activated conda environment 'syn'
+
+call "%VENV_PATH%\Scripts\activate.bat"
+if errorlevel 1 (
+    echo [ERROR] Failed to activate virtual environment 'synenv'
+    pause
+    exit /b 1
+)
+echo OK Activated virtual environment 'synenv'
 set "PY=python"
 echo.
 
@@ -149,4 +156,3 @@ if not "%RC%"=="0" (
 )
 
 pause
-~

@@ -20,7 +20,8 @@ echo [1/4] OK Activated conda environment 'syn'
 echo.
 
 REM Set Playwright browser path to local directory
-set "PLAYWRIGHT_BROWSERS_PATH=%ROOT%\.playwright-browsers"
+REM 使用新的 browsers 文件夹结构（区分 firefox 和 chromium）
+set "PLAYWRIGHT_BROWSERS_PATH=%ROOT%\browsers\chromium"
 echo [CONFIG] Playwright browser path: %PLAYWRIGHT_BROWSERS_PATH%
 echo.
 
