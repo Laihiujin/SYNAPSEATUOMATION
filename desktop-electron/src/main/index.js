@@ -76,14 +76,14 @@ class SynapseApp {
       if (isDev) {
         // 开发环境：使用系统 Python 和源码
         pythonPath = 'python';
-        mainScript = path.join(__dirname, '../../../syn_backend/main.py');
-        cwd = path.join(__dirname, '../../../syn_backend');
+        mainScript = path.join(__dirname, '../../../syn_backend/fastapi_app/main.py');
+        cwd = path.join(__dirname, '../../../syn_backend/fastapi_app');
       } else {
-        // 生产环境：使用打包的 Python 和后端
+        // 生产环境：使用打包的后端（需要系统 Python）
         const backendPath = path.join(process.resourcesPath, 'backend');
-        pythonPath = path.join(backendPath, 'python/python.exe');
-        mainScript = path.join(backendPath, 'main.py');
-        cwd = backendPath;
+        pythonPath = 'python';  // 使用系统 Python
+        mainScript = path.join(backendPath, 'fastapi_app/main.py');
+        cwd = path.join(backendPath, 'fastapi_app');
       }
 
       log.info('Python 路径:', pythonPath);

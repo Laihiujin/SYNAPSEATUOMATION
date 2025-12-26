@@ -155,3 +155,23 @@ dump.rdb
 syn_backend/uploader/*/qrcode.png
 syn_backend/uploader/**/qrcode.png
 n.playwright-browsers/nsyn_backend/.copilot-profiles/n*.cache
+
+# Browser profiles and cache
+syn_backend/.copilot-profiles/
+
+# Temporary extracted folders
+temp_flowith_extracted/
+desktop-electron/
+move_browsers.bat
+diagnose_celery.bat
+
+# Synenv environment files
+start_all_services_synenv.bat
+start_celery_worker_synenv.bat
+scripts/launchers/start_backend_synenv.bat
+scripts/launchers/start_worker_synenv.bat
+install_synenv_dependencies.bat
+
+# Third-party API folders
+syn_backend/douyin_tiktok_api/
+syn_backend/social-media-copilot-api/
