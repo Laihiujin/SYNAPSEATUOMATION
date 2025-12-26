@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from fastapi_app.core.logger import logger
+from fastapi_app.core.timezone_utils import now_beijing_iso
 
 DB_PATH = Path(__file__).parent.parent.parent / "db" / "task_queue.db"
 
@@ -62,11 +63,11 @@ class ManualTaskManager:
                     task_id, task_type, platform, account_id, account_name,
                     material_id, material_name, title, description, reason,
                     status, metadata, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
             """, (
                 task_id, task_type, platform, account_id, account_name,
                 material_id, material_name, title, description, reason,
-                metadata_json
+                metadata_json, now_beijing_iso()
             ))
             
             conn.commit()
@@ -154,10 +155,10 @@ class ManualTaskManager:
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE manual_tasks 
-                SET status = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP
+                UPDATE manual_tasks
+                SET status = ?, last_error = ?, updated_at = ?
                 WHERE task_id = ?
-            """, (status, error, task_id))
+            """, (status, error, now_beijing_iso(), task_id))
             
             conn.commit()
             conn.close()
@@ -191,22 +192,22 @@ class ManualTaskManager:
             if retry_count >= max_retries:
                 logger.warning(f"⚠️ 任务已达最大重试次数: {task_id}")
                 cursor.execute("""
-                    UPDATE manual_tasks 
-                    SET status = 'failed', updated_at = CURRENT_TIMESTAMP
+                    UPDATE manual_tasks
+                    SET status = 'failed', updated_at = ?
                     WHERE task_id = ?
-                """, (task_id,))
+                """, (now_beijing_iso(), task_id))
                 conn.commit()
                 conn.close()
                 return False
             
             # 增加重试次数并重置为pending
             cursor.execute("""
-                UPDATE manual_tasks 
-                SET status = 'pending', 
+                UPDATE manual_tasks
+                SET status = 'pending',
                     retry_count = retry_count + 1,
-                    updated_at = CURRENT_TIMESTAMP
+                    updated_at = ?
                 WHERE task_id = ?
-            """, (task_id,))
+            """, (now_beijing_iso(), task_id))
             
             conn.commit()
             conn.close()

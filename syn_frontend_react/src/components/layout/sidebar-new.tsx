@@ -20,19 +20,22 @@ import {
     Bot,
     Settings,
     Globe,
+    ChevronDown,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface NavItem {
     label: string
-    href: string
+    href?: string
     icon: React.ElementType
     disabled?: boolean
     external?: boolean
+    children?: NavItem[]
 }
 
 interface NavSection {
@@ -60,7 +63,7 @@ const navSections: NavSection[] = [
         items: [
             { label: "投放计划", href: "/campaigns", icon: Calendar },
             { label: "矩阵发布", href: "/publish/matrix", icon: LayoutGrid },
-            { label: "任务管理库", href: "/tasks", icon: ClipboardList },
+            { label: "任务管理", href: "/tasks", icon: ClipboardList },
             { label: "扫码派发", href: "/tasks/distribution", icon: QrCode },
         ],
     },
@@ -68,7 +71,17 @@ const navSections: NavSection[] = [
         label: "Analytics",
         items: [
             // { label: "数据中心", href: "/analytics", icon: BarChart3 },
-            { label: "视频数据", href: "/analytics/videos", icon: Video },
+            {
+                label: "视频数据",
+                icon: Video,
+                children: [
+                    { label: "抖音", href: "/analytics/videos?platform=douyin", icon: Video },
+                    { label: "B站", href: "/analytics/videos?platform=bilibili", icon: Video },
+                    { label: "快手", href: "/analytics/videos?platform=kuaishou", icon: Video },
+                    { label: "小红书", href: "/analytics/videos?platform=xiaohongshu", icon: Video },
+                    { label: "视频号", href: "/analytics/videos?platform=channels", icon: Video },
+                ],
+            },
             { label: "数据趋势", href: "/analytics/trends", icon: TrendingUp },
         ],
     },
@@ -166,8 +179,84 @@ export function SidebarNew({
                                 </AnimatePresence>
                                 <div className="space-y-1">
                                     {section.items.map((item) => {
-                                        const isActive = pathname === item.href
                                         const Icon = item.icon
+                                        const isActive = item.href ? pathname === item.href : false
+                                        const hasChildren = (item.children?.length ?? 0) > 0
+
+                                        if (hasChildren) {
+                                            const shouldOpen = pathname.startsWith("/analytics/videos")
+                                            const triggerContent = (
+                                                <div
+                                                    className={cn(
+                                                        "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                                                        "text-white/70 hover:bg-white/5 hover:text-white"
+                                                    )}
+                                                >
+                                                    <Icon className="relative h-5 w-5 shrink-0" suppressHydrationWarning />
+                                                    <AnimatePresence mode="wait">
+                                                        {!collapsed && (
+                                                            <motion.span
+                                                                key={`text-${item.label}`}
+                                                                initial={{ opacity: 0, width: 0 }}
+                                                                animate={{ opacity: 1, width: "auto" }}
+                                                                exit={{ opacity: 0, width: 0 }}
+                                                                transition={{ duration: 0.2 }}
+                                                                className="relative overflow-hidden whitespace-nowrap"
+                                                            >
+                                                                {item.label}
+                                                            </motion.span>
+                                                        )}
+                                                    </AnimatePresence>
+                                                    {!collapsed && (
+                                                        <ChevronDown className="ml-auto h-4 w-4 text-white/40" />
+                                                    )}
+                                                </div>
+                                            )
+
+                                            if (collapsed) {
+                                                return (
+                                                    <TooltipProvider key={item.label} delayDuration={0}>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>{triggerContent}</TooltipTrigger>
+                                                            <TooltipContent side="right" className="border-white/10 bg-black text-white">
+                                                                {item.label}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )
+                                            }
+
+                                            return (
+                                                <Collapsible key={item.label} defaultOpen={shouldOpen}>
+                                                    <CollapsibleTrigger asChild>
+                                                        <button type="button" className="w-full text-left">
+                                                            {triggerContent}
+                                                        </button>
+                                                    </CollapsibleTrigger>
+                                                    <CollapsibleContent className="mt-1 space-y-1 pl-8">
+                                                        {item.children?.map((child) => {
+                                                            const childActive = child.href ? pathname === child.href : false
+                                                            return (
+                                                                <Link
+                                                                    key={child.href || child.label}
+                                                                    href={child.href || "#"}
+                                                                    onClick={() => onNavigate?.()}
+                                                                    className={cn(
+                                                                        "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200",
+                                                                        childActive
+                                                                            ? "bg-white/10 text-white shadow-lg shadow-white/5"
+                                                                            : "text-white/60 hover:bg-white/5 hover:text-white"
+                                                                    )}
+                                                                >
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                                                                    <span className="relative overflow-hidden whitespace-nowrap">{child.label}</span>
+                                                                </Link>
+                                                            )
+                                                        })}
+                                                    </CollapsibleContent>
+                                                </Collapsible>
+                                            )
+                                        }
 
                                         const linkContent = item.external ? (
                                             <a
@@ -199,8 +288,8 @@ export function SidebarNew({
                                             </a>
                                         ) : (
                                             <Link
-                                                key={item.href}
-                                                href={item.disabled ? "#" : item.href}
+                                                key={item.href || item.label}
+                                                href={item.disabled ? "#" : (item.href || "#")}
                                                 onClick={() => {
                                                     if (!item.disabled) onNavigate?.()
                                                 }}
@@ -240,7 +329,7 @@ export function SidebarNew({
 
                                         if (collapsed) {
                                             return (
-                                                <TooltipProvider key={item.href} delayDuration={0}>
+                                                <TooltipProvider key={item.href || item.label} delayDuration={0}>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                                                         <TooltipContent side="right" className="border-white/10 bg-black text-white">

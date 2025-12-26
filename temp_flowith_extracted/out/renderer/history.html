@@ -1,0 +1,68 @@
+<!doctype html>
+<html style="height: 100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>History - flowithOS</title>
+  <!-- Light mode favicon -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' fill='none'/><path d='M224,48H32a8,8,0,0,0-8,8V88a8,8,0,0,0,8,8H48v96a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V96h16a8,8,0,0,0,8-8V56A8,8,0,0,0,224,48ZM88,72h80V88H88ZM192,192H64V96H192Z' fill='%236366f1'/></svg>" />
+  <!-- Dark mode favicon -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' fill='none'/><path d='M224,48H32a8,8,0,0,0-8,8V88a8,8,0,0,0,8,8H48v96a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V96h16a8,8,0,0,0,8-8V56A8,8,0,0,0,224,48ZM88,72h80V88H88ZM192,192H64V96H192Z' fill='%236366f1'/></svg>" />
+  <script>
+    // Sync theme immediately to prevent white flash
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // Default to dark
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #f1f2f4;
+    }
+
+    body.dark,
+    html.dark body {
+      background: #121516;
+    }
+
+    #root {
+      height: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/history-DJ37r55o.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/format-CX3JBwaj.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Dg7FO9tW.js">
+  <link rel="modulepreload" crossorigin href="./assets/trash-2-0o5iz-Pa.js">
+  <link rel="modulepreload" crossorigin href="./assets/TimeRangeFilter-MigJhFFS.js">
+  <link rel="modulepreload" crossorigin href="./assets/x-Xqx6LWQK.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

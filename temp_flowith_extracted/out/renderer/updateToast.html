@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Update Toast</title>
+    <script>
+      // Sync theme immediately to avoid flashing
+      (function() {
+        try {
+          const theme = localStorage.getItem('flowith-theme-mode')
+          if (!theme || theme === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark') // Default to dark
+        }
+      })()
+    </script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+        overflow: hidden;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/updateToast-XmuAmCyO.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+    <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+    <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+    <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+    <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+    <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+    <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+    <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+    <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Dg7FO9tW.js">
+    <link rel="modulepreload" crossorigin href="./assets/refresh-cw-DD9cRxA0.js">
+    <link rel="modulepreload" crossorigin href="./assets/download-0fN9YWaY.js">
+    <link rel="modulepreload" crossorigin href="./assets/index-CbWv2Sou.js">
+    <link rel="modulepreload" crossorigin href="./assets/x-Xqx6LWQK.js">
+    <link rel="modulepreload" crossorigin href="./assets/triangle-alert-Bed24EUt.js">
+    <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+  </head>
+  <body style="pointer-events: none;">
+    <div id="root" style="pointer-events: none;"></div>
+  </body>
+</html>
+

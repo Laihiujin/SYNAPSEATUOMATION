@@ -1,0 +1,77 @@
+<!doctype html>
+<html style="height: 100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>flowithOS Beta</title>
+  <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+
+  <!-- Meta Pixel Code -->
+  <script>
+    !function (f, b, e, v, n, t, s) {
+      if (f.fbq) return; n = f.fbq = function () {
+        n.callMethod ?
+          n.callMethod.apply(n, arguments) : n.queue.push(arguments)
+      };
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0';
+      n.queue = []; t = b.createElement(e); t.async = !0;
+      t.src = v; s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s)
+    }(window, document, 'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1285623106492514');
+    fbq('track', 'PageView');
+  </script>
+  <!-- End Meta Pixel Code -->
+
+  <script>
+    // Sync theme immediately to prevent white flash
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // Default to dark
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #f1f2f4;
+    }
+
+    body.dark,
+    html.dark body {
+      background: #121516;
+    }
+
+    #root {
+      height: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-Dbuk66_l.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+</head>
+
+<body>
+  <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1285623106492514&ev=PageView&noscript=1" /></noscript>
+  <div id="root"></div>
+</body>
+
+</html>

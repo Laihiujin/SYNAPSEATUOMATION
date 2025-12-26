@@ -1,51 +1,42 @@
 @echo off
 chcp 65001 >nul
 
-REM Set UTF-8 encoding environment
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
-
-REM Fix Celery 5.5.x Windows thread-local storage bug
 set FORKED_BY_MULTIPROCESSING=1
 
-REM Celery Worker 启动脚本 (Windows)
-REM 用于运行发布任务队列
+set ROOT=%~dp0
+set BACKEND_DIR=%ROOT%syn_backend
 
 echo ============================================
-echo   SynapseAutomation Celery Worker
+echo   Celery Worker Startup
 echo ============================================
 echo.
 
-REM 检查 Redis 是否运行
-echo [1/3] 检查 Redis 服务...
-redis-cli ping >nul 2>&1
+call conda activate syn
 if errorlevel 1 (
-    echo ❌ Redis 未运行，请先启动 Redis 服务
-    echo    命令: redis-server
+    echo ERROR: Cannot activate conda environment syn
     pause
     exit /b 1
 )
-echo ✅ Redis 运行正常
-
-echo.
-echo [2/3] 切换到项目目录...
-cd /d "%~dp0"
-cd syn_backend
-
-echo.
-echo [3/3] 启动 Celery Worker...
-echo.
-echo 任务队列: 发布任务（publish.single, publish.batch）
-echo Broker: Redis (read from .env REDIS_URL)
+echo OK: Activated environment syn
 echo.
 
-REM 使用 --pool=solo 避免 Windows 多进程问题
-REM 并发数设为 1000（异步高并发，上不封顶）
-REM Celery solo pool 会通过异步 I/O 处理大量并发任务
-python -m celery -A fastapi_app.tasks.celery_app worker ^
-    --loglevel=info ^
-    --pool=solo ^
-    --concurrency=1000 ^
-    --hostname=synapse-worker@%%h
+redis-cli ping >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Redis not running
+    echo Please start Redis first: redis-server
+    pause
+    exit /b 1
+)
+echo OK: Redis is running
+echo.
+
+cd /d %BACKEND_DIR%
+
+echo Starting Celery Worker with 1000 concurrency...
+echo.
+
+python -m celery -A fastapi_app.tasks.celery_app worker --loglevel=info --pool=solo --concurrency=1000 --hostname=synapse-worker@%%h
 
 pause

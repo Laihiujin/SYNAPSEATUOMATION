@@ -23,3 +23,27 @@ pytest-asyncio
 # 开发工具
 black
 flake8
+
+# Douyin_TikTok_API integration
+aiofiles
+browser-cookie3
+colorama
+gmssl
+lz4
+markdown-it-py
+mdurl
+pycryptodomex
+pyfiglet
+Pygments
+pypng
+pywebio
+pywebio-battery
+PyYAML
+qrcode
+rich
+tornado
+ua-parser
+user-agents
+websockets
+tenacity
+importlib_resources

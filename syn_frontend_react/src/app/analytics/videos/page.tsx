@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "next/navigation"
 import { Video, RefreshCw, TrendingUp, Eye, Heart, MessageCircle, Share2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useToast } from "@/components/ui/use-toast"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
     Select,
     SelectContent,
@@ -18,6 +21,7 @@ import {
 const PLATFORMS = [
     { value: "all", label: "全部平台" },
     { value: "douyin", label: "抖音" },
+    { value: "bilibili", label: "B站" },
     { value: "kuaishou", label: "快手" },
     { value: "xiaohongshu", label: "小红书" },
     { value: "channels", label: "视频号" },
@@ -26,10 +30,28 @@ const PLATFORMS = [
 export default function VideosPage() {
     const { toast } = useToast()
     const queryClient = useQueryClient()
+    const searchParams = useSearchParams()
     const [selectedPlatform, setSelectedPlatform] = useState("all")
     const [isCollecting, setIsCollecting] = useState(false)
+    const [isSheetOpen, setIsSheetOpen] = useState(false)
+    const [sheetPlatform, setSheetPlatform] = useState("douyin")
 
     // 获取视频数据
+    useEffect(() => {
+        const platformParam = searchParams.get("platform")
+        if (!platformParam) return
+        const isValid = PLATFORMS.some((platform) => platform.value === platformParam)
+        if (isValid) {
+            setSelectedPlatform(platformParam)
+        }
+    }, [searchParams])
+
+    useEffect(() => {
+        if (selectedPlatform === "douyin" || selectedPlatform === "bilibili") {
+            setSheetPlatform(selectedPlatform)
+        }
+    }, [selectedPlatform])
+
     const { data: videosData, isLoading } = useQuery({
         queryKey: ["videos", selectedPlatform],
         queryFn: async () => {
@@ -45,7 +67,35 @@ export default function VideosPage() {
         refetchInterval: 30000, // 每30秒刷新
     })
 
-    const videos = videosData?.data || []
+    const rawVideos = videosData?.data || []
+
+    const normalizeVideo = (video: any) => ({
+        ...video,
+        views: video.views || video.playCount || video.play_count || 0,
+        likes: video.likes || video.likeCount || video.like_count || 0,
+        comments: video.comments || video.commentCount || video.comment_count || 0,
+        shares: video.shares || video.shareCount || video.share_count || 0,
+        publish_time: video.publish_time || video.publishDate || video.publish_date || "",
+        cover_url: video.cover_url || video.thumbnail || "",
+    })
+
+    const videos = rawVideos.map(normalizeVideo)
+
+
+    const { data: sheetVideosData, isLoading: isSheetLoading } = useQuery({
+        queryKey: ["videos", "sheet"],
+        queryFn: async () => {
+            const params = new URLSearchParams()
+            params.append("limit", "200")
+            const res = await fetch(`/api/analytics/videos?${params}`)
+            return res.json()
+        },
+        enabled: isSheetOpen,
+    })
+
+    const normalizedSheetPlatform = sheetPlatform.toLowerCase()
+    const sheetSource = sheetVideosData?.data || rawVideos
+    const sheetVideos = sheetSource.map(normalizeVideo).filter((video: any) => (video.platform || "").toLowerCase() === normalizedSheetPlatform)
 
     // 触发数据采集
     const handleCollect = async () => {
@@ -56,7 +106,12 @@ export default function VideosPage() {
                 payload.platform = selectedPlatform
             }
 
-            const res = await fetch("/api/analytics/collect", {
+            const endpoint = selectedPlatform !== "all"
+                ? `/api/analytics/collect/${selectedPlatform}`
+                : "/api/analytics/collect"
+
+            const res = await fetch(endpoint, {
+
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -99,6 +154,17 @@ export default function VideosPage() {
         return num.toString()
     }
 
+    const resolveVideoLink = (video: any) => {
+        const direct = video.url || video.video_url || video.videoUrl || video.link
+        if (direct) return direct
+        const platform = String(video.platform || "").toLowerCase()
+        if (platform === "bilibili") {
+            if (video.bvid) return `https://www.bilibili.com/video/${video.bvid}`
+            if (video.aid) return `https://www.bilibili.com/video/av${video.aid}`
+        }
+        return ""
+    }
+
     return (
         <div className="space-y-6 p-6">
             {/* Header */}
@@ -121,6 +187,13 @@ export default function VideosPage() {
                             ))}
                         </SelectContent>
                     </Select>
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsSheetOpen(true)}
+                        className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                    >
+                        表格视图
+                    </Button>
                     <Button
                         onClick={handleCollect}
                         disabled={isCollecting}
@@ -270,6 +343,87 @@ export default function VideosPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                <SheetContent className="w-full sm:max-w-4xl bg-black border-white/10">
+                    <SheetHeader>
+                        <SheetTitle>视频数据表</SheetTitle>
+                        <SheetDescription>
+                            按平台查看视频详细数据，当前支持抖音与B站
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="mt-6 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <Select value={sheetPlatform} onValueChange={setSheetPlatform}>
+                                <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white">
+                                    <SelectValue placeholder="选择平台" />
+                                </SelectTrigger>
+                                <SelectContent className="border-white/10">
+                                    <SelectItem value="douyin" className="text-white">抖音</SelectItem>
+                                    <SelectItem value="bilibili" className="text-white">B站</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Badge variant="outline" className="text-xs">{sheetVideos.length} 条</Badge>
+                        </div>
+
+                        {isSheetLoading ? (
+                            <div className="flex items-center justify-center py-10">
+                                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+                            </div>
+                        ) : sheetVideos.length === 0 ? (
+                            <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+                                暂无数据，请先点击"采集数据"
+                            </div>
+                        ) : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>标题</TableHead>
+                                        <TableHead>链接</TableHead>
+                                        <TableHead>播放</TableHead>
+                                        <TableHead>点赞</TableHead>
+                                        <TableHead>评论</TableHead>
+                                        <TableHead>分享</TableHead>
+                                        <TableHead>发布时间</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sheetVideos.map((video: any, index: number) => {
+                                        const link = resolveVideoLink(video)
+                                        return (
+                                            <TableRow key={video.id || video.video_id || video.bvid || video.aid || index}>
+                                                <TableCell className="max-w-[260px]">
+                                                    <div className="line-clamp-2 text-white">{video.title || "无标题"}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {link ? (
+                                                        <a
+                                                            href={link}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="text-xs text-primary hover:underline"
+                                                        >
+                                                            打开
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-white/40">-</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{formatNumber(video.views || 0)}</TableCell>
+                                                <TableCell>{formatNumber(video.likes || 0)}</TableCell>
+                                                <TableCell>{formatNumber(video.comments || 0)}</TableCell>
+                                                <TableCell>{formatNumber(video.shares || 0)}</TableCell>
+                                                <TableCell className="text-xs text-white/60">{video.publish_time || "-"}</TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
+
         </div>
     )
 }

@@ -1,0 +1,50 @@
+appId: com.synapse.automation
+productName: SynapseAutomation
+copyright: Copyright © 2025 SynapseAutomation
+
+# 目录配置
+directories:
+  output: dist-electron
+  buildResources: build
+
+# 文件打包规则
+files:
+  - src/**/*
+  - package.json
+  - "!**/{node_modules/.cache,*.map,*.md}/**"
+  - "!src/renderer/node_modules/**"
+
+# 额外资源（不会被 ASAR 打包，直接复制到 resources 目录）
+extraResources:
+  - from: resources/browsers
+    to: browsers
+    filter:
+      - "**/*"
+  - from: resources/backend
+    to: backend
+    filter:
+      - "**/*"
+
+# Windows 配置
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+# NSIS 安装程序配置
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: SynapseAutomation
+
+# 压缩配置
+compression: maximum
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/playwright-core/**/*"

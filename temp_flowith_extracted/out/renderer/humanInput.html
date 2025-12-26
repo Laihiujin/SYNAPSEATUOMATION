@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Human Input</title>
+  <script>
+    // 在HTML加载时立即同步主题，避免闪烁
+    ; (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        } else if (theme === 'light') {
+          document.documentElement.classList.remove('dark')
+        } else {
+          // 默认跟随系统
+          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          if (isDark) {
+            document.documentElement.classList.add('dark')
+          }
+        }
+      } catch (e) {
+        console.error('[HumanInput] Failed to sync theme:', e)
+      }
+    })()
+  </script>
+  <script type="module" crossorigin src="./assets/humanInput-CX9C2-uk.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/X.es-dtM8PpYH.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/UploadFileList-qn3fk1BB.js">
+  <link rel="modulepreload" crossorigin href="./assets/extends-BwmuZ0dU.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-CoFqUOPt.js">
+  <link rel="modulepreload" crossorigin href="./assets/floating-ui.react-dom-CjpOSN3U.js">
+  <link rel="modulepreload" crossorigin href="./assets/PromptInput-bRCob0UZ.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretLeft.es-BLuJm8Hv.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretRight.es-D13xy2ea.js">
+  <link rel="modulepreload" crossorigin href="./assets/NumberFlow-client-48rw3j0J-B5w-VoXL.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="stylesheet" crossorigin href="./assets/PromptInput-Cdnhe6iM.css">
+  <link rel="stylesheet" crossorigin href="./assets/humanInput-CQtuTB3Z.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

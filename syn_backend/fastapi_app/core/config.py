@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     ENABLE_OCR_RESCUE: bool = True
     ENABLE_USER_INFO_SYNC: bool = False
 
+    # Optional: Douyin_TikTok_API integration
+    DOUYIN_TIKTOK_API_ENABLED: bool = True
+    DOUYIN_TIKTOK_API_PREFIX: str = "/api/v1/douyin-tiktok"
+
     class Config:
         # Load `syn_backend/.env` first, then repo-root `.env` as fallback.
         env_file = (".env", "../.env")

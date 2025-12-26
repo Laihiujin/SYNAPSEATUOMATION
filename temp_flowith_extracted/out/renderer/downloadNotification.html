@@ -1,0 +1,49 @@
+<!doctype html>
+<html style="height: 100%">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Download Notification</title>
+    <script>
+      // Apply theme immediately to prevent flash
+      ; (function () {
+        try {
+          const theme = localStorage.getItem('flowith-theme-mode')
+          if (!theme || theme === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark') // Default dark
+        }
+      })()
+    </script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      body {
+        background: transparent;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/downloadNotification-oIJ-Rsyz.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+    <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+    <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+    <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Dg7FO9tW.js">
+    <link rel="modulepreload" crossorigin href="./assets/x-Xqx6LWQK.js">
+    <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+    <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+    <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+

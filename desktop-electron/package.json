@@ -1,0 +1,32 @@
+{
+  "name": "synapse-automation",
+  "version": "1.0.0",
+  "description": "SynapseAutomation - 智能内容发布与管理平台",
+  "main": "src/main/index.js",
+  "author": "SynapseAutomation Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron .",
+    "dev:inspect": "electron --inspect=5858 .",
+    "build:renderer": "echo Building renderer... && cd ../syn_frontend_react && npm run build",
+    "build:main": "echo Main process ready",
+    "prepare-browsers": "node build/prepare-browsers.js",
+    "prepare-resources": "node build/prepare-resources.js",
+    "prebuild": "npm run prepare-browsers && npm run prepare-resources",
+    "build": "npm run build:renderer && npm run build:main && electron-builder --dir",
+    "dist": "npm run build:renderer && npm run build:main && electron-builder",
+    "dist:win": "npm run build:renderer && npm run build:main && electron-builder --win",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-store": "^10.1.0",
+    "playwright-core": "^1.48.0"
+  },
+  "devDependencies": {
+    "electron": "^32.2.7",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.48.0",
+    "fs-extra": "^11.2.0"
+  }
+}

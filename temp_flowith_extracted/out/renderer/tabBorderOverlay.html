@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tab Border Overlay</title>
+  <script>
+    // Apply theme immediately to prevent flash
+    ; (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // Default dark
+      }
+    })()
+  </script>
+  <script type="module" crossorigin src="./assets/tabBorderOverlay-DasJrtRj.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="stylesheet" crossorigin href="./assets/tabBorderOverlay-BIVnHulT.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

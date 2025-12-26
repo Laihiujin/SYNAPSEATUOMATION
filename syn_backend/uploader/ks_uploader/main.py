@@ -40,6 +40,11 @@ CLOSE_BUTTON_SELECTORS = [
 async def _close_joyride_guide(page):
     """关闭快手的 react-joyride 新手引导遮罩"""
     try:
+        # 检查 page 是否已关闭
+        if page.is_closed():
+            kuaishou_logger.warning("Page已关闭，跳过Joyride引导关闭")
+            return False
+
         kuaishou_logger.info("尝试关闭 Joyride 引导...")
 
         # 等待一下看是否有引导出现
@@ -50,6 +55,11 @@ async def _close_joyride_guide(page):
         max_steps = 3  # ⚠️ 减少到3步，避免无限循环
 
         while step_count < max_steps:
+            # 每次循环检查 page 是否仍然有效
+            if page.is_closed():
+                kuaishou_logger.warning("Page在Joyride引导关闭过程中被关闭")
+                return False
+
             step_count += 1
             next_button_found = False
 
@@ -102,10 +112,18 @@ async def _close_joyride_guide(page):
                 kuaishou_logger.info(f"引导完成，共{step_count-1}步")
                 break
 
-        # 兜底：有些版本“下一步”不会自动消失，直接最多点 4 次
+        # 检查 page 是否仍然有效
+        if page.is_closed():
+            kuaishou_logger.warning("Page在Joyride引导完成后被关闭")
+            return False
+
+        # 兜底：有些版本"下一步"不会自动消失，直接最多点 4 次
         if await page.locator('.react-joyride__spotlight').count() > 0:
             for _ in range(4):
                 try:
+                    if page.is_closed():
+                        kuaishou_logger.warning("Page在兜底处理中被关闭")
+                        return False
                     if not await _click_first_visible(page, NEXT_BUTTON_SELECTORS):
                         break
                     await asyncio.sleep(0.8)
@@ -133,6 +151,10 @@ async def _close_joyride_guide(page):
 
         for selector, action in close_methods:
             try:
+                if page.is_closed():
+                    kuaishou_logger.warning("Page在关闭方法尝试中被关闭")
+                    return False
+
                 if action == 'escape':
                     kuaishou_logger.debug("尝试按 ESC 键关闭引导")
                     await page.keyboard.press('Escape')
@@ -152,7 +174,7 @@ async def _close_joyride_guide(page):
                 continue
 
         # 如果还有引导，尝试强制关闭
-        if await page.locator('.react-joyride__spotlight').count() > 0:
+        if not page.is_closed() and await page.locator('.react-joyride__spotlight').count() > 0:
             kuaishou_logger.warning("引导仍然存在，尝试强制移除")
             # 通过 JavaScript 强制移除
             await page.evaluate("""
@@ -182,6 +204,11 @@ async def _click_first_visible(page, selectors):
             continue
 
         try:
+            # 检查 page 是否已关闭
+            if page.is_closed():
+                kuaishou_logger.debug(f"Page已关闭，跳过选择器: {sel}")
+                return False
+
             locator = page.locator(sel)
             if await locator.count() > 0 and await locator.first.is_visible():
                 await locator.first.click()
@@ -195,24 +222,40 @@ async def _click_first_visible(page, selectors):
 
 async def dismiss_kuaishou_tour(page, max_attempts=6):
     """
-    快手发布页常有引导弹窗，尝试点击“下一步/跳过/知道了”来关闭。
+    快手发布页常有引导弹窗，尝试点击"下一步/跳过/知道了"来关闭。
     """
-    for _ in range(max_attempts):
-        guide_found = False
-        for sel in TOUR_CONTAINER_SELECTORS:
-            if await page.locator(sel).count() > 0:
-                guide_found = True
-                break
-        if not guide_found:
+    try:
+        # 检查 page 是否已关闭
+        if page.is_closed():
+            kuaishou_logger.warning("Page已关闭，跳过引导关闭")
             return
 
-        clicked = await _click_first_visible(page, NEXT_BUTTON_SELECTORS)
-        if not clicked:
-            clicked = await _click_first_visible(page, CLOSE_BUTTON_SELECTORS)
-        if not clicked:
-            break
+        for _ in range(max_attempts):
+            guide_found = False
+            for sel in TOUR_CONTAINER_SELECTORS:
+                # 每次循环都检查 page 是否仍然有效
+                if page.is_closed():
+                    kuaishou_logger.warning("Page在引导关闭过程中被关闭")
+                    return
 
-        await page.wait_for_timeout(400)
+                if await page.locator(sel).count() > 0:
+                    guide_found = True
+                    break
+            if not guide_found:
+                return
+
+            clicked = await _click_first_visible(page, NEXT_BUTTON_SELECTORS)
+            if not clicked:
+                clicked = await _click_first_visible(page, CLOSE_BUTTON_SELECTORS)
+            if not clicked:
+                break
+
+            await page.wait_for_timeout(400)
+
+        kuaishou_logger.info(f"引导完成")
+    except Exception as e:
+        kuaishou_logger.error(f"关闭引导异常: {e}")
+        # 不抛出异常，允许继续执行
 
 
 async def _debug_dump(page, prefix: str) -> None:

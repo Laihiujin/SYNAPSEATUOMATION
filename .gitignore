@@ -154,3 +154,4 @@ dump.rdb
 # 二维码临时文件
 syn_backend/uploader/*/qrcode.png
 syn_backend/uploader/**/qrcode.png
+n.playwright-browsers/nsyn_backend/.copilot-profiles/n*.cache

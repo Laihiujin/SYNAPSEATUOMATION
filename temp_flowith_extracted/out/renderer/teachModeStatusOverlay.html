@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teach Mode Status Overlay</title>
+    <script>
+      // Apply theme immediately to prevent flash
+      ; (function () {
+        try {
+          const theme = localStorage.getItem('flowith-theme-mode')
+          if (!theme || theme === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark') // Default dark
+        }
+      })()
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        font-family: 'ABC Oracle', 'Inter', system-ui, -apple-system, sans-serif;
+      }
+
+      body {
+        display: flex;
+        align-items: stretch;
+      }
+
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/teachModeStatusOverlay-CF6NZ0P0.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+    <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+    <link rel="modulepreload" crossorigin href="./assets/CaretLeft.es-BLuJm8Hv.js">
+    <link rel="modulepreload" crossorigin href="./assets/Play.es-CCZEDg-p.js">
+    <link rel="modulepreload" crossorigin href="./assets/StopCircle.es-Ci_jGEu4.js">
+    <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+    <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+    <link rel="stylesheet" crossorigin href="./assets/teachModeStatusOverlay-HBFrAaee.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+

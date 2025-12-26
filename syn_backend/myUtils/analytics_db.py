@@ -74,6 +74,10 @@ def get_analytics_summary(db_path: Path, start_date: Optional[str] = None, end_d
         
         where_clause = "WHERE 1=1"
         params = []
+
+        if platform and platform.lower() != "all":
+            where_clause += " AND platform = ?"
+            params.append(platform.lower())
         
         if start_date:
             where_clause += " AND publish_date >= ?"
@@ -106,7 +110,7 @@ def get_analytics_summary(db_path: Path, start_date: Optional[str] = None, end_d
         }
 
 
-def get_analytics_videos(db_path: Path, start_date: Optional[str] = None, end_date: Optional[str] = None, limit: int = 100) -> List[Dict]:
+def get_analytics_videos(db_path: Path, start_date: Optional[str] = None, end_date: Optional[str] = None, limit: int = 100, platform: Optional[str] = None) -> List[Dict]:
     """Get video analytics data"""
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row

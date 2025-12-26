@@ -2,7 +2,7 @@ import csv
 import io
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Body
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from fastapi_app.core.config import settings
@@ -19,6 +19,8 @@ from fastapi_app.services.social_media_copilot import get_social_media_copilot_c
 from fastapi_app.services.analytics_extract import extract_video_info
 from datetime import datetime
 from typing import Any, Dict, List
+import sys
+from myUtils.cookie_manager import cookie_manager
 
 router = APIRouter(prefix="/analytics", tags=["数据分析"])
 
@@ -41,16 +43,137 @@ class CollectPayload(BaseModel):
     tasks: Optional[List[CollectTask]] = Field(None, description="自定义任务列表，含平台与作品 ID")
 
 
+
+def _ensure_douyin_api_on_path() -> None:
+    douyin_root = Path(settings.BASE_DIR) / "douyin_tiktok_api"
+    if douyin_root.exists():
+        sys.path.insert(0, str(douyin_root))
+
+
+
+
+def _extract_bilibili_uid(cookie_data: Any) -> Optional[str]:
+    if not isinstance(cookie_data, dict):
+        return None
+    cookies = cookie_data.get("cookies")
+    if not cookies and isinstance(cookie_data.get("cookie_info"), dict):
+        cookies = cookie_data.get("cookie_info", {}).get("cookies")
+    if not isinstance(cookies, list):
+        return None
+    for cookie in cookies:
+        if isinstance(cookie, dict) and cookie.get("name") == "DedeUserID":
+            value = cookie.get("value")
+            if value:
+                return str(value)
+    return None
+
+def _parse_bilibili_vlist(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if isinstance(data, dict) and "list" in data:
+        data = data.get("list")
+    if isinstance(data, dict):
+        vlist = data.get("vlist")
+        if isinstance(vlist, list):
+            return vlist
+    return []
+
+
+def _to_date_str(ts: Any) -> str:
+    try:
+        ts_int = int(ts)
+        if ts_int > 1e12:
+            ts_int = ts_int / 1000
+        return datetime.utcfromtimestamp(ts_int).date().isoformat()
+    except Exception:
+        return datetime.utcnow().date().isoformat()
+
+
+async def _collect_bilibili_accounts(account_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    _ensure_douyin_api_on_path()
+    try:
+        from crawlers.bilibili.web.web_crawler import BilibiliWebCrawler  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Bilibili crawler import failed: {exc}")
+
+    accounts = [
+        acc for acc in cookie_manager.list_flat_accounts()
+        if acc.get("platform") == "bilibili"
+    ]
+    if account_ids:
+        accounts = [acc for acc in accounts if acc.get("account_id") in set(account_ids)]
+
+    crawler = BilibiliWebCrawler()
+    success = 0
+    failed: List[Dict[str, Any]] = []
+
+    for account in accounts:
+        account_id = account.get("account_id")
+        cookie_data = cookie_manager._read_cookie_file(account.get("cookie_file") or "")
+        uid = (
+            account.get("user_id")
+            or cookie_manager._extract_user_id_from_cookie("bilibili", cookie_data)
+            or _extract_bilibili_uid(cookie_data)
+        )
+
+        if not uid:
+            failed.append({"account_id": account_id, "error": "missing uid"})
+            continue
+
+        try:
+            pn = 1
+            max_pages = 5
+            while pn <= max_pages:
+                payload = await crawler.fetch_user_post_videos(uid=str(uid), pn=pn)
+                vlist = _parse_bilibili_vlist(payload)
+                if not vlist:
+                    break
+                for item in vlist:
+                    video_id = item.get("bvid") or item.get("aid")
+                    if not video_id:
+                        continue
+                    bvid = item.get("bvid")
+                    aid = item.get("aid")
+                    video_url = None
+                    if bvid:
+                        video_url = f"https://www.bilibili.com/video/{bvid}"
+                    elif aid:
+                        video_url = f"https://www.bilibili.com/video/av{aid}"
+
+                    record = {
+                        "account_id": account_id,
+                        "platform": "bilibili",
+                        "video_id": str(video_id),
+                        "video_url": video_url,
+                        "title": item.get("title") or "",
+                        "thumbnail": item.get("pic"),
+                        "publish_date": _to_date_str(item.get("created")),
+                        "play_count": item.get("play") or 0,
+                        "like_count": item.get("like") or 0,
+                        "comment_count": item.get("comment") or 0,
+                        "collect_count": item.get("favorites") or 0,
+                        "share_count": item.get("share") or 0,
+                        "raw_data": item,
+                        "collected_at": datetime.utcnow().isoformat(),
+                    }
+                    upsert_video_analytics_by_key(DB_PATH, platform="bilibili", video_id=str(video_id), data=record)
+                pn += 1
+            success += 1
+        except Exception as exc:  # noqa: BLE001
+            failed.append({"account_id": account_id, "error": str(exc)})
+
+    return {"success": success, "failed": len(failed), "errors": failed}
+
 @router.get("/", summary="获取分析数据")
 async def get_analytics(
-    startDate: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD"),
-    endDate: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
-    limit: int = Query(100, ge=1, le=10000, description="返回条目数")
+    startDate: Optional[str] = Query(None, description="???? YYYY-MM-DD"),
+    endDate: Optional[str] = Query(None, description="???? YYYY-MM-DD"),
+    platform: Optional[str] = Query(None, description="????"),
+    limit: int = Query(100, ge=1, le=10000, description="?????")
 ):
     """获取汇总、视频列表和图表数据"""
     try:
         summary = get_analytics_summary(DB_PATH, startDate, endDate)
-        videos = get_analytics_videos(DB_PATH, startDate, endDate, limit)
+        videos = get_analytics_videos(DB_PATH, startDate, endDate, limit, platform)
         chart_data = get_chart_data(DB_PATH, startDate, endDate)
         return {
             "code": 200,
@@ -66,11 +189,12 @@ async def get_analytics(
 async def export_analytics(
     startDate: Optional[str] = Query(None),
     endDate: Optional[str] = Query(None),
-    format: str = Query("csv", pattern="^(csv|excel)$", description="导出格式 csv 或 excel")
+    platform: Optional[str] = Query(None),
+    format: str = Query("csv", pattern="^(csv|excel)$", description="???? csv ? excel")
 ):
     """导出分析数据为 CSV（默认）或 Excel（若依赖存在）"""
     try:
-        videos = get_analytics_videos(DB_PATH, startDate, endDate, limit=10000)
+        videos = get_analytics_videos(DB_PATH, startDate, endDate, limit=10000, platform=platform)
         if format == "excel":
             try:
                 import openpyxl  # type: ignore
@@ -170,6 +294,18 @@ async def update_video(video_id: int, payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/collect/{platform}", summary="Platform-specific analytics collection (Bilibili ready)")
+async def collect_platform(platform: str, payload: Optional[CollectPayload] = Body(default=None)):
+    platform = (platform or "").lower()
+    account_ids = payload.account_ids if payload else None
+
+    if platform == "bilibili":
+        result = await _collect_bilibili_accounts(account_ids=account_ids)
+        return {"success": True, "data": result, "message": "Bilibili collection completed"}
+
+    raise HTTPException(status_code=501, detail="Not implemented")
+
+
 @router.post("/collect", summary="?? copilot ??????? analytics")
 async def collect_analytics(payload: CollectPayload):
     """
@@ -180,6 +316,14 @@ async def collect_analytics(payload: CollectPayload):
     collect_by_account = collect_mode in {"account", "accounts", "by_account", "all_accounts"}
     collect_by_account = collect_by_account or payload.account_ids is not None
     collect_by_account = collect_by_account or (not payload.tasks and not payload.work_ids)
+
+    if collect_by_account and (payload.platform or "").lower() == "bilibili":
+        result = await _collect_bilibili_accounts(account_ids=payload.account_ids)
+        return {
+            "success": True,
+            "data": result,
+            "message": "Bilibili collection completed",
+        }
 
     if collect_by_account:
         try:

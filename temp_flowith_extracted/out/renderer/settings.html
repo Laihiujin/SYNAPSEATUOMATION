@@ -1,0 +1,76 @@
+<!doctype html>
+<html style="height: 100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Settings - flowithOS</title>
+  <!-- Light mode favicon -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' fill='none'/><circle cx='128' cy='128' r='40' fill='none' stroke='%236366f1' stroke-linecap='round' stroke-linejoin='round' stroke-width='16'/><path d='M41.43,178.09A99.54,99.54,0,0,1,31.36,153.8l16.78-21a81.59,81.59,0,0,1,0-9.64l-16.77-21a99.54,99.54,0,0,1,10.07-24.29l26.71-3.47A80.25,80.25,0,0,1,74.98,67a99,99,0,0,1,22.94-14L107,29.17a99.54,99.54,0,0,1,42,0l9.11,23.81a99,99,0,0,1,22.94,14,80.25,80.25,0,0,1,6.83,6.83l26.71,3.47a99.54,99.54,0,0,1,10.07,24.29l-16.77,21a81.59,81.59,0,0,1,0,9.64l16.78,21a99.54,99.54,0,0,1-10.07,24.29l-26.71,3.47a80.25,80.25,0,0,1-6.83,6.83,99,99,0,0,1-22.94,14l-9.11,23.81a99.54,99.54,0,0,1-42,0L97.92,203a99,99,0,0,1-22.94-14,80.25,80.25,0,0,1-6.83-6.83Z' fill='none' stroke='%236366f1' stroke-linecap='round' stroke-linejoin='round' stroke-width='16'/></svg>" />
+  <!-- Dark mode favicon -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' fill='none'/><circle cx='128' cy='128' r='40' fill='none' stroke='%236366f1' stroke-linecap='round' stroke-linejoin='round' stroke-width='16'/><path d='M41.43,178.09A99.54,99.54,0,0,1,31.36,153.8l16.78-21a81.59,81.59,0,0,1,0-9.64l-16.77-21a99.54,99.54,0,0,1,10.07-24.29l26.71-3.47A80.25,80.25,0,0,1,74.98,67a99,99,0,0,1,22.94-14L107,29.17a99.54,99.54,0,0,1,42,0l9.11,23.81a99,99,0,0,1,22.94,14,80.25,80.25,0,0,1,6.83,6.83l26.71,3.47a99.54,99.54,0,0,1,10.07,24.29l-16.77,21a81.59,81.59,0,0,1,0,9.64l16.78,21a99.54,99.54,0,0,1-10.07,24.29l-26.71,3.47a80.25,80.25,0,0,1-6.83,6.83,99,99,0,0,1-22.94,14l-9.11,23.81a99.54,99.54,0,0,1-42,0L97.92,203a99,99,0,0,1-22.94-14,80.25,80.25,0,0,1-6.83-6.83Z' fill='none' stroke='%236366f1' stroke-linecap='round' stroke-linejoin='round' stroke-width='16'/></svg>" />
+  <script>
+    // Sync theme immediately to prevent white flash
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // Default to dark
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #f1f2f4;
+    }
+
+    body.dark,
+    html.dark body {
+      background: #121516;
+    }
+
+    #root {
+      height: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/settings-C-Pet48x.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Dg7FO9tW.js">
+  <link rel="modulepreload" crossorigin href="./assets/download-0fN9YWaY.js">
+  <link rel="modulepreload" crossorigin href="./assets/refresh-cw-DD9cRxA0.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/format-CX3JBwaj.js">
+  <link rel="modulepreload" crossorigin href="./assets/trash-2-0o5iz-Pa.js">
+  <link rel="modulepreload" crossorigin href="./assets/x-Xqx6LWQK.js">
+  <link rel="modulepreload" crossorigin href="./assets/StatusFilter-BQ000MKn.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/TimeRangeFilter-MigJhFFS.js">
+  <link rel="modulepreload" crossorigin href="./assets/NumberFlow-client-48rw3j0J-B5w-VoXL.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-CoFqUOPt.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/triangle-alert-Bed24EUt.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

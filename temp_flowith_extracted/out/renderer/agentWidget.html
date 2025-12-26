@@ -1,0 +1,161 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Agent Widget</title>
+  <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://os-assets.flowith.net" />
+  <script>
+    // 在HTML加载时立即同步主题，避免闪烁
+    ; (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // 默认深色
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      height: 100%;
+    }
+
+    #root {
+      height: 100%;
+      background: transparent;
+    }
+
+    /* 骨架屏样式 */
+    #skeleton {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 8px;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    #skeleton.hidden {
+      display: none;
+    }
+
+    .skeleton-widget {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      animation: pulse 1.5s ease-in-out infinite;
+      position: relative;
+    }
+
+    .dark .skeleton-widget {
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    /* 内部圆点装饰，模拟图标 */
+    .skeleton-widget::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    .dark .skeleton-widget::before {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/agentWidget-C41ljm2I.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/preload-helper-BKLkhHrN.js">
+  <link rel="modulepreload" crossorigin href="./assets/X.es-dtM8PpYH.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/UploadFileList-qn3fk1BB.js">
+  <link rel="modulepreload" crossorigin href="./assets/extends-BwmuZ0dU.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-CoFqUOPt.js">
+  <link rel="modulepreload" crossorigin href="./assets/floating-ui.react-dom-CjpOSN3U.js">
+  <link rel="modulepreload" crossorigin href="./assets/PromptInput-bRCob0UZ.js">
+  <link rel="modulepreload" crossorigin href="./assets/tslib.es6-BfBOWGJN.js">
+  <link rel="modulepreload" crossorigin href="./assets/Spinner.es-8gcmvKt5.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/Plus.es-C0yir3SN.js">
+  <link rel="modulepreload" crossorigin href="./assets/index.es-Cdkbw0Og.js">
+  <link rel="modulepreload" crossorigin href="./assets/ThemeLottie-C-yd1qoo.js">
+  <link rel="modulepreload" crossorigin href="./assets/overlay-tooltip-DZS7lRVm.js">
+  <link rel="modulepreload" crossorigin href="./assets/Lightning.es-CvhkbTgx.js">
+  <link rel="modulepreload" crossorigin href="./assets/Sticker.es-xCDZSEqn.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretDown.es-Bx19Sy5E.js">
+  <link rel="modulepreload" crossorigin href="./assets/preset-OurIE8P2.js">
+  <link rel="modulepreload" crossorigin href="./assets/Check.es-CHhIdSpi.js">
+  <link rel="modulepreload" crossorigin href="./assets/CheckCircle.es-lQQywaME.js">
+  <link rel="modulepreload" crossorigin href="./assets/Play.es-CCZEDg-p.js">
+  <link rel="modulepreload" crossorigin href="./assets/format-CX3JBwaj.js">
+  <link rel="modulepreload" crossorigin href="./assets/NumberFlow-client-48rw3j0J-B5w-VoXL.js">
+  <link rel="modulepreload" crossorigin href="./assets/CopySimple.es-BpfswoDw.js">
+  <link rel="modulepreload" crossorigin href="./assets/Globe.es-CmyzxKvS.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretUp.es-DyHiHsbm.js">
+  <link rel="modulepreload" crossorigin href="./assets/FileText.es-DMxGivA6.js">
+  <link rel="modulepreload" crossorigin href="./assets/FolderOpen.es-C_rG6qkP.js">
+  <link rel="modulepreload" crossorigin href="./assets/MagnifyingGlass.es-B7QIwtaD.js">
+  <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Dg7FO9tW.js">
+  <link rel="modulepreload" crossorigin href="./assets/Brain.es-fk499nNk.js">
+  <link rel="modulepreload" crossorigin href="./assets/Copy.es-BpumgQRg.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretRight.es-D13xy2ea.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-CbWv2Sou.js">
+  <link rel="modulepreload" crossorigin href="./assets/SmileySticker.es-CCbPvZ_U.js">
+  <link rel="stylesheet" crossorigin href="./assets/PromptInput-Cdnhe6iM.css">
+  <link rel="stylesheet" crossorigin href="./assets/agentWidget-Bs2UdspD.css">
+</head>
+
+<body>
+  <!-- 骨架屏 -->
+  <div id="skeleton">
+    <div class="skeleton-widget"></div>
+  </div>
+
+  <!-- React应用容器 -->
+  <div id="root"></div>
+
+</body>
+
+</html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* ws://localhost:*">
+  <title>SynapseAutomation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 60px;
+      max-width: 600px;
+      text-align: center;
+    }
+
+    .logo {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: white;
+      font-weight: bold;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      color: #1a1a1a;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: #666;
+      margin-bottom: 40px;
+    }
+
+    .status {
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .status-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      font-weight: 500;
+      color: #666;
+    }
+
+    .status-value {
+      color: #1a1a1a;
+      font-weight: 600;
+    }
+
+    .info {
+      font-size: 14px;
+      color: #999;
+      line-height: 1.6;
+    }
+
+    .button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">SA</div>
+    <h1>SynapseAutomation</h1>
+    <p class="subtitle">智能内容发布与管理平台</p>
+
+    <div class="status" id="status">
+      <div class="status-item">
+        <span class="status-label">应用状态</span>
+        <span class="status-value" id="app-status">
+          <span class="loading"></span> 初始化中...
+        </span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">后端服务</span>
+        <span class="status-value" id="backend-status">等待中...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">浏览器引擎</span>
+        <span class="status-value" id="browser-status">检查中...</span>
+      </div>
+    </div>
+
+    <div class="info">
+      <p>🚀 欢迎使用 SynapseAutomation</p>
+      <p>正在加载前端界面，请稍候...</p>
+    </div>
+
+    <button class="button" onclick="checkBackend()">检查服务状态</button>
+  </div>
+
+  <script>
+    // 获取应用信息
+    async function getAppInfo() {
+      if (window.electronAPI) {
+        const info = await window.electronAPI.app.getInfo();
+        console.log('App Info:', info);
+
+        // 更新应用状态
+        document.getElementById('app-status').textContent =
+          `v${info.version} (${info.isPackaged ? '生产' : '开发'}模式)`;
+
+        // 检查浏览器路径
+        const browserPath = await window.electronAPI.playwright.getBrowserPath();
+        document.getElementById('browser-status').textContent =
+          browserPath ? '✅ 已就绪' : '⚠️ 未配置';
+      }
+    }
+
+    // 检查后端状态
+    async function checkBackend() {
+      const statusEl = document.getElementById('backend-status');
+      statusEl.innerHTML = '<span class="loading"></span> 检查中...';
+
+      try {
+        const response = await fetch('http://localhost:8000/health', {
+          method: 'GET',
+          timeout: 5000
+        });
+
+        if (response.ok) {
+          statusEl.textContent = '✅ 运行正常';
+          setTimeout(() => {
+            window.location.href = 'http://localhost:8000';
+          }, 1000);
+        } else {
+          statusEl.textContent = '⚠️ 响应异常';
+        }
+      } catch (error) {
+        statusEl.textContent = '❌ 无法连接';
+        console.error('Backend check failed:', error);
+      }
+    }
+
+    // 页面加载时获取信息
+    window.addEventListener('DOMContentLoaded', () => {
+      getAppInfo();
+
+      // 每5秒自动检查后端
+      setInterval(checkBackend, 5000);
+
+      // 立即检查一次
+      setTimeout(checkBackend, 2000);
+    });
+  </script>
+</body>
+</html>

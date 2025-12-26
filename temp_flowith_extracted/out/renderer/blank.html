@@ -1,0 +1,83 @@
+<!doctype html>
+<html style="height: 100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Blank - flowithOS</title>
+  <!-- Light mode favicon - Simple Diamond -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 10 L90 50 L50 90 L10 50 Z' fill='%236366f1'/></svg>" />
+  <!-- Dark mode favicon - Simple Diamond -->
+  <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 10 L90 50 L50 90 L10 50 Z' fill='%236366f1'/></svg>" />
+  <script>
+    // Sync theme immediately to prevent white flash
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // Default to dark
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #f1f2f4;
+    }
+
+    body.dark,
+    html.dark body {
+      background: #121516;
+    }
+
+    #root {
+      height: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/blank-DndrVQgS.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/preload-helper-BKLkhHrN.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/types-Cja2BTNu.js">
+  <link rel="modulepreload" crossorigin href="./assets/Check.es-CHhIdSpi.js">
+  <link rel="modulepreload" crossorigin href="./assets/index.es-Cdkbw0Og.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/ThemeLottie-C-yd1qoo.js">
+  <link rel="modulepreload" crossorigin href="./assets/Globe.es-CmyzxKvS.js">
+  <link rel="modulepreload" crossorigin href="./assets/Lightning.es-CvhkbTgx.js">
+  <link rel="modulepreload" crossorigin href="./assets/MagnifyingGlass.es-B7QIwtaD.js">
+  <link rel="modulepreload" crossorigin href="./assets/overlay-tooltip-DZS7lRVm.js">
+  <link rel="modulepreload" crossorigin href="./assets/logo-white-DLEzf3ze.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/X.es-dtM8PpYH.js">
+  <link rel="modulepreload" crossorigin href="./assets/UploadFileList-qn3fk1BB.js">
+  <link rel="modulepreload" crossorigin href="./assets/Atom.es-DKyNpNSc.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretLeft.es-BLuJm8Hv.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretRight.es-D13xy2ea.js">
+  <link rel="modulepreload" crossorigin href="./assets/Plus.es-C0yir3SN.js">
+  <link rel="modulepreload" crossorigin href="./assets/Sticker.es-xCDZSEqn.js">
+  <link rel="modulepreload" crossorigin href="./assets/soundEffects-BtMLpHtE.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

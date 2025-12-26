@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en" style="height: 100%">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flowith Sidebar</title>
+  <script>
+    // 在HTML加载时立即同步主题，避免闪烁
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark') // 默认深色
+      }
+    })()
+  </script>
+  <style>
+    html {
+      background: #FFFFFF;
+    }
+
+    html.dark {
+      background: #121516;
+    }
+
+    body {
+      height: 100%;
+      width: 56px;
+      min-width: 56px;
+      margin: 0;
+      padding: 0;
+      background: #FFFFFF;
+      display: flex;
+      overflow: visible;
+    }
+
+    body.dark {
+      background: #121516;
+    }
+
+    #root {
+      height: 100%;
+      width: 56px;
+      background: #FFFFFF;
+    }
+
+    #root.dark {
+      background: #121516;
+    }
+
+    /* 骨架屏样式 */
+    #skeleton {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 56px;
+      height: 100%;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 9999;
+      opacity: 0;
+    }
+
+    .dark #skeleton {
+      background: #121516;
+    }
+
+    #skeleton.hidden {
+      display: none;
+    }
+
+    /* 红绿灯区域 - h-10 pt-2, 红绿灯top-4 */
+    .skeleton-traffic-lights {
+      width: 100%;
+      height: 40px;
+      /* h-10 */
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 16px;
+      /* top-4 */
+    }
+
+    .skeleton-lights-group {
+      display: flex;
+      gap: 8px;
+      /* gap-2 */
+    }
+
+    .skeleton-light {
+      width: 12px;
+      /* w-3 */
+      height: 12px;
+      /* h-3 */
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.1);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-light {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Logo容器 - h-12 */
+    .skeleton-logo-container {
+      width: 100%;
+      height: 48px;
+      /* h-12 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .skeleton-logo {
+      width: 20px;
+      /* size-5 */
+      height: 20px;
+      /* size-5 */
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.08);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-logo {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* 导航按钮容器 - gap-0.5 mb-0.5 */
+    .skeleton-nav-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      /* gap-0.5 */
+      margin-bottom: 2px;
+      /* mb-0.5 */
+    }
+
+    .skeleton-nav-button {
+      width: 40px;
+      /* w-10 */
+      height: 40px;
+      /* h-10 */
+      border-radius: 8px;
+      /* rounded-[8px] */
+      background: rgba(0, 0, 0, 0.05);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-nav-button {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .skeleton-nav-button.special {
+      background: rgba(23, 150, 181, 0.08);
+    }
+
+    .dark .skeleton-nav-button.special {
+      background: rgba(23, 150, 181, 0.08);
+    }
+
+    /* 分隔线 - w-10 h-px my-2 */
+    .skeleton-divider {
+      width: 40px;
+      /* w-10 */
+      height: 1px;
+      /* h-px */
+      background: rgba(0, 0, 0, 0.05);
+      margin: 8px 0;
+      /* my-2 */
+    }
+
+    .dark .skeleton-divider {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Tab列表区域 - flex-1 py-0.5 */
+    .skeleton-tab-list {
+      flex: 1;
+      width: 100%;
+      padding: 2px 0;
+      /* py-0.5 */
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0px;
+    }
+
+    .skeleton-tab-item {
+      width: 40px;
+      /* w-10 */
+      height: 40px;
+      /* h-10 */
+      border-radius: 8px;
+      /* rounded-[8px] */
+      background: rgba(0, 0, 0, 0.03);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-tab-item {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    /* 底部用户菜单容器 - gap-0.5 mb-2 */
+    .skeleton-user-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      /* gap-0.5 */
+      margin-bottom: 8px;
+      /* mb-2 */
+    }
+
+    .skeleton-user-menu {
+      width: 40px;
+      /* w-10 */
+      height: 40px;
+      /* h-10 */
+      border-radius: 8px;
+      /* rounded-[8px] */
+      background: rgba(0, 0, 0, 0.05);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .dark .skeleton-user-menu {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/sidebar-CNZwAt-o.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/Brain.es-fk499nNk.js">
+  <link rel="modulepreload" crossorigin href="./assets/logo-white-DLEzf3ze.js">
+  <link rel="modulepreload" crossorigin href="./assets/Sphere.es-D5k6XxSK.js">
+  <link rel="modulepreload" crossorigin href="./assets/Play.es-CCZEDg-p.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="modulepreload" crossorigin href="./assets/preload-helper-BKLkhHrN.js">
+  <link rel="modulepreload" crossorigin href="./assets/utils-C6LcAPXa.js">
+  <link rel="modulepreload" crossorigin href="./assets/tslib.es6-BfBOWGJN.js">
+  <link rel="modulepreload" crossorigin href="./assets/constants-BVkfsh2w.js">
+  <link rel="modulepreload" crossorigin href="./assets/Globe.es-CmyzxKvS.js">
+  <link rel="modulepreload" crossorigin href="./assets/Plus.es-C0yir3SN.js">
+  <link rel="modulepreload" crossorigin href="./assets/TerminalWindow.es-C5gjHsMP.js">
+  <link rel="modulepreload" crossorigin href="./assets/X.es-dtM8PpYH.js">
+  <link rel="modulepreload" crossorigin href="./assets/useScrollFade-TTr4qYUn.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/MagnifyingGlass.es-B7QIwtaD.js">
+  <link rel="modulepreload" crossorigin href="./assets/activeItemStyles-TJXb1m4Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/Check.es-CHhIdSpi.js">
+  <link rel="modulepreload" crossorigin href="./assets/CheckCircle.es-lQQywaME.js">
+  <link rel="modulepreload" crossorigin href="./assets/Atom.es-DKyNpNSc.js">
+  <link rel="modulepreload" crossorigin href="./assets/Clock.es-Bqtl5XAC.js">
+  <link rel="modulepreload" crossorigin href="./assets/FileText.es-DMxGivA6.js">
+  <link rel="modulepreload" crossorigin href="./assets/Keyboard.es-BKfAOvVA.js">
+  <link rel="modulepreload" crossorigin href="./assets/StopCircle.es-Ci_jGEu4.js">
+  <link rel="modulepreload" crossorigin href="./assets/TextT.es-BlqGWhxg.js">
+  <link rel="modulepreload" crossorigin href="./assets/overlay-tooltip-DZS7lRVm.js">
+  <link rel="modulepreload" crossorigin href="./assets/TeachPanelContent-B5WSyHe1.js">
+  <link rel="modulepreload" crossorigin href="./assets/Spinner.es-8gcmvKt5.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretDown.es-Bx19Sy5E.js">
+  <link rel="modulepreload" crossorigin href="./assets/FolderOpen.es-C_rG6qkP.js">
+  <link rel="modulepreload" crossorigin href="./assets/fileIcon-DZLXibZ3.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-CoFqUOPt.js">
+  <link rel="modulepreload" crossorigin href="./assets/floating-ui.react-dom-CjpOSN3U.js">
+  <link rel="modulepreload" crossorigin href="./assets/CaretRight.es-D13xy2ea.js">
+  <link rel="modulepreload" crossorigin href="./assets/Minus.es-B7r-UXfU.js">
+  <link rel="modulepreload" crossorigin href="./assets/invitationCodes-DQjyEu-9.js">
+  <link rel="stylesheet" crossorigin href="./assets/sidebar-C81kNPZa.css">
+  <link rel="stylesheet" crossorigin href="./assets/main-Cybas29v.css">
+</head>
+
+<body>
+  <!-- 骨架屏 -->
+  <div id="skeleton">
+    <!-- 红绿灯区域 -->
+    <div class="skeleton-traffic-lights">
+      <div class="skeleton-lights-group">
+        <div class="skeleton-light"></div>
+        <div class="skeleton-light"></div>
+        <div class="skeleton-light"></div>
+      </div>
+    </div>
+
+    <!-- Logo容器 -->
+    <div class="skeleton-logo-container">
+      <div class="skeleton-logo"></div>
+    </div>
+
+    <!-- 导航按钮组 -->
+    <div class="skeleton-nav-group">
+      <div class="skeleton-nav-button"></div>
+      <div class="skeleton-nav-button special"></div>
+      <div class="skeleton-nav-button"></div>
+    </div>
+
+    <!-- 分隔线 -->
+    <div class="skeleton-divider"></div>
+
+    <!-- Tab列表区域 -->
+    <div class="skeleton-tab-list">
+      <div class="skeleton-tab-item"></div>
+      <div class="skeleton-tab-item"></div>
+      <div class="skeleton-tab-item"></div>
+    </div>
+
+    <!-- 分隔线 -->
+    <div class="skeleton-divider"></div>
+
+    <!-- 用户菜单容器 -->
+    <div class="skeleton-user-container">
+      <div class="skeleton-user-menu"></div>
+    </div>
+  </div>
+
+  <!-- React应用容器 -->
+  <div id="root"></div>
+
+</body>
+
+</html>

@@ -81,6 +81,21 @@ upload_dir.mkdir(parents=True, exist_ok=True)
 # 挂载静态文件目录
 app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
+# Optional: mount Douyin_TikTok_API under a prefix.
+if settings.DOUYIN_TIKTOK_API_ENABLED:
+    try:
+        douyin_root = Path(settings.BASE_DIR) / "douyin_tiktok_api"
+        if douyin_root.exists():
+            sys.path.insert(0, str(douyin_root))
+            from app.main import app as douyin_tiktok_app  # type: ignore
+
+            app.mount(settings.DOUYIN_TIKTOK_API_PREFIX, douyin_tiktok_app)
+            logger.info(f"[Douyin_TikTok_API] Mounted at {settings.DOUYIN_TIKTOK_API_PREFIX}")
+        else:
+            logger.warning(f"[Douyin_TikTok_API] Repo not found at {douyin_root}")
+    except Exception as exc:
+        logger.warning(f"[Douyin_TikTok_API] Mount failed: {exc}")
+
 
 # 全局异常处理
 @app.exception_handler(AppException)

@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Whitelist Verification</title>
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://os-assets.flowith.net https://www.figma.com https://*.r2.dev https://www.google.com https://upload.wikimedia.org https://framerusercontent.com https://arc.net data:; media-src https://*.r2.dev" />
+  <script>
+    (function () {
+      try {
+        const theme = localStorage.getItem('flowith-theme-mode')
+        if (!theme || theme === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark')
+      }
+    })()
+  </script>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      background-image: none !important;
+      overflow: hidden;
+    }
+
+    #root {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/whitelistGate-C_0EM9u3.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/client-DljuHW-m.js">
+  <link rel="modulepreload" crossorigin href="./assets/IconBase.es-_t4ebd3Z.js">
+  <link rel="modulepreload" crossorigin href="./assets/Brain.es-fk499nNk.js">
+  <link rel="modulepreload" crossorigin href="./assets/Check.es-CHhIdSpi.js">
+  <link rel="modulepreload" crossorigin href="./assets/Sphere.es-D5k6XxSK.js">
+  <link rel="modulepreload" crossorigin href="./assets/XLogo.es-3i5ZYoPD.js">
+  <link rel="modulepreload" crossorigin href="./assets/X.es-dtM8PpYH.js">
+  <link rel="modulepreload" crossorigin href="./assets/index.es-Cdkbw0Og.js">
+  <link rel="modulepreload" crossorigin href="./assets/context-CbCu0iMB.js">
+  <link rel="modulepreload" crossorigin href="./assets/useTranslation-BBDPFRa4.js">
+  <link rel="modulepreload" crossorigin href="./assets/proxy-BWWQsHt4.js">
+  <link rel="modulepreload" crossorigin href="./assets/index-viF2D8av.js">
+  <link rel="modulepreload" crossorigin href="./assets/theme-sVdefUwF.js">
+  <link rel="modulepreload" crossorigin href="./assets/themeBridge-XpPGWB57.js">
+  <link rel="modulepreload" crossorigin href="./assets/i18n-BoThyQPF.js">
+  <link rel="stylesheet" crossorigin href="./assets/whitelistGate-If1bh-lE.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>
