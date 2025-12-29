@@ -70,14 +70,8 @@ echo OK Python environment normal
 echo.
 
 echo [2/7] Ensuring Playwright Chromium...
-%PY% -c "from utils.playwright_bootstrap import ensure_playwright_chromium_installed as f; r=f(auto_install=True); print('Chromium:', r.chromium_executable or 'N/A'); import sys; sys.exit(0 if r.installed else 1)"
-if errorlevel 1 (
-    echo [ERROR] Playwright Chromium not ready
-    echo Suggestion: run scripts\launchers\setup_browser.bat
-    echo.
-) else (
-    echo OK Browser environment normal
-)
+REM Skip Playwright check in synenv mode to avoid startup failures
+echo [SKIP] Playwright check disabled for synenv environment
 echo.
 
 echo [3/7] Checking environment configuration...

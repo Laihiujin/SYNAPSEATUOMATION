@@ -61,10 +61,11 @@ echo Broker: Redis (read from .env REDIS_URL)
 echo.
 
 REM Use --pool=solo to avoid Windows multiprocessing issues
+REM 并发数设为 1000（异步高并发，上不封顶）
 %PY% -m celery -A fastapi_app.tasks.celery_app worker ^
     --loglevel=info ^
     --pool=solo ^
-    --concurrency=200 ^
+    --concurrency=1000 ^
     --hostname=synapse-worker@%%h
 
 pause
