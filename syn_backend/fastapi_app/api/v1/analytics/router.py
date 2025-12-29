@@ -163,7 +163,8 @@ async def _collect_bilibili_accounts(account_ids: Optional[List[str]] = None) ->
 
     return {"success": success, "failed": len(failed), "errors": failed}
 
-@router.get("/", summary="获取分析数据")
+@router.get("/", summary="获取分析数据", include_in_schema=True)
+@router.get("", include_in_schema=False)
 async def get_analytics(
     startDate: Optional[str] = Query(None, description="???? YYYY-MM-DD"),
     endDate: Optional[str] = Query(None, description="???? YYYY-MM-DD"),

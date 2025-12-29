@@ -173,7 +173,11 @@ export function MaterialMetadataEditor({
     }, [selectedPlatforms, localMetadata])
 
     const handleSave = async () => {
-        await onSave(localMetadata)
+        const sanitized = { ...localMetadata }
+        if (sanitized.cover_image === null) delete sanitized.cover_image
+        if (sanitized.coverPath === null) delete sanitized.coverPath
+        // @ts-ignore
+        await onSave(sanitized)
         onClose()
     }
 
@@ -264,7 +268,7 @@ export function MaterialMetadataEditor({
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl bg-neutral-900 border-white/10 text-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl bg-[#0A0A0A] border-white/10 text-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Video className="w-5 h-5" />
@@ -275,7 +279,7 @@ export function MaterialMetadataEditor({
                 <div className="grid grid-cols-2 gap-6">
                     {/* 左侧：预览 */}
                     <div className="space-y-4">
-                        <div className={cn("relative rounded-xl overflow-hidden border border-white/10 bg-neutral-800", previewAspectClass)}>
+                        <div className={cn("relative rounded-xl overflow-hidden border border-white/10 bg-black", previewAspectClass)}>
                             {videoSrc ? (
                                 <video
                                     src={videoSrc}
@@ -331,7 +335,7 @@ export function MaterialMetadataEditor({
                                 }}
                                 placeholder="请入视频标题（30字内）"
                                 maxLength={30}
-                                className="bg-black/20 border-white/10 text-white"
+                                className="bg-black border-white/10 text-white"
                             />
                         </div>
 
@@ -349,7 +353,7 @@ export function MaterialMetadataEditor({
                                         }
                                     }}
                                     placeholder="输入标签后按回车"
-                                    className="bg-black/20 border-white/10 text-white"
+                                    className="bg-black border-white/10 text-white"
                                 />
                                 <Button
                                     onClick={() => addTag(tagInput)}
@@ -399,7 +403,7 @@ export function MaterialMetadataEditor({
                                         }
                                     }}
                                     placeholder="描述你想要的封面画面..."
-                                    className="bg-black/20 border-white/10 text-white"
+                                    className="bg-black border-white/10 text-white"
                                 />
                                 <Button
                                     onClick={handleGenerateCover}
@@ -447,7 +451,7 @@ export function MaterialMetadataEditor({
                         <div className="flex gap-3 pt-4">
                             <Button
                                 onClick={handleSave}
-                                className="flex-1 bg-black hover:bg-black/90 text-white"
+                                className="flex-1 bg-white hover:bg-white/90 text-black"
                             >
                                 <Save className="w-4 h-4 mr-2" />
                                 保存

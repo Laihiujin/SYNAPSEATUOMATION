@@ -654,33 +654,115 @@ class KSVideo(object):
         if retry_count == max_retries:
             kuaishou_logger.warning("超过最大重试次数，视频上传可能未完成。")
 
-        # 定时任务
+        # 🔧 2025-12-29: 快手发布流程更新
+        # 前3步: 引导提示（点击"下一步"或"立刻体验"）
+        kuaishou_logger.info("[发布] 关闭引导提示...")
+        try:
+            await _close_joyride_guide(page)
+            await dismiss_kuaishou_tour(page, max_attempts=6)
+            kuaishou_logger.success("[发布] 引导提示已关闭")
+        except Exception as e:
+            kuaishou_logger.warning(f"[发布] 关闭引导失败（继续）: {e}")
+
+        await asyncio.sleep(1)
+
+        # 定时任务（在点击发布按钮前设置）
         if self.publish_date != 0:
+            kuaishou_logger.info("[发布] 设置定时发布...")
             await self.set_schedule_time(page, self.publish_date)
 
-        # 判断视频是否发布成功
-        while True:
-            try:
-                publish_button = page.get_by_text("发布", exact=True)
-                if await publish_button.count() > 0:
-                    await publish_button.click()
+        # 步骤1: 点击"发布"按钮打开"发布设置"对话框
+        kuaishou_logger.info("[发布] 步骤1: 点击发布按钮...")
+        publish_button = page.get_by_text("发布", exact=True)
+        if await publish_button.count() > 0:
+            await publish_button.click()
+            kuaishou_logger.success("[发布] 已点击发布按钮，等待发布设置对话框...")
+            await asyncio.sleep(2)
 
+        # 步骤2: 在"发布设置"对话框中配置
+        kuaishou_logger.info("[发布] 步骤2: 等待发布设置对话框...")
+
+        # 等待对话框出现（通过标题"发布设置"或"互动设置"确认）
+        try:
+            # 尝试多种可能的对话框选择器
+            dialog_indicators = [
+                "text=发布设置",
+                "text=互动设置",
+                "text=查看权限",
+                "div.ant-modal-content",  # Ant Design 模态框
+                "div[role='dialog']",
+            ]
+
+            dialog_found = False
+            for indicator in dialog_indicators:
+                if await page.locator(indicator).count() > 0:
+                    kuaishou_logger.success(f"[发布] 检测到发布设置对话框: {indicator}")
+                    dialog_found = True
+                    break
+
+            if dialog_found:
+                kuaishou_logger.info("[发布] 使用对话框中的默认设置")
                 await asyncio.sleep(1)
+
+                # 步骤3: 点击对话框内的"发布"按钮
+                kuaishou_logger.info("[发布] 步骤3: 点击对话框内的发布按钮...")
+
+                # 尝试多种可能的发布按钮选择器
+                dialog_publish_selectors = [
+                    "div.ant-modal-footer button:has-text('发布')",  # 对话框底部的发布按钮
+                    "div[role='dialog'] button:has-text('发布')",
+                    "button.ant-btn-primary:has-text('发布')",
+                    "button:has-text('发布')",
+                ]
+
+                clicked = False
+                for selector in dialog_publish_selectors:
+                    try:
+                        btn = page.locator(selector)
+                        if await btn.count() > 0:
+                            await btn.first.click()
+                            kuaishou_logger.success(f"[发布] 已点击对话框发布按钮: {selector}")
+                            clicked = True
+                            break
+                    except Exception:
+                        continue
+
+                if not clicked:
+                    kuaishou_logger.warning("[发布] 未找到对话框发布按钮，尝试查找确认发布按钮...")
+                    confirm_button = page.get_by_text("确认发布")
+                    if await confirm_button.count() > 0:
+                        await confirm_button.click()
+                        kuaishou_logger.success("[发布] 已点击确认发布按钮")
+            else:
+                # 如果没有对话框，可能是旧版本流程
+                kuaishou_logger.warning("[发布] 未检测到发布设置对话框，尝试直接确认发布...")
                 confirm_button = page.get_by_text("确认发布")
                 if await confirm_button.count() > 0:
                     await confirm_button.click()
+                    kuaishou_logger.success("[发布] 已点击确认发布按钮（旧流程）")
 
-                # 等待页面跳转，确认发布成功
-                await page.wait_for_url(
-                    "https://cp.kuaishou.com/article/manage/video?status=2&from=publish",
-                    timeout=5000,
-                )
-                kuaishou_logger.success("视频发布成功")
-                break
-            except Exception as e:
-                kuaishou_logger.info(f"视频正在发布中... 错误: {e}")
-                await _debug_dump(page, "kuaishou_publish_retry")
-                await asyncio.sleep(1)
+        except Exception as e:
+            kuaishou_logger.error(f"[发布] 发布设置对话框处理失败: {e}")
+            await _debug_dump(page, "kuaishou_publish_dialog_error")
+
+        # 步骤4: 等待页面跳转，确认发布成功
+        kuaishou_logger.info("[发布] 步骤4: 等待发布完成...")
+        try:
+            await page.wait_for_url(
+                "https://cp.kuaishou.com/article/manage/video?status=2&from=publish",
+                timeout=15000,  # 增加超时时间到15秒
+            )
+            kuaishou_logger.success("✅ 视频发布成功！")
+        except Exception as e:
+            kuaishou_logger.warning(f"[发布] 等待跳转超时: {e}")
+            # 检查是否真的发布成功（有些情况下虽然超时但实际已发布）
+            current_url = page.url
+            if "manage/video" in current_url or "status=2" in current_url:
+                kuaishou_logger.success("✅ 视频发布成功（URL确认）")
+            else:
+                kuaishou_logger.error(f"❌ 视频可能发布失败，当前URL: {current_url}")
+                await _debug_dump(page, "kuaishou_publish_failed")
+                raise Exception(f"发布失败，当前URL: {current_url}")
 
         await context.storage_state(path=self.account_file)  # 保存cookie
         kuaishou_logger.info('cookie更新完毕！')

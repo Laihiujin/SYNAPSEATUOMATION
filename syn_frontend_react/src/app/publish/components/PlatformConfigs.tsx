@@ -72,7 +72,7 @@ function MiniProgramDialog({ onSelect, platform = "douyin" }: { onSelect: (item:
                     <span className="text-xs">选择小程序/游戏/应用</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="bg-neutral-900 border-white/10 text-white max-w-2xl">
+            <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>选择挂载内容</DialogTitle>
                 </DialogHeader>
@@ -109,7 +109,7 @@ function MiniProgramDialog({ onSelect, platform = "douyin" }: { onSelect: (item:
                                 onClick={() => {
                                     onSelect(item)
                                 }}
-                                className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                                className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-black hover:bg-white/10 cursor-pointer transition-all"
                             >
                                 <span className="text-2xl">{item.icon}</span>
                                 <div className="flex-1 min-w-0">
@@ -151,7 +151,7 @@ function POIDialog({ onSelect }: { onSelect: (poi: any) => void }) {
                     <span className="text-xs">添加位置信息</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="bg-neutral-900 border-white/10 text-white">
+            <DialogContent className="bg-[#0A0A0A] border-white/10 text-white">
                 <DialogHeader>
                     <DialogTitle>选择地点</DialogTitle>
                 </DialogHeader>
@@ -169,7 +169,7 @@ function POIDialog({ onSelect }: { onSelect: (poi: any) => void }) {
                                 <div
                                     key={poi.id}
                                     onClick={() => onSelect(poi)}
-                                    className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                                    className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-black hover:bg-white/10 cursor-pointer transition-all"
                                 >
                                     <MapPin className="w-5 h-5 text-primary" />
                                     <div className="flex-1">
@@ -190,7 +190,7 @@ export function DouyinConfig({ data, onChange }: ConfigProps) {
     const [selectedPOI, setSelectedPOI] = useState<any>(null)
 
     return (
-        <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 p-5 bg-black rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white/80">抖音配置</h3>
                 <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400">抖音</Badge>
@@ -261,7 +261,7 @@ export function KuaishouConfig({ data, onChange }: ConfigProps) {
     const [selectedPOI, setSelectedPOI] = useState<any>(null)
 
     return (
-        <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 p-5 bg-black rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white/80">快手配置</h3>
                 <Badge variant="outline" className="text-[10px] border-orange-500/30 text-orange-400">快手</Badge>
@@ -331,7 +331,7 @@ export function XhsConfig({ data, onChange }: ConfigProps) {
     const [selectedPOI, setSelectedPOI] = useState<any>(null)
 
     return (
-        <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 p-5 bg-black rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white/80">小红书配置</h3>
                 <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">小红书</Badge>
@@ -385,7 +385,7 @@ export function BilibiliConfig({ data, onChange }: ConfigProps) {
     ]
 
     return (
-        <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 p-5 bg-black rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white/80">B站配置</h3>
                 <Badge variant="outline" className="text-[10px] border-pink-500/30 text-pink-400">B站</Badge>
@@ -405,7 +405,7 @@ export function BilibiliConfig({ data, onChange }: ConfigProps) {
                                 <span className="text-xs">选择游戏</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-neutral-900 border-white/10 text-white max-w-2xl">
+                        <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl">
                             <DialogHeader>
                                 <DialogTitle>选择游戏</DialogTitle>
                             </DialogHeader>
@@ -415,7 +415,7 @@ export function BilibiliConfig({ data, onChange }: ConfigProps) {
                                         <div
                                             key={game.id}
                                             onClick={() => setSelectedGame(game)}
-                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-black hover:bg-white/10 cursor-pointer transition-all"
                                         >
                                             <span className="text-2xl">{game.icon}</span>
                                             <div className="flex-1 min-w-0">
@@ -497,7 +497,7 @@ export function VideoChannelConfig({ data, onChange }: ConfigProps) {
     ]
 
     return (
-        <div className="space-y-4 p-5 bg-white/5 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 p-5 bg-black rounded-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white/80">视频号配置</h3>
                 <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400">视频号</Badge>
@@ -517,7 +517,7 @@ export function VideoChannelConfig({ data, onChange }: ConfigProps) {
                                 <span className="text-xs">选择公众号文章</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-neutral-900 border-white/10 text-white max-w-2xl">
+                        <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl">
                             <DialogHeader>
                                 <DialogTitle>选择公众号文章</DialogTitle>
                             </DialogHeader>
@@ -527,7 +527,7 @@ export function VideoChannelConfig({ data, onChange }: ConfigProps) {
                                         <div
                                             key={article.id}
                                             onClick={() => setSelectedArticle(article)}
-                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-black hover:bg-white/10 cursor-pointer transition-all"
                                         >
                                             <span className="text-2xl">{article.cover}</span>
                                             <div className="flex-1 min-w-0">
@@ -572,7 +572,7 @@ export function VideoChannelConfig({ data, onChange }: ConfigProps) {
                                 <span className="text-xs">选择小程序</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-neutral-900 border-white/10 text-white max-w-2xl">
+                        <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl">
                             <DialogHeader>
                                 <DialogTitle>选择小程序</DialogTitle>
                             </DialogHeader>
@@ -582,7 +582,7 @@ export function VideoChannelConfig({ data, onChange }: ConfigProps) {
                                         <div
                                             key={mini.id}
                                             onClick={() => setSelectedMiniProgram(mini)}
-                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-all"
+                                            className="flex items-center gap-3 p-3 rounded-lg border border-white/10 bg-black hover:bg-white/10 cursor-pointer transition-all"
                                         >
                                             <span className="text-2xl">{mini.icon}</span>
                                             <div className="flex-1 min-w-0">

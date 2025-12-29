@@ -50,7 +50,7 @@ export default function TasksPage() {
     refetch,
   } = useQuery({
     queryKey: ["tasks"],
-    queryFn: () => fetcher<TasksResponse>("/api/tasks", tasksResponseSchema),
+    queryFn: () => fetcher<TasksResponse>(`${backendBaseUrl}/api/v1/tasks`, tasksResponseSchema),
   })
 
   // 获取人工任务
@@ -568,7 +568,7 @@ export default function TasksPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-white/5">
+        <Card className="bg-black border-white/10">
           <CardHeader className="flex items-center gap-3">
             <Clock3 className="h-8 w-8 text-white" />
             <div>
@@ -577,7 +577,7 @@ export default function TasksPage() {
             </div>
           </CardHeader>
         </Card>
-        <Card className="border-white/5">
+        <Card className="bg-black border-white/10">
           <CardHeader className="flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-emerald-400" />
             <div>
@@ -586,7 +586,7 @@ export default function TasksPage() {
             </div>
           </CardHeader>
         </Card>
-        <Card className="border-white/5">
+        <Card className="bg-black border-white/10">
           <CardHeader className="flex items-center gap-3">
             <XCircle className="h-8 w-8 text-red-400" />
             <div>
@@ -595,7 +595,7 @@ export default function TasksPage() {
             </div>
           </CardHeader>
         </Card>
-        <Card className="border-white/5">
+        <Card className="bg-black border-white/10">
           <CardHeader className="flex items-center gap-3">
             <AlertCircle className="h-8 w-8 text-yellow-400" />
             <div>
@@ -618,7 +618,7 @@ export default function TasksPage() {
         </TabsList>
 
         <TabsContent value="auto">
-          <Card>
+          <Card className="bg-black border-white/10">
             <CardHeader className="flex flex-wrap items-center gap-3">
               <div>
                 <CardTitle>任务列表</CardTitle>
@@ -639,7 +639,7 @@ export default function TasksPage() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                <div className="rounded-2xl border border-white/10 bg-black p-6 text-center text-sm text-white/60">
                   正在加载任务数据...
                 </div>
               ) : isError ? (
@@ -651,7 +651,7 @@ export default function TasksPage() {
                 <>
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-white/5">
+                      <TableRow className="border-white/10">
                         <TableHead className="w-12">
                           <Checkbox
                             checked={
@@ -686,7 +686,7 @@ export default function TasksPage() {
                         </TableRow>
                       )}
                       {paginatedTasks.map((task) => (
-                        <TableRow key={task.id} className="border-white/5">
+                        <TableRow key={task.id} className="border-white/10">
                           <TableCell>
                             <Checkbox
                               checked={selectedTaskIds.includes(task.id)}
@@ -825,7 +825,7 @@ export default function TasksPage() {
         </TabsContent>
 
         <TabsContent value="manual">
-          <Card>
+          <Card className="bg-black border-white/10">
             <CardHeader>
               <CardTitle>人工处理任务</CardTitle>
               <CardDescription>

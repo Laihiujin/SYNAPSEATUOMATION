@@ -18,7 +18,7 @@ export function PageHeader({
   align = "start",
 }: PageHeaderProps) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)]">
+    <div className="rounded-3xl border border-white/10 bg-black px-5 py-4 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className={cn("space-y-2", align === "center" && "text-center w-full")}>
           {eyebrow && (
@@ -65,7 +65,7 @@ export function PageSection({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-[0_30px_80px_-60px_rgba(0,0,0,0.9)]",
+        "overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_30px_80px_-60px_rgba(0,0,0,0.9)]",
         className
       )}
     >

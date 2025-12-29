@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeVisual: (windowId) => ipcRenderer.invoke('browser:closeVisual', windowId)
   },
 
+  // 会话管理
+  session: {
+    setCookies: (partition, cookies) => ipcRenderer.invoke('session:setCookies', partition, cookies)
+  },
+
   // 应用信息
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo')

@@ -54,19 +54,67 @@ def build_browser_args() -> Dict[str, Any]:
         if LOCAL_CHROME_PATH:
             chrome_path = Path(str(LOCAL_CHROME_PATH))
 
-            # 如果是相对路径，从项目根目录解析
+            # 如果是相对路径，从项目根目录解析（BASE_DIR.parent）
             if not chrome_path.is_absolute():
-                chrome_path = Path(BASE_DIR) / chrome_path
+                # BASE_DIR 是 syn_backend，需要上一级到项目根目录
+                project_root = BASE_DIR.parent
+                chrome_path = project_root / chrome_path
 
             if chrome_path.is_file():
                 args["executable_path"] = str(chrome_path.resolve())
-                print(f"✅ 使用 Chrome for Testing（相对项目路径）")
+                print(f"✅ 使用 Chrome for Testing（项目根目录相对路径）")
             else:
                 print(f"⚠️ LOCAL_CHROME_PATH 路径无效: {LOCAL_CHROME_PATH}")
         else:
             print("ℹ️ LOCAL_CHROME_PATH 未配置，将使用 Playwright 默认的 Chromium")
     except Exception as e:
         print(f"⚠️ 加载 LOCAL_CHROME_PATH 配置失败: {e}")
+
+    return args
+
+
+def build_firefox_args() -> Dict[str, Any]:
+    """
+    返回 Firefox browser.launch() 的参数配置（视频号专用）
+    """
+    args = {
+        "headless": False,
+        "args": [],
+    }
+
+    # 自动配置 Firefox 路径（支持相对路径）
+    # 优先使用环境变量 LOCAL_FIREFOX_PATH
+    try:
+        firefox_path_str = os.getenv("LOCAL_FIREFOX_PATH")
+        if not firefox_path_str:
+            # 如果环境变量没设置，尝试从 config 读取
+            try:
+                from config.conf import BASE_DIR
+                # 默认 Firefox 路径
+                firefox_path_str = "browsers/firefox/firefox-1495/firefox/firefox.exe"
+            except Exception:
+                pass
+
+        if firefox_path_str:
+            from config.conf import BASE_DIR
+            firefox_path = Path(str(firefox_path_str))
+
+            # 如果是相对路径，从项目根目录解析（BASE_DIR.parent）
+            if not firefox_path.is_absolute():
+                # BASE_DIR 是 syn_backend，需要上一级到项目根目录
+                project_root = BASE_DIR.parent
+                firefox_path = project_root / firefox_path
+
+            if firefox_path.is_file():
+                args["executable_path"] = str(firefox_path.resolve())
+                print(f"✅ 使用 Firefox 浏览器（项目根目录相对路径）")
+            else:
+                print(f"⚠️ LOCAL_FIREFOX_PATH 路径无效: {firefox_path_str}")
+                print(f"   完整路径: {firefox_path}")
+        else:
+            print("ℹ️ LOCAL_FIREFOX_PATH 未配置，将使用 Playwright 默认的 Firefox")
+    except Exception as e:
+        print(f"⚠️ 加载 LOCAL_FIREFOX_PATH 配置失败: {e}")
 
     return args
 
@@ -89,7 +137,7 @@ class PersistentBrowserManager:
     def __init__(self, base_dir: Optional[Path] = None):
         if base_dir is None:
             from config.conf import BASE_DIR
-            base_dir = Path(BASE_DIR) / "syn_backend" / "browser_profiles"
+            base_dir = Path(BASE_DIR) / "browser_profiles"  # 修复：移除重复的 syn_backend
 
         self.base_dir = base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)

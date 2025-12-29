@@ -4,9 +4,10 @@ import { backendBaseUrl } from "@/lib/env"
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { platform: string } }
+  { params }: { params: Promise<{ platform: string }> }
 ) {
   try {
+    const { platform } = await params
     const incoming = await request.json().catch(() => ({}))
     const payload: Record<string, any> = {
       account_ids: incoming?.account_ids,
@@ -19,7 +20,7 @@ export async function POST(
     })
 
     const response = await fetch(
-      `${backendBaseUrl}/api/v1/analytics/collect/${params.platform}`,
+      `${backendBaseUrl}/api/v1/analytics/collect/${platform}`,
       {
         method: "POST",
         headers: {

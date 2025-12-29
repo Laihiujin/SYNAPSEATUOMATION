@@ -235,7 +235,7 @@ export default function DashboardPage() {
       <PublishOtpDialog />
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 border-white/10 bg-black text-white">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>任务管理库</CardTitle>
@@ -249,7 +249,7 @@ export default function DashboardPage() {
           <CardContent>
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5">
+                <TableRow className="border-white/10">
                   <TableHead className="text-white/60">任务名称</TableHead>
                   <TableHead className="text-white/60">平台</TableHead>
                   <TableHead className="text-white/60">账号</TableHead>
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {recordedTasks.length === 0 && (
-                  <TableRow className="border-white/5">
+                  <TableRow className="border-white/10">
                     <TableCell colSpan={5} className="text-center text-sm text-white/60">
                       暂无任务，请前往发布中心创建
                     </TableCell>
@@ -296,7 +296,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="space-y-6">
+        <Card className="space-y-6 border-white/10 bg-black text-white">
           <CardHeader>
             <CardTitle>系统事件</CardTitle>
             <CardDescription>最近 12 小时自动化日志</CardDescription>
@@ -314,21 +314,21 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <Card className="space-y-5">
+        <Card className="space-y-5 border-white/10 bg-black text-white">
           <CardHeader className="pb-2">
             <CardTitle>即时操作</CardTitle>
             <CardDescription>常用矩阵工作流入口</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+              <div className="rounded-2xl border border-white/10 bg-black p-4 text-sm text-white/60">
                 正在载入推荐操作...
               </div>
             )}
             {quickActionData.map((action: any, idx: number) => (
               <div
                 key={action.id || idx}
-                className={`group rounded-2xl border border-white/5 bg-gradient-to-br ${action.accent} p-[1px]`}
+                className={`group rounded-2xl border border-white/10 bg-gradient-to-br ${action.accent} p-[1px]`}
               >
                 <div className="rounded-2xl /90 p-4 transition group-hover:bg-neutral-900/80">
                   <div className="flex items-center justify-between">
@@ -352,7 +352,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 border-white/10 bg-black text-white">
           <CardHeader className="pb-2">
             <CardTitle>异常提醒</CardTitle>
             <CardDescription>系统自动检测的风险</CardDescription>
@@ -371,21 +371,21 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 border-white/10 bg-black text-white">
           <CardHeader className="pb-2">
             <CardTitle>账号运行概况</CardTitle>
             <CardDescription>实时同步后端账号状态</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+              <div className="rounded-2xl border border-white/10 bg-black p-4 text-sm text-white/60">
                 正在同步账号数据...
               </div>
             )}
             {accountList.slice(0, 4).map((account) => (
               <div
                 key={account.id}
-                className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 p-4"
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-black p-4"
               >
                 <div>
                   <p className="text-sm font-semibold">{account.name}</p>

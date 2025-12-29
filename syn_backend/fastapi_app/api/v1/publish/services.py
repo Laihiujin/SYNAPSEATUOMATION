@@ -398,6 +398,45 @@ class PublishService:
 
                     task_id = f"publish_{batch_id}_{file_id}_{account['account_id']}"
 
+                    # 🔒 防重复提交检查：如果最近24小时内已有相同任务且状态为 pending/running，则跳过
+                    try:
+                        cursor = db.cursor()
+                        cursor.execute(
+                            """
+                            SELECT celery_task_id, status, created_at
+                            FROM publish_tasks
+                            WHERE platform = ?
+                              AND account_id = ?
+                              AND material_id = ?
+                              AND status IN ('pending', 'running')
+                              AND created_at > datetime('now', '-1 day')
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                            """,
+                            (str(platform), str(account['account_id']), str(file_id))
+                        )
+                        existing_task = cursor.fetchone()
+
+                        if existing_task:
+                            existing_task_id, existing_status, created_at = existing_task
+                            logger.warning(
+                                f"[PublishService] 跳过重复任务: task_id={existing_task_id}, "
+                                f"status={existing_status}, created_at={created_at}, "
+                                f"file_id={file_id}, account={account['account_id']}"
+                            )
+                            results["tasks"].append({
+                                "task_id": existing_task_id,
+                                "file_id": file_id,
+                                "platform": platform,
+                                "account_id": account['account_id'],
+                                "status": "skipped",
+                                "message": f"任务已存在（状态: {existing_status}，提交时间: {created_at}）"
+                            })
+                            continue  # 跳过此任务
+                    except Exception as e:
+                        logger.error(f"[PublishService] Failed to check duplicate task: {e}")
+                        # 检查失败不影响任务提交，继续执行
+
                     # Optional interval control: delay task execution by setting `not_before`.
                     if interval_control_enabled and interval_s > 0 and mode in ("account_first", "video_first"):
                         if mode == "video_first":
@@ -439,13 +478,42 @@ class PublishService:
                         task_id=task_id  # 使用自定义 task_id
                     )
 
-                    # 保存任务状态
+                    # 保存任务状态到 Redis（实时状态）
                     task_state_manager.create_task(
                         task_id=result.id,
                         task_type="publish",
                         data=task_data,
                         priority=priority
                     )
+
+                    # ✅ 同时写入 SQLite 数据库（持久化历史记录）
+                    # 避免重启后端时任务状态丢失，导致重复提交
+                    try:
+                        cursor = db.cursor()
+                        cursor.execute(
+                            """
+                            INSERT INTO publish_tasks (
+                                celery_task_id, platform, account_id, material_id, title, tags,
+                                status, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                result.id,
+                                str(platform),
+                                str(account['account_id']),
+                                str(file_id),
+                                final_title,
+                                json.dumps(final_topics, ensure_ascii=False) if final_topics else None,
+                                "pending",  # 初始状态
+                                now_beijing_naive().isoformat(),
+                                now_beijing_naive().isoformat()
+                            )
+                        )
+                        db.commit()
+                        logger.debug(f"[PublishService] Task {result.id} saved to SQLite publish_tasks")
+                    except Exception as e:
+                        logger.error(f"[PublishService] Failed to save task to SQLite: {e}")
+                        # 不影响任务提交，继续执行
 
                     results["total_tasks"] += 1
                     results["success_count"] += 1

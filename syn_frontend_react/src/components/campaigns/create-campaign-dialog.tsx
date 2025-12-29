@@ -304,7 +304,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
 
                                             return (
                                                 <Card key={platform} className="overflow-hidden">
-                                                    <div className="px-3 py-2 bg-muted/50 border-b flex justify-between items-center">
+                                                    <div className="px-3 py-2 bg-black border-b border-white/10 flex justify-between items-center">
                                                         <div className="flex items-center gap-2">
                                                             <div className={cn("w-2 h-2 rounded-full", pInfo?.color)} />
                                                             <span className="font-medium text-sm">{pInfo?.name}</span>
@@ -440,7 +440,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
 
                                 {scheduleType !== 'immediate' && (
                                     <div className="space-y-4">
-                                        <div className="p-4 border rounded-lg bg-muted/30">
+                                        <div className="p-4 border border-white/10 rounded-lg bg-black">
                                             <div className="flex items-center justify-between mb-3">
                                                 <div>
                                                     <Label className="font-medium">矩阵节奏</Label>
@@ -516,7 +516,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="p-4 border rounded-lg bg-muted/30">
+                                        <div className="p-4 border border-white/10 rounded-lg bg-black">
                                             <Label className="mb-2 block">选择日期范围</Label>
                                             <Popover>
                                                 <PopoverTrigger asChild>
@@ -592,7 +592,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                             </div>
 
                             <div className="border rounded-md">
-                                <div className="bg-muted px-4 py-2 text-sm font-medium grid grid-cols-5 gap-4">
+                                <div className="bg-black border-b border-white/10 px-4 py-2 text-sm font-medium grid grid-cols-5 gap-4">
                                     <div>平台</div>
                                     <div>账号</div>
                                     <div className="col-span-2">素材</div>
@@ -618,7 +618,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                     )}
                 </div>
 
-                <DialogFooter className="px-6 py-4 border-t bg-muted/20">
+                <DialogFooter className="px-6 py-4 border-t bg-black border-white/10">
                     {step > 1 && (
                         <Button variant="outline" onClick={() => setStep(step - 1)} disabled={submitting}>
                             <ChevronLeft className="w-4 h-4 mr-2" /> 上一步

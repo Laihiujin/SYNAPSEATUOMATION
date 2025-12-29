@@ -3,7 +3,7 @@
     "apply_fingerprint": true,
     "apply_stealth": true,
     "use_persistent_profile": true,
-    "persistent_profile_dir": "syn_backend/browser_profiles",
+    "persistent_profile_dir": "browser_profiles",
     "proxy": null,
     "webrtc": {
       "mode": "mask"
@@ -29,6 +29,15 @@
       "note": "Not supported by Playwright; requires a custom TLS stack."
     }
   },
-  "platforms": {},
+  "platforms": {
+    "channels": {
+      "use_persistent_profile": false,
+      "note": "WeChat Channels (视频号) has strict cookie validation, disable persistent profile to ensure fresh cookies"
+    },
+    "tencent": {
+      "use_persistent_profile": false,
+      "note": "WeChat Channels (视频号) has strict cookie validation, disable persistent profile to ensure fresh cookies"
+    }
+  },
   "accounts": {}
 }

@@ -138,7 +138,8 @@ async def create_thread(request: CreateThreadRequest):
         raise HTTPException(status_code=500, detail=f"创建线程失败: {str(e)}")
 
 
-@router.get("/", summary="获取线程列表")
+@router.get("/", summary="获取线程列表", include_in_schema=True)
+@router.get("", include_in_schema=False)
 async def get_threads(limit: int = 50, offset: int = 0, mode: Optional[str] = None):
     """获取所有线程列表，按更新时间倒序排列，可按 mode 过滤"""
     try:

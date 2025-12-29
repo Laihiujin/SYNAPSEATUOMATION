@@ -19,10 +19,10 @@ class PlaywrightBootstrapResult:
 
 
 def _default_browsers_dir() -> Path:
-    # repo_root/.playwright-browsers (shared by backend + worker; easy to bundle into an exe distribution)
+    # 统一使用项目根目录的 browsers/chromium 目录
     syn_backend_dir = Path(__file__).resolve().parents[1]
     repo_root = syn_backend_dir.parent
-    return repo_root / ".playwright-browsers"
+    return repo_root / "browsers" / "chromium"
 
 
 def _chromium_glob_patterns(browsers_dir: Path) -> list[str]:

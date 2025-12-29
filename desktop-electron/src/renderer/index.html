@@ -1,215 +1,470 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* ws://localhost:*">
-  <title>SynapseAutomation</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synapse OS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #333;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
-    }
-
-    .container {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      padding: 60px;
-      max-width: 600px;
-      text-align: center;
-    }
-
-    .logo {
-      width: 120px;
-      height: 120px;
-      margin: 0 auto 30px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 48px;
-      color: white;
-      font-weight: bold;
-    }
-
-    h1 {
-      font-size: 32px;
-      margin-bottom: 16px;
-      color: #1a1a1a;
-    }
-
-    .subtitle {
-      font-size: 18px;
-      color: #666;
-      margin-bottom: 40px;
-    }
-
-    .status {
-      padding: 20px;
-      background: #f5f5f5;
-      border-radius: 10px;
-      margin-bottom: 30px;
-    }
-
-    .status-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .status-item:last-child {
-      border-bottom: none;
-    }
-
-    .status-label {
-      font-weight: 500;
-      color: #666;
-    }
-
-    .status-value {
-      color: #1a1a1a;
-      font-weight: 600;
-    }
-
-    .info {
-      font-size: 14px;
-      color: #999;
-      line-height: 1.6;
-    }
-
-    .button {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 30px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 25px;
-      font-size: 16px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    .button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-    }
-
-    .loading {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="logo">SA</div>
-    <h1>SynapseAutomation</h1>
-    <p class="subtitle">智能内容发布与管理平台</p>
-
-    <div class="status" id="status">
-      <div class="status-item">
-        <span class="status-label">应用状态</span>
-        <span class="status-value" id="app-status">
-          <span class="loading"></span> 初始化中...
-        </span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">后端服务</span>
-        <span class="status-value" id="backend-status">等待中...</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">浏览器引擎</span>
-        <span class="status-value" id="browser-status">检查中...</span>
-      </div>
-    </div>
-
-    <div class="info">
-      <p>🚀 欢迎使用 SynapseAutomation</p>
-      <p>正在加载前端界面，请稍候...</p>
-    </div>
-
-    <button class="button" onclick="checkBackend()">检查服务状态</button>
-  </div>
-
-  <script>
-    // 获取应用信息
-    async function getAppInfo() {
-      if (window.electronAPI) {
-        const info = await window.electronAPI.app.getInfo();
-        console.log('App Info:', info);
-
-        // 更新应用状态
-        document.getElementById('app-status').textContent =
-          `v${info.version} (${info.isPackaged ? '生产' : '开发'}模式)`;
-
-        // 检查浏览器路径
-        const browserPath = await window.electronAPI.playwright.getBrowserPath();
-        document.getElementById('browser-status').textContent =
-          browserPath ? '✅ 已就绪' : '⚠️ 未配置';
-      }
-    }
-
-    // 检查后端状态
-    async function checkBackend() {
-      const statusEl = document.getElementById('backend-status');
-      statusEl.innerHTML = '<span class="loading"></span> 检查中...';
-
-      try {
-        const response = await fetch('http://localhost:8000/health', {
-          method: 'GET',
-          timeout: 5000
-        });
-
-        if (response.ok) {
-          statusEl.textContent = '✅ 运行正常';
-          setTimeout(() => {
-            window.location.href = 'http://localhost:8000';
-          }, 1000);
-        } else {
-          statusEl.textContent = '⚠️ 响应异常';
+        :root {
+            --sidebar-width: 60px;
+            --navbar-height: 48px;
+            --bg-main: #000000;
+            --bg-sidebar: rgba(10, 10, 12, 0.8);
+            --bg-popup: rgba(18, 18, 22, 0.9);
+            --accent: #7C4DFF;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #FFFFFF;
+            --text-dim: #888888;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
-      } catch (error) {
-        statusEl.textContent = '❌ 无法连接';
-        console.error('Backend check failed:', error);
-      }
-    }
 
-    // 页面加载时获取信息
-    window.addEventListener('DOMContentLoaded', () => {
-      getAppInfo();
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
 
-      // 每5秒自动检查后端
-      setInterval(checkBackend, 5000);
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+        }
 
-      // 立即检查一次
-      setTimeout(checkBackend, 2000);
-    });
-  </script>
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100%;
+            background-color: var(--bg-sidebar);
+            backdrop-filter: blur(25px);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            z-index: 1000;
+        }
+
+        .sidebar-top {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            width: 100%;
+        }
+
+        .tab-item {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid transparent;
+        }
+
+        .tab-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+
+        .tab-item.active {
+            background: rgba(124, 77, 255, 0.15);
+            border-color: rgba(124, 77, 255, 0.3);
+        }
+
+        .tab-item.active::before {
+            content: '';
+            position: absolute;
+            left: -14px;
+            width: 4px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 0 4px 4px 0;
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .tab-item svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-dim);
+            transition: var(--transition);
+        }
+
+        .tab-item.active svg {
+            color: var(--accent);
+            filter: drop-shadow(0 0 5px var(--accent));
+        }
+
+        .tab-close {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 16px;
+            height: 16px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            opacity: 0;
+            transition: var(--transition);
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .tab-item:hover .tab-close {
+            opacity: 1;
+        }
+
+        .add-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: var(--transition);
+            margin-top: auto;
+        }
+
+        .add-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        /* Main Content */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .navbar {
+            height: var(--navbar-height);
+            background: linear-gradient(to bottom, #0a0a0c, #000);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: var(--transition);
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .address-bar {
+            flex: 1;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            max-width: 800px;
+            margin: 0 auto;
+            transition: var(--transition);
+        }
+
+        .address-bar:focus-within {
+            border-color: var(--accent);
+            background: rgba(124, 77, 255, 0.05);
+            box-shadow: 0 0 15px rgba(124, 77, 255, 0.1);
+        }
+
+        .address-bar input {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .webview-container {
+            flex: 1;
+            background: #000;
+            position: relative;
+        }
+
+        webview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        webview.active {
+            display: flex;
+        }
+
+        /* Tab Details Popup - PREMIUM GLASS */
+        .tab-popup {
+            position: fixed;
+            left: 70px;
+            width: 320px;
+            background: var(--bg-popup);
+            backdrop-filter: blur(25px);
+            border: 1.5px solid rgba(124, 77, 255, 0.2);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: none;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            transform-origin: left center;
+            animation: popupReveal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes popupReveal {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateX(-15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateX(0);
+            }
+        }
+
+        .p-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 20px;
+        }
+
+        .p-url-container {
+            position: relative;
+            margin-bottom: 18px;
+            min-height: 40px;
+        }
+
+        .p-url-display {
+            color: var(--text-dim);
+            font-size: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid transparent;
+            cursor: text;
+            transition: all 0.2s;
+        }
+
+        .p-url-display:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.07);
+            color: #fff;
+        }
+
+        .p-url-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #151518;
+            border: 2px solid var(--accent);
+            border-radius: 10px;
+            color: #fff;
+            padding: 0 14px;
+            font-size: 12px;
+            outline: none;
+            display: none;
+            box-shadow: 0 0 20px rgba(124, 77, 255, 0.2);
+            animation: inputScale 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes inputScale {
+            from {
+                transform: scale(0.97);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .p-tools {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        .p-tool-icon {
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border-radius: 8px;
+        }
+
+        .p-tool-icon:hover {
+            color: var(--accent);
+            background: rgba(124, 77, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .p-tool-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        #p-close {
+            color: rgba(255, 50, 50, 0.6);
+        }
+
+        #p-close:hover {
+            color: #ff4d4d;
+            background: rgba(255, 50, 50, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="sidebar-top" id="sidebar-tabs">
+            <!-- Tabs will be injected here -->
+        </div>
+        <div class="add-btn" id="add-tab" title="新建会话">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </div>
+    </div>
+
+    <div class="main-area">
+        <div class="navbar">
+            <div class="nav-controls">
+                <div class="nav-btn" id="back" title="后退"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg></div>
+                <div class="nav-btn" id="forward" title="前进"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg></div>
+                <div class="nav-btn" id="reload" title="刷新页面"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.2">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg></div>
+            </div>
+            <div class="address-bar">
+                <input type="text" id="url-bar" spellcheck="false" placeholder="输入网址或搜索内容..." />
+            </div>
+        </div>
+        <div class="webview-container" id="webview-container">
+            <!-- Webviews -->
+        </div>
+    </div>
+
+    <!-- 弹窗设计 -->
+    <div id="tab-popup" class="tab-popup">
+        <div id="p-title" class="p-title">会话加载中...</div>
+
+        <div class="p-url-container" id="p-url-container">
+            <div id="p-url-display" class="p-url-display">https://...</div>
+            <input type="text" id="p-url-input" class="p-url-input" placeholder="输入并回车访问...">
+        </div>
+
+        <div class="p-tools">
+            <div class="p-tool-icon" id="p-back" title="后退">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </div>
+            <div class="p-tool-icon" id="p-forward" title="前进">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </div>
+            <div class="p-tool-icon" id="p-reload" title="刷新">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15">
+                    </path>
+                </svg>
+            </div>
+            <div class="p-tool-icon" id="p-copy" title="复制网址">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            </div>
+            <div style="flex-grow: 1"></div>
+            <div class="p-tool-icon" id="p-close" title="关闭标签">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script src="./renderer.js"></script>
 </body>
+
 </html>

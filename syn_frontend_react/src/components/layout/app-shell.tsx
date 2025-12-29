@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { SidebarNew } from "@/components/layout/sidebar-new"
 import { NavbarNew } from "@/components/layout/navbar-new"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -40,11 +40,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden min-w-0">
-        <NavbarNew onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-          <div className="mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {children}
-          </div>
+        <Suspense fallback={<div className="h-16 border-b border-white/10 bg-black/40" />}>
+          <NavbarNew onMenuClick={() => setMobileNavOpen(true)} />
+        </Suspense>
+        <main className="flex-1 overflow-y-auto p-0">
+          <Suspense fallback={null}>
+            <div className="mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+              {children}
+            </div>
+          </Suspense>
         </main>
       </div>
     </div>

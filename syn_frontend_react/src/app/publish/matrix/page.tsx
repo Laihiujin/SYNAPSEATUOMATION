@@ -65,29 +65,29 @@ const INTERVAL_OPTIONS: {
   description: string
   preview: { time: string, slots: string[] }[]
 }[] = [
-  {
-    key: "account_first",
-    title: "按账号&视频间隔发布",
-    description: "各个账号开始发视频时间不同，多条视频在账号内也做间隔",
-    preview: [
-      { time: "08:00", slots: ["视频1", "", ""] },
-      { time: "08:05", slots: ["", "视频2", ""] },
-      { time: "08:10", slots: ["视频4", "", "视频3"] },
-      { time: "08:15", slots: ["", "", "视频6"] },
-    ]
-  },
-  {
-    key: "video_first",
-    title: "按视频间隔发布",
-    description: "每个账号按设定时间同时发布，多条视频在账号内按间隔顺序发布",
-    preview: [
-      { time: "08:00", slots: ["视频1", "视频2", "视频3"] },
-      { time: "08:05", slots: ["视频4", "视频5", "视频6"] },
-      { time: "08:10", slots: ["视频7", "视频8", "视频9"] },
-      { time: "08:15", slots: ["视频10", "视频11", "视频12"] },
-    ]
-  }
-]
+    {
+      key: "account_first",
+      title: "按账号&视频间隔发布",
+      description: "各个账号开始发视频时间不同，多条视频在账号内也做间隔",
+      preview: [
+        { time: "08:00", slots: ["视频1", "", ""] },
+        { time: "08:05", slots: ["", "视频2", ""] },
+        { time: "08:10", slots: ["视频4", "", "视频3"] },
+        { time: "08:15", slots: ["", "", "视频6"] },
+      ]
+    },
+    {
+      key: "video_first",
+      title: "按视频间隔发布",
+      description: "每个账号按设定时间同时发布，多条视频在账号内按间隔顺序发布",
+      preview: [
+        { time: "08:00", slots: ["视频1", "视频2", "视频3"] },
+        { time: "08:05", slots: ["视频4", "视频5", "视频6"] },
+        { time: "08:10", slots: ["视频7", "视频8", "视频9"] },
+        { time: "08:15", slots: ["视频10", "视频11", "视频12"] },
+      ]
+    }
+  ]
 
 const PREVIEW_ACCOUNTS = ["A账号", "B账号", "C账号"]
 const PREVIEW_COLORS = [
@@ -238,9 +238,9 @@ export default function PublishPage() {
     title?: string
     description?: string
     tags?: string[]
-    cover_image?: string
+    cover_image?: string | null
     // legacy
-    coverPath?: string
+    coverPath?: string | null
   }
 
   const ensureFirstFrames = useCallback(async (ids: string[]) => {
@@ -345,29 +345,29 @@ export default function PublishPage() {
   }, [])
 
   // 将 DB 中已有的素材元数据（title/description/tags/cover）注入到编辑态，保证“素材管理/矩阵发布互通”
-	  useEffect(() => {
-	    if (!materials || materials.length === 0) return
-	    setMaterialMetadata((prev) => {
-	      const next = { ...prev }
-	      for (const m of materials) {
-	        const id = String((m as any).id)
-	        const existing = next[id] || {}
-	        const coverPath = (m as any).cover_image || (m as any).coverPath
-	        const title = (m as any).title
-	        const description = (m as any).description
-	        const tags = parseTagString((m as any).tags)
+  useEffect(() => {
+    if (!materials || materials.length === 0) return
+    setMaterialMetadata((prev) => {
+      const next = { ...prev }
+      for (const m of materials) {
+        const id = String((m as any).id)
+        const existing = next[id] || {}
+        const coverPath = (m as any).cover_image || (m as any).coverPath
+        const title = (m as any).title
+        const description = (m as any).description
+        const tags = parseTagString((m as any).tags)
 
-	        next[id] = {
-	          ...existing,
-	          ...(existing.title ? {} : (title ? { title } : {})),
-	          ...(existing.description ? {} : (description ? { description } : {})),
-	          ...(existing.tags && existing.tags.length > 0 ? {} : (tags.length > 0 ? { tags } : {})),
-	          ...(existing.cover_image || existing.coverPath ? {} : (coverPath ? { cover_image: coverPath } : {})),
-	        }
-	      }
-	      return next
-	    })
-	  }, [materials, parseTagString])
+        next[id] = {
+          ...existing,
+          ...(existing.title ? {} : (title ? { title } : {})),
+          ...(existing.description ? {} : (description ? { description } : {})),
+          ...(existing.tags && existing.tags.length > 0 ? {} : (tags.length > 0 ? { tags } : {})),
+          ...(existing.cover_image || existing.coverPath ? {} : (coverPath ? { cover_image: coverPath } : {})),
+        }
+      }
+      return next
+    })
+  }, [materials, parseTagString])
 
   // 批量 AI 生成
   const handleBatchAIGenerate = async () => {
@@ -655,37 +655,37 @@ export default function PublishPage() {
         : undefined  // 多平台时不指定 platform
 
       // 构建 items - 使用平台适配器格式化每个素材的元数据
-	      const items = selectedMaterialsList.map(m => {
-	        const meta = materialMetadata[m.id]
-	        // 准备原始元数据
-	        const rawMetadata = {
-	          title: meta?.title || plan.title,
-	          tags: meta?.tags || (plan.tags.length > 0 ? plan.tags : []),
-	          coverPath: meta?.cover_image || meta?.coverPath || m.cover_image || plan.coverPath || undefined
-	        }
+      const items = selectedMaterialsList.map(m => {
+        const meta = materialMetadata[m.id]
+        // 准备原始元数据
+        const rawMetadata = {
+          title: meta?.title || plan.title,
+          tags: meta?.tags || (plan.tags.length > 0 ? plan.tags : []),
+          coverPath: meta?.cover_image || meta?.coverPath || m.cover_image || plan.coverPath || undefined
+        }
 
         // 如果是单平台发布，使用平台适配器格式化
         if (plan.platforms.length === 1) {
           const formatted = PlatformMetadataAdapter.format(plan.platforms[0], rawMetadata)
 
-	          return {
-	            file_id: m.id,
-	            title: formatted.title || rawMetadata.title,
-	            description: formatted.combinedContent || "",
-	            topics: formatted.tags || rawMetadata.tags,
-	            cover_path: rawMetadata.coverPath
-	          }
+          return {
+            file_id: m.id,
+            title: formatted.title || rawMetadata.title,
+            description: formatted.combinedContent || "",
+            topics: formatted.tags || rawMetadata.tags,
+            cover_path: rawMetadata.coverPath
+          }
         }
 
         // 多平台发布时，保留原始格式，让后端根据各自平台处理
-	        return {
-	          file_id: m.id,
-	          title: rawMetadata.title,
-	          description: "",
-	          topics: rawMetadata.tags,
-	          cover_path: rawMetadata.coverPath
-	        }
-	      }).filter(item => item.title || item.cover_path)
+        return {
+          file_id: m.id,
+          title: rawMetadata.title,
+          description: "",
+          topics: rawMetadata.tags,
+          cover_path: rawMetadata.coverPath
+        }
+      }).filter(item => item.title || item.cover_path)
 
       // 构建定时时间
       let scheduledTime = undefined
@@ -878,7 +878,7 @@ export default function PublishPage() {
         {/* 1. 平台选择 */}
         <div className="space-y-4">
           <Label className="text-base font-medium">发布渠道</Label>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="rounded-2xl border border-white/10 bg-black p-5">
             <PlatformSelector
               selected={plan.platforms}
               onSelect={togglePlatform}
@@ -901,14 +901,14 @@ export default function PublishPage() {
             </Button>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-6">
+          <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-6">
             {/* 素材列表 - 分页列表形式 */}
             {selectedMaterialsList.length > 0 ? (
               <div className="space-y-3">
                 {paginatedMaterials.map((m, index) => {
                   const globalIndex = (currentPage - 1) * itemsPerPage + index
                   const metadata = materialMetadata[m.id]
-	                  const hasMetadata = metadata && (metadata.title || (metadata.tags && metadata.tags.length > 0) || metadata.cover_image || metadata.coverPath)
+                  const hasMetadata = metadata && (metadata.title || (metadata.tags && metadata.tags.length > 0) || metadata.cover_image || metadata.coverPath)
 
                   return (
                     <div
@@ -920,23 +920,23 @@ export default function PublishPage() {
                         {globalIndex + 1}
                       </div>
 
-	                      {/* 首帧预览（不叠加 AI 封面） */}
-		                      <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-neutral-900">
-                            {(() => {
-                              const firstFrame = firstFrameById[String(m.id)]
-                              if (firstFrame) {
-                                return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || m.filename} fill className="object-cover" unoptimized />
-                              }
-                              return (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Video className="w-6 h-6 text-white/20" />
-                                </div>
-                              )
-                            })()}
-	                        {/* 元数据指示器 */}
-	                        {hasMetadata && (
-	                          <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-0.5">
-	                            <Sparkles className="w-2.5 h-2.5 text-white" />
+                      {/* 首帧预览（不叠加 AI 封面） */}
+                      <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-neutral-900">
+                        {(() => {
+                          const firstFrame = firstFrameById[String(m.id)]
+                          if (firstFrame) {
+                            return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || m.filename} fill className="object-cover" unoptimized />
+                          }
+                          return (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Video className="w-6 h-6 text-white/20" />
+                            </div>
+                          )
+                        })()}
+                        {/* 元数据指示器 */}
+                        {hasMetadata && (
+                          <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-0.5">
+                            <Sparkles className="w-2.5 h-2.5 text-white" />
                           </div>
                         )}
                       </div>
@@ -972,14 +972,14 @@ export default function PublishPage() {
                                 </div>
                               </div>
                             )}
-		                            {(metadata.cover_image || metadata.coverPath) && (
-		                              <div className="flex items-start gap-2">
-		                                <span className="text-xs text-white/40 shrink-0 min-w-[40px]">封面:</span>
-		                                <div className="relative w-16 h-20 rounded border border-white/10 overflow-hidden">
-		                                  <Image src={toBackendFileUrl(metadata.cover_image || metadata.coverPath || "")} alt="封面" fill className="object-cover" unoptimized />
-		                                </div>
-		                              </div>
-		                            )}
+                            {(metadata.cover_image || metadata.coverPath) && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs text-white/40 shrink-0 min-w-[40px]">封面:</span>
+                                <div className="relative w-16 h-20 rounded border border-white/10 overflow-hidden">
+                                  <Image src={toBackendFileUrl(metadata.cover_image || metadata.coverPath || "")} alt="封面" fill className="object-cover" unoptimized />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <p className="text-xs text-white/30 italic">未配置元数据，点击编辑按钮添加</p>
@@ -1107,7 +1107,7 @@ export default function PublishPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="rounded-2xl border border-white/10 bg-black p-5">
             {plan.platforms.length > 0 ? (
               <div className="flex flex-col h-full">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1123,7 +1123,7 @@ export default function PublishPage() {
                           "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:bg-white/10 group relative overflow-hidden",
                           isSelected
                             ? "border-primary bg-primary/10"
-                            : "border-white/10 bg-white/5"
+                            : "border-white/10 bg-black"
                         )}
                       >
                         <div className="relative w-10 h-10 shrink-0">
@@ -1212,7 +1212,7 @@ export default function PublishPage() {
         {/* 5. 发布设置 */}
         <div className="space-y-4">
           <Label className="text-base font-medium">发布设置</Label>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-8">
+          <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1259,7 +1259,7 @@ export default function PublishPage() {
                     "group rounded-2xl border p-4 text-left transition-all",
                     plan.publishTiming === "scheduled"
                       ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                      : "border-white/10 bg-white/5 hover:border-white/20"
+                      : "border-white/10 bg-black hover:border-white/20"
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -1342,7 +1342,7 @@ export default function PublishPage() {
                           "group rounded-2xl border p-4 text-left transition-all",
                           active
                             ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
+                            : "border-white/10 bg-black hover:border-white/20"
                         )}
                       >
                         <div className="flex items-start gap-3 mb-3">
@@ -1440,21 +1440,21 @@ export default function PublishPage() {
                             : [...prev.materials, String(m.id)]
                         }))
                       }}
-	                    >
-	                      {(() => {
-                          const firstFrame = firstFrameById[String(m.id)]
-                          if (firstFrame) {
-                            return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || "Material"} fill className="object-cover" unoptimized />
-                          }
-                          return (
-                            <div className="w-full h-full bg-neutral-800 flex items-center justify-center">
-                              <Video className="w-8 h-8 text-white/20" />
-                            </div>
-                          )
-                        })()}
-	                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
-	                        <p className="text-xs text-white truncate">{m.filename}</p>
-	                      </div>
+                    >
+                      {(() => {
+                        const firstFrame = firstFrameById[String(m.id)]
+                        if (firstFrame) {
+                          return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || "Material"} fill className="object-cover" unoptimized />
+                        }
+                        return (
+                          <div className="w-full h-full bg-neutral-800 flex items-center justify-center">
+                            <Video className="w-8 h-8 text-white/20" />
+                          </div>
+                        )
+                      })()}
+                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                        <p className="text-xs text-white truncate">{m.filename}</p>
+                      </div>
                       {isSelected && (
                         <div className="absolute top-2 right-2 bg-black text-white rounded-full p-1">
                           <Check className="w-3 h-3" />
@@ -1477,49 +1477,49 @@ export default function PublishPage() {
         if (!material) return null
 
         return (
-	          <MaterialMetadataEditor
-	            material={{
-	              ...material,
-	              title: material.title || material.filename,
-	              cover_image: material.cover_image || undefined
-	            }}
-	            metadata={materialMetadata[editingMaterialId] || {}}
-	            selectedPlatforms={plan.platforms}  // 传递选中的平台
-	            onSave={async (metadata) => {
-	              // 更新本地状态
-	              setMaterialMetadata(prev => ({
-	                ...prev,
-	                [editingMaterialId]: metadata
-	              }))
+          <MaterialMetadataEditor
+            material={{
+              ...material,
+              title: material.title || material.filename,
+              cover_image: material.cover_image || undefined
+            }}
+            metadata={materialMetadata[editingMaterialId] || {}}
+            selectedPlatforms={plan.platforms}  // 传递选中的平台
+            onSave={async (metadata) => {
+              // 更新本地状态
+              setMaterialMetadata(prev => ({
+                ...prev,
+                [editingMaterialId]: metadata
+              }))
 
               // 保存到后端数据库（与“素材管理”同一张表字段，保证互通）
-	              try {
-	                const payload: Record<string, any> = {}
-	                if ("title" in metadata) payload.title = metadata.title
-	                if ("description" in metadata) payload.description = metadata.description
-	                if ("tags" in metadata) payload.tags = (metadata.tags || []).join(" ")
-	                if ("cover_image" in metadata || "coverPath" in metadata) {
-	                  payload.cover_image = metadata.cover_image ?? metadata.coverPath ?? null
-	                }
+              try {
+                const payload: Record<string, any> = {}
+                if ("title" in metadata) payload.title = metadata.title
+                if ("description" in metadata) payload.description = metadata.description
+                if ("tags" in metadata) payload.tags = (metadata.tags || []).join(" ")
+                if ("cover_image" in metadata || "coverPath" in metadata) {
+                  payload.cover_image = metadata.cover_image ?? metadata.coverPath ?? null
+                }
 
-	                const response = await fetch(`/api/files/${editingMaterialId}`, {
-	                  method: "PATCH",
-	                  headers: { "Content-Type": "application/json" },
-	                  body: JSON.stringify(payload)
-	                })
+                const response = await fetch(`/api/files/${editingMaterialId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload)
+                })
 
                 const data = await response.json()
 
-	                if (data.success === false) {
-	                  throw new Error(data.message || "保存失败")
-	                }
+                if (data.success === false) {
+                  throw new Error(data.message || "保存失败")
+                }
 
-	                queryClient.invalidateQueries({ queryKey: ["materials"] })
+                queryClient.invalidateQueries({ queryKey: ["materials"] })
 
-	                toast({
-	                  title: "保存成功",
-	                  description: "素材元数据已保存到数据库"
-	                })
+                toast({
+                  title: "保存成功",
+                  description: "素材元数据已保存到数据库"
+                })
               } catch (error: any) {
                 console.error("Failed to save metadata:", error)
                 toast({

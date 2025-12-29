@@ -9,7 +9,7 @@ _DEFAULT_POLICY: Dict[str, Any] = {
     "apply_fingerprint": True,
     "apply_stealth": True,
     "use_persistent_profile": True,
-    "persistent_profile_dir": "syn_backend/browser_profiles",
+    "persistent_profile_dir": "browser_profiles",
     "proxy": None,
     "webrtc": {"mode": "mask"},
     "audio": {"mode": "noise", "noise": 0.0001},

@@ -507,11 +507,11 @@ function MaterialsPageContent() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
+                  <div className="rounded-xl border border-white/10 bg-black p-4 space-y-4">
                     <div className="flex gap-3">
                       <div className="flex-1 min-w-0">
                         <Select value={uploadGroup} onValueChange={(v) => setUploadGroup(v)}>
-                          <SelectTrigger className="h-10 bg-black/20 border-white/10 text-sm focus:ring-0 focus:border-primary/50 transition-colors">
+                          <SelectTrigger className="h-10 bg-black border-white/10 text-sm focus:ring-0 focus:border-primary/50 transition-colors">
                             <SelectValue placeholder="选择分组..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -539,7 +539,7 @@ function MaterialsPageContent() {
                           placeholder="输入新分组名称"
                           value={newGroupName}
                           onChange={(e) => setNewGroupName(e.target.value)}
-                          className="h-10 bg-black/20 border-white/10 text-sm"
+                          className="h-10 bg-black border-white/10 text-sm"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               const name = newGroupName.trim()
@@ -732,12 +732,12 @@ function MaterialsPageContent() {
       </div>
 
       {/* Filter Toolbar */}
-      <Card className="flex-1 border-white/5 bg-transparent flex flex-col min-h-0 shadow-none">
+      <Card className="flex-1 border-white/10 bg-black flex flex-col min-h-0 shadow-none">
         <CardHeader className="flex-shrink-0 pb-4">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
+            <div className="flex items-center gap-2 bg-black p-1 rounded-xl border border-white/10">
               <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
-                <TabsList className="h-9 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                <TabsList className="h-9 rounded-xl bg-black border border-white/10 backdrop-blur-sm">
                   <TabsTrigger value="all" className="rounded-lg text-xs text-white/70 data-[state=active]:bg-white/90 data-[state=active]:text-black transition-colors">
                     全部
                   </TabsTrigger>
@@ -751,7 +751,7 @@ function MaterialsPageContent() {
               </Tabs>
             </div>
             <div className="flex gap-3 w-full md:w-auto items-center">
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 h-10">
+              <div className="flex items-center gap-2 bg-black border border-white/10 rounded-xl px-3 h-10">
                 <span className="text-xs text-white/50">分组</span>
                 <Select value={groupFilter} onValueChange={(v) => setGroupFilter(v)}>
                   <SelectTrigger className="bg-transparent border-0 h-8 px-2 text-white/80">
@@ -770,7 +770,7 @@ function MaterialsPageContent() {
                   placeholder="搜索素材..."
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
-                  className="h-10 rounded-xl bg-white/5 border-white/10 min-w-[200px]"
+                  className="h-10 rounded-xl bg-black border-white/10 min-w-[200px]"
                 />
               </div>
             </div>

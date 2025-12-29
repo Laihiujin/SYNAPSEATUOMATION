@@ -50,7 +50,7 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
             className={cn(
-                "sticky top-0 z-50 flex h-16 items-center justify-between border-b border-white/5 bg-black/40 px-6 backdrop-blur-xl relative",
+                "sticky top-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-black/40 px-6 backdrop-blur-xl relative",
                 className
             )}
         >
@@ -74,7 +74,7 @@ export function NavbarNew({ className, onMenuClick }: NavbarProps) {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-hover:text-white" />
                 <Input
                     placeholder="Search..."
-                    className="h-9 w-64 border-white/10 bg-white/5 pl-9 text-sm text-white transition-all focus:w-80 focus:border-white/20 focus:bg-white/10 focus:shadow-glow-white/10 rounded-2xl"
+                    className="h-9 w-64 border-white/10 bg-black pl-9 text-sm text-white transition-all focus:w-80 focus:border-white/20 focus:bg-black focus:shadow-glow-white/10 rounded-2xl"
                     defaultValue={searchParams.get("q")?.toString()}
                     onChange={(e) => handleSearch(e.target.value)}
                 />

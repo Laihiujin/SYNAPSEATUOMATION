@@ -78,6 +78,54 @@ async def get_account(account_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{account_id}/creator-center/data", response_model=Response[dict])
+async def get_creator_center_data(account_id: str):
+    """
+    获取打开创作中心所需的数据（URL 和 storage_state），供 Electron 前端自主打开。
+    """
+    try:
+        account = cookie_manager.get_account_by_id(account_id)
+        if not account:
+            raise NotFoundException(f"账号不存在: {account_id}")
+
+        platform = (account.get("platform") or "").strip().lower()
+        cookie_file = account.get("cookie_file") or account.get("cookieFile")
+        if not cookie_file:
+            raise BadRequestException("该账号缺少 cookie_file")
+
+        cookie_path = resolve_cookie_file(cookie_file)
+        p = Path(cookie_path)
+        if not p.exists():
+            raise BadRequestException(f"Cookie 文件不存在: {cookie_path}")
+
+        raw_state = json.loads(p.read_text(encoding="utf-8"))
+        storage_state = raw_state
+        if platform == "bilibili" and isinstance(raw_state, dict) and "cookie_info" in raw_state:
+            storage_state = _build_storage_state_from_biliup_cookie(raw_state)
+
+        from playwright_worker.worker import _PLATFORM_PROFILE_URL
+        url = _PLATFORM_PROFILE_URL.get(platform)
+        if not url:
+            if platform == "bilibili":
+                url = "https://member.bilibili.com/platform/home"
+            else:
+                raise BadRequestException(f"不支持的平台: {platform}")
+
+        return Response(success=True, data={
+            "url": url,
+            "platform": platform,
+            "storage_state": storage_state
+        })
+
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BadRequestException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"获取创作中心数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{account_id}/creator-center/open", response_model=Response[dict])
 async def open_creator_center(account_id: str):
     """

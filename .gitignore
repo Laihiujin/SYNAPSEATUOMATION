@@ -102,6 +102,13 @@ syn_backend/logs/*.html
 /cleanup.bat
 /restart_backend.bat
 /debug_*.py
+temp_*.py
+temp_*.bat
+/desktop/
+/syn_backend/browser_profiles/
+/syn_backend/data/ip_pool.json
+/syn_backend/data/account_stats.json
+
 /requirements*.txt.backup
 /scripts/test_*.py
 
@@ -161,9 +168,13 @@ syn_backend/.copilot-profiles/
 
 # Temporary extracted folders
 temp_flowith_extracted/
-desktop-electron/
+
 move_browsers.bat
 diagnose_celery.bat
+cleanup_redundant_browsers.bat
+stop_quick.bat
+verify_browser_config.bat
+
 
 # Synenv environment files
 start_all_services_synenv.bat

@@ -49,7 +49,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-white/10 bg-white/5">
+      <div className="rounded-2xl border border-white/10 bg-black">
         <Table className="table-fixed w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -107,7 +107,7 @@ export function DataTable<TData, TValue>({
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            className="rounded-xl border border-white/10 bg-white/5"
+            className="rounded-xl border border-white/10 bg-black"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             size="sm"
@@ -116,7 +116,7 @@ export function DataTable<TData, TValue>({
           </Button>
           <Button
             variant="ghost"
-            className="rounded-xl border border-white/10 bg-white/5"
+            className="rounded-xl border border-white/10 bg-black"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             size="sm"

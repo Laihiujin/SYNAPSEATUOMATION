@@ -40,6 +40,7 @@ interface Material {
 
 export interface MaterialEditorSaveData extends Partial<Material> {
     scheduleTime?: Date
+    updateDiskFile?: boolean
 }
 
 interface MaterialEditorSheetProps {
@@ -224,20 +225,20 @@ export function MaterialEditorContent({
         }
     }, [editForm, onChange])
 
-	    const handleAIGenerate = async (field: 'title' | 'desc' | 'tags') => {
+    const handleAIGenerate = async (field: 'title' | 'desc' | 'tags') => {
         setAiGenerating(field)
 
         try {
-	            let prompt = ''
-	            const filename = material?.filename || "视频素材"
-                const baseName = filename.replace(/\.[^.]+$/, "")
+            let prompt = ''
+            const filename = material?.filename || "视频素材"
+            const baseName = filename.replace(/\.[^.]+$/, "")
 
             // 优先使用用户输入的内容作为提示词
-	            if (field === 'title') {
-	                const userInput = editForm.title?.trim()
-	                if (userInput) {
-	                    // 用户已填写内容，必须深度二创重构
-	                    prompt = `你是专业的短视频标题二创专家。请对用户输入的标题进行深度重构改写。
+            if (field === 'title') {
+                const userInput = editForm.title?.trim()
+                if (userInput) {
+                    // 用户已填写内容，必须深度二创重构
+                    prompt = `你是专业的短视频标题二创专家。请对用户输入的标题进行深度重构改写。
 
 ⚠️ 严禁行为：
 - ❌ 严禁直接复制或仅改动1-2个字
@@ -255,9 +256,9 @@ export function MaterialEditorContent({
 用户输入标题：${userInput}
 
 只输出二创后的标题，不要任何解释。`
-	                } else {
-	                    // 用户未填写，根据文件名生成
-	                    prompt = `你是专业的短视频标题创作专家。请根据文件名生成吸引人的标题。
+                } else {
+                    // 用户未填写，根据文件名生成
+                    prompt = `你是专业的短视频标题创作专家。请根据文件名生成吸引人的标题。
 
 要求：
 - 提炼文件名中的核心亮点
@@ -269,8 +270,8 @@ export function MaterialEditorContent({
 文件名：${filename}
 
 只输出标题，不要解释。`
-	                }
-	            } else if (field === 'desc') {
+                }
+            } else if (field === 'desc') {
                 const userInput = editForm.description?.trim()
                 if (userInput) {
                     // 用户已填写内容，必须深度二创
@@ -296,11 +297,11 @@ ${userInput}
                     // 用户未填写，根据文件名生成
                     prompt = `为视频"${filename}"生成吸引人的描述文案，要求故事化表达，2-3个话题标签，适合抖音等短视频平台。不要表情符号。`
                 }
-	            } else if (field === 'tags') {
-	                const userInput = editForm.tags?.trim()
-	                if (userInput) {
-	                    // 用户已填写内容，必须深度提炼扩展
-	                    prompt = `你是话题标签二创专家。请从用户输入中提炼精准且有流量的标签。
+            } else if (field === 'tags') {
+                const userInput = editForm.tags?.trim()
+                if (userInput) {
+                    // 用户已填写内容，必须深度提炼扩展
+                    prompt = `你是话题标签二创专家。请从用户输入中提炼精准且有流量的标签。
 
 ⚠️ 严禁行为：
 - ❌ 严禁直接照搬用户标签
@@ -318,9 +319,9 @@ ${userInput}
 用户输入标签：${userInput}
 
 只输出标签列表（空格分隔，不带#），不要解释。`
-	                } else {
-	                    // 用户未填写，根据文件名生成
-	                    prompt = `请根据文件名生成短视频标签。
+                } else {
+                    // 用户未填写，根据文件名生成
+                    prompt = `请根据文件名生成短视频标签。
 
 要求：
 - 输出1-4个标签，空格分隔
@@ -330,8 +331,8 @@ ${userInput}
 文件名：${filename}
 
 只输出标签，不要解释。`
-	                }
-	            }
+                }
+            }
 
             const response = await fetch(`${backendBaseUrl}/api/v1/ai/chat`, {
                 method: 'POST',
@@ -458,39 +459,39 @@ ${userInput}
                             </Badge>
                         </div>
 
-	                        <div className="grid gap-5">
-	                            <div className="grid gap-2">
-	                                <div className="flex justify-between items-center">
-	                                    <Label>文件名</Label>
-	                                    <div className="flex items-center gap-2">
-	                                        <input
-	                                            type="checkbox"
-	                                            id="update-disk-file"
-	                                            checked={updateDiskFile}
-	                                            onChange={(e) => setUpdateDiskFile(e.target.checked)}
-	                                            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-primary focus:ring-2 focus:ring-primary cursor-pointer"
-	                                        />
-	                                        <label htmlFor="update-disk-file" className="text-xs text-white/60 cursor-pointer">
-	                                            同步修改磁盘文件名
-	                                        </label>
-	                                    </div>
-	                                </div>
-	                                <Input
-	                                    value={editForm.filename}
-	                                    onChange={e => setEditForm(prev => ({ ...prev, filename: e.target.value }))}
-	                                    className="bg-white/5 border-white/10"
-	                                    placeholder="输入文件名（含扩展名）"
-	                                />
-	                                <p className="text-xs text-white/40">
-	                                    {updateDiskFile
-	                                        ? "✓ 将同时修改数据库和磁盘文件名"
-	                                        : "仅修改显示名称，不改变磁盘文件"}
-	                                </p>
-	                            </div>
+                        <div className="grid gap-5">
+                            <div className="grid gap-2">
+                                <div className="flex justify-between items-center">
+                                    <Label>文件名</Label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="update-disk-file"
+                                            checked={updateDiskFile}
+                                            onChange={(e) => setUpdateDiskFile(e.target.checked)}
+                                            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-primary focus:ring-2 focus:ring-primary cursor-pointer"
+                                        />
+                                        <label htmlFor="update-disk-file" className="text-xs text-white/60 cursor-pointer">
+                                            同步修改磁盘文件名
+                                        </label>
+                                    </div>
+                                </div>
+                                <Input
+                                    value={editForm.filename}
+                                    onChange={e => setEditForm(prev => ({ ...prev, filename: e.target.value }))}
+                                    className="bg-black border-white/10"
+                                    placeholder="输入文件名（含扩展名）"
+                                />
+                                <p className="text-xs text-white/40">
+                                    {updateDiskFile
+                                        ? "✓ 将同时修改数据库和磁盘文件名"
+                                        : "仅修改显示名称，不改变磁盘文件"}
+                                </p>
+                            </div>
 
-	                            <div className="grid gap-2">
-	                                <div className="flex justify-between items-center">
-	                                    <Label>标题</Label>
+                            <div className="grid gap-2">
+                                <div className="flex justify-between items-center">
+                                    <Label>标题</Label>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -505,7 +506,7 @@ ${userInput}
                                 <Input
                                     value={editForm.title}
                                     onChange={e => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                                    className="bg-white/5 border-white/10 font-medium"
+                                    className="bg-black border-white/10 font-medium"
                                     placeholder="输入想要的标题"
                                 />
                             </div>
@@ -549,7 +550,7 @@ ${userInput}
                                 <Input
                                     value={editForm.tags}
                                     onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
-                                    className="bg-white/5 border-white/10"
+                                    className="bg-black border-white/10"
                                     placeholder="输入想要的标签"
                                 />
                             </div>
@@ -562,7 +563,7 @@ ${userInput}
                                         value={editForm.group}
                                         onValueChange={value => setEditForm(prev => ({ ...prev, group: value }))}
                                     >
-                                        <SelectTrigger className="bg-white/5 border-white/10">
+                                        <SelectTrigger className="bg-black border-white/10">
                                             <SelectValue placeholder="选择分组" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-[#1A1A1A] border-white/10 text-white">
@@ -620,7 +621,7 @@ ${userInput}
                             {/* Right: prompt box (same height as preview) */}
                             <div className="space-y-2">
                                 <div
-                                    className="flex flex-col rounded-lg border border-white/10 bg-white/5 p-3"
+                                    className="flex flex-col rounded-lg border border-white/10 bg-black p-3"
                                     style={coverAspectStyle}
                                 >
                                     <Label className="text-xs text-white/60">AI 封面 Prompt</Label>
@@ -710,7 +711,7 @@ ${userInput}
                                         setReferenceImage(file)
                                     }}
                                 />
-                            </div>                           
+                            </div>
                         </div>
                     </div>
 

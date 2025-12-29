@@ -1,8 +1,10 @@
 import { backendBaseUrl } from "./env"
 
 export interface ApiResponse<T = any> {
-  code: number
-  msg: string | null
+  code?: number
+  success?: boolean
+  msg?: string | null
+  message?: string | null
   data: T
 }
 
@@ -46,8 +48,12 @@ export async function fetcher<T = any>(
 
     const result: ApiResponse<any> = await response.json()
 
-    if (result.code !== 200) {
-      throw new ApiError(result.code, result.msg || "API request failed", result.data)
+    // 兼容两种响应格式: {code: 200, msg, data} 和 {success: true, data}
+    const isSuccess = result.code === 200 || result.success === true
+    if (!isSuccess) {
+      const errorMsg = result.msg || result.message || "API request failed"
+      const errorCode = result.code || (result.success === false ? 400 : 500)
+      throw new ApiError(errorCode, errorMsg, result.data)
     }
 
     // 如果提供了 schema，则验证数据
@@ -113,8 +119,12 @@ export async function uploadFile(file: File, filename?: string): Promise<string>
 
   const result: ApiResponse<{ filepath: string }> = await response.json()
 
-  if (result.code !== 200) {
-    throw new ApiError(result.code, result.msg || "Upload failed")
+  // 兼容两种响应格式
+  const isSuccess = result.code === 200 || result.success === true
+  if (!isSuccess) {
+    const errorMsg = result.msg || result.message || "Upload failed"
+    const errorCode = result.code || 400
+    throw new ApiError(errorCode, errorMsg)
   }
 
   return result.data.filepath

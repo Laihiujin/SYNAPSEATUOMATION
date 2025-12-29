@@ -33,6 +33,28 @@ async def create_context_with_policy(
     if launch_kwargs:
         launch_opts.update(launch_kwargs)
 
+    # 🔧 自动配置 Chrome 可执行文件路径（支持相对路径）
+    # 优先使用配置文件中的 LOCAL_CHROME_PATH
+    if "executable_path" not in launch_opts:
+        try:
+            from config.conf import LOCAL_CHROME_PATH, BASE_DIR
+            if LOCAL_CHROME_PATH:
+                chrome_path = Path(str(LOCAL_CHROME_PATH))
+
+                # 如果是相对路径，从项目根目录解析
+                if not chrome_path.is_absolute():
+                    chrome_path = Path(BASE_DIR) / chrome_path
+
+                if chrome_path.is_file():
+                    launch_opts["executable_path"] = str(chrome_path.resolve())
+                    logger.info(f"[playwright] Using LOCAL_CHROME_PATH: {chrome_path}")
+                else:
+                    logger.warning(f"[playwright] LOCAL_CHROME_PATH not found: {LOCAL_CHROME_PATH}")
+            else:
+                logger.debug("[playwright] LOCAL_CHROME_PATH not set, using default Chromium")
+        except Exception as e:
+            logger.warning(f"[playwright] Failed to load LOCAL_CHROME_PATH: {e}")
+
     proxy = resolve_proxy(policy)
     if proxy:
         launch_opts["proxy"] = proxy
@@ -56,7 +78,7 @@ async def create_context_with_policy(
             logger.warning(f"[fp] apply failed: {e}")
 
     if use_persistent_profile:
-        profile_root = policy.get("persistent_profile_dir") or "syn_backend/browser_profiles"
+        profile_root = policy.get("persistent_profile_dir") or "browser_profiles"
         try:
             from config.conf import BASE_DIR
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from config.conf import LOCAL_CHROME_PATH
 from utils.base_social_media import set_init_script, HEADLESS_FLAG
-from myUtils.browser_context import build_context_options, build_browser_args
+from myUtils.browser_context import build_context_options, build_browser_args, build_firefox_args
 from myUtils.close_guide import try_close_guide
 from utils.files_times import get_absolute_path
 from utils.log import tencent_logger
@@ -41,13 +41,13 @@ def format_str_for_short_title(origin_title: str) -> str:
 
 async def cookie_auth(account_file):
     async with async_playwright() as playwright:
-        browser_args = build_browser_args()
-        browser_args['headless'] = HEADLESS_FLAG
-        # Do not pass empty executable_path, otherwise Playwright may try to spawn '.' (ENOENT)
-        if not browser_args.get("executable_path"):
-            browser_args.pop("executable_path", None)
         # 🦊 使用 Firefox 替代 Chromium（更快、更稳定）
-        browser = await playwright.firefox.launch(**browser_args)
+        firefox_args = build_firefox_args()
+        firefox_args['headless'] = HEADLESS_FLAG
+        # Do not pass empty executable_path, otherwise Playwright may try to spawn '.' (ENOENT)
+        if not firefox_args.get("executable_path"):
+            firefox_args.pop("executable_path", None)
+        browser = await playwright.firefox.launch(**firefox_args)
         context = await browser.new_context(**build_context_options(storage_state=account_file))
         context = await set_init_script(context)
         # 创建一个新的页面
@@ -113,7 +113,7 @@ async def cookie_auth(account_file):
 
 async def get_tencent_cookie(account_file):
     async with async_playwright() as playwright:
-        browser_args = build_browser_args()
+        browser_args = build_firefox_args()  # 使用 Firefox 配置
         browser_args['headless'] = HEADLESS_FLAG
         # Make sure to run headed.
         if not browser_args.get("executable_path"):
@@ -272,10 +272,14 @@ class TencentVideo(object):
         # Firefox 也支持 H.265 视频编解码
         tencent_logger.info(f"[+] ✅ 使用 Firefox 浏览器（更快、更稳定）")
 
-        # 移除 executable_path（使用 Playwright 内置的 Firefox）
-        browser_args.pop('executable_path', None)
+        # 使用 Firefox 专用配置（会自动读取 LOCAL_FIREFOX_PATH）
+        firefox_args = build_firefox_args()
+        firefox_args['headless'] = browser_args.get('headless', False)
+        # 如果没有配置 executable_path，移除该字段让 Playwright 使用默认 Firefox
+        if not firefox_args.get('executable_path'):
+            firefox_args.pop('executable_path', None)
 
-        browser = await playwright.firefox.launch(**browser_args)
+        browser = await playwright.firefox.launch(**firefox_args)
         # 创建一个浏览器上下文，使用指定的 cookie 文件
         context = await browser.new_context(**build_context_options(storage_state=f"{self.account_file}"))
         context = await set_init_script(context)

@@ -10,10 +10,10 @@
     --background: 0 0% 0%;
     --foreground: 0 0% 100%;
 
-    --card: 0 0% 3%;
+    --card: 0 0% 0%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 3%;
+    --popover: 0 0% 0%;
     --popover-foreground: 0 0% 100%;
 
     --primary: 0 0% 100%;
@@ -31,7 +31,7 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 9%;
+    --border: 0 0% 12%;
     --input: 0 0% 9%;
     --ring: 0 0% 100%;
 
@@ -48,10 +48,10 @@
     --background: 0 0% 0%;
     --foreground: 0 0% 100%;
 
-    --card: 0 0% 3%;
+    --card: 0 0% 0%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 3%;
+    --popover: 0 0% 0%;
     --popover-foreground: 0 0% 100%;
 
     --primary: 0 0% 100%;
@@ -69,7 +69,7 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 9%;
+    --border: 0 0% 12%;
     --input: 0 0% 9%;
     --ring: 0 0% 100%;
 
@@ -81,89 +81,11 @@
   }
 }
 
-/* Mobile Device Fixes - Prevent UI Squashing */
-@supports (-webkit-touch-callout: none) {
-
-  /* iOS specific fixes */
-  body {
-    min-height: -webkit-fill-available;
-  }
-
-  html {
-    height: -webkit-fill-available;
-  }
+/* Global scrollbar hiding */
+::-webkit-scrollbar {
+  display: none;
 }
-
-/* Prevent zoom on input focus (iOS) */
-input,
-select,
-textarea {
-  font-size: 16px !important;
-}
-
-/* Improve touch targets for mobile */
-@media (max-width: 768px) {
-
-  button,
-  a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
-
-/* Prevent text size adjustment on orientation change */
-html {
-  -webkit-text-size-adjust: 100%;
-  -moz-text-size-adjust: 100%;
-  -ms-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
-/* Smooth scrolling for mobile */
 * {
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Prevent pull-to-refresh on mobile */
-body {
-  overscroll-behavior-y: contain;
-}
-
-/* Safe area insets for notched devices */
-@supports (padding: max(0px)) {
-  body {
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
-  }
-}
-
-/* Fix mobile viewport height */
-@media (max-width: 768px) {
-
-  html,
-  body {
-    width: 100%;
-    overflow-x: hidden;
-    position: fixed;
-    height: 100vh;
-    height: -webkit-fill-available;
-  }
-
-  #__next {
-    height: 100%;
-    overflow: auto;
-  }
-}
-
-@layer utilities {
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    /* IE and Edge */
-    scrollbar-width: none;
-    /* Firefox */
-  }
-
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

@@ -26,7 +26,7 @@ class SynapseApp {
     this.setupPlaywrightPath();
 
     // 2. 启动 FastAPI 后端
-    await this.startBackend();
+    // await this.startBackend();
 
     // 3. 创建主窗口
     this.createMainWindow();
@@ -148,32 +148,16 @@ class SynapseApp {
         preload: path.join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        webSecurity: true
+        webSecurity: true,
+        webviewTag: true
       }
     });
 
     // 加载前端页面
-    const isDev = !app.isPackaged;
-
-    if (isDev) {
-      // 开发环境：加载 React 开发服务器
-      const frontendUrl = 'http://localhost:3000';
-      log.info('🔧 开发模式 - 加载前端:', frontendUrl);
-
-      this.mainWindow.loadURL(frontendUrl).catch(() => {
-        // 如果开发服务器未启动，加载本地 HTML
-        log.warn('⚠️ 前端开发服务器未启动，加载本地页面');
-        this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-      });
-
-      // 开发模式打开开发者工具
-      this.mainWindow.webContents.openDevTools();
-    } else {
-      // 生产环境：加载构建后的前端
-      const indexPath = path.join(__dirname, '../renderer/index.html');
-      log.info('📦 生产模式 - 加载前端:', indexPath);
-      this.mainWindow.loadFile(indexPath);
-    }
+    // 始终加载本地 Shell 页面，由 Shell 页面负责加载 Web App (localhost:3000)
+    const indexPath = path.join(__dirname, '../renderer/index.html');
+    log.info('📦 加载应用 Shell:', indexPath);
+    this.mainWindow.loadFile(indexPath);
 
     // 窗口准备好后显示
     this.mainWindow.once('ready-to-show', () => {
@@ -243,6 +227,37 @@ class SynapseApp {
         resourcesPath: process.resourcesPath,
         playwrightBrowserPath: this.playwrightBrowserPath
       };
+    });
+
+    // 设置 Session Cookies
+    ipcMain.handle('session:setCookies', async (event, partition, cookies) => {
+      log.info(`🍪 为分区 ${partition} 设置 ${cookies.length} 个 Cookies`);
+      const { session } = require('electron');
+      const sess = session.fromPartition(partition);
+
+      const promises = cookies.map(cookie => {
+        // Playwright cookie 格式转 Electron cookie 格式
+        const url = `${cookie.secure ? 'https' : 'http'}://${cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain}${cookie.path}`;
+        return sess.cookies.set({
+          url: url,
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          httpOnly: cookie.httpOnly,
+          expirationDate: cookie.expires
+        });
+      });
+
+      try {
+        await Promise.all(promises);
+        log.info(`✅ 分区 ${partition} Cookies 设置成功`);
+        return true;
+      } catch (error) {
+        log.error(`❌ 分区 ${partition} Cookies 设置失败:`, error);
+        return false;
+      }
     });
 
     log.info('✅ IPC 通信设置完成');

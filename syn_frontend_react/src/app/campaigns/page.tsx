@@ -113,7 +113,7 @@ export default function CampaignsPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="搜索计划名称..."
-                        className="pl-9 rounded-xl bg-white/5 border-white/10"
+                        className="pl-9 rounded-xl bg-black border-white/10"
                         value={searchKeyword}
                         onChange={e => setSearchKeyword(e.target.value)}
                     />
@@ -138,7 +138,7 @@ export default function CampaignsPage() {
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filteredCampaigns.map((campaign: any) => (
-                        <Card key={campaign.id} className="bg-white/5 border-white/10 hover:bg-white/[0.07] transition-all group">
+                        <Card key={campaign.id} className="bg-black border-white/10 hover:bg-white/[0.07] transition-all group">
                             <CardHeader className="pb-3">
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="space-y-1">
@@ -152,15 +152,15 @@ export default function CampaignsPage() {
                             </CardHeader>
                             <CardContent className="pb-3 space-y-4">
                                 <div className="grid grid-cols-3 gap-2 text-center">
-                                    <div className="bg-white/5 rounded-lg p-2">
+                                    <div className="bg-black border border-white/10 rounded-lg p-2">
                                         <div className="text-xl font-bold">{campaign.task_count}</div>
                                         <div className="text-xs text-muted-foreground">任务数</div>
                                     </div>
-                                    <div className="bg-white/5 rounded-lg p-2">
+                                    <div className="bg-black border border-white/10 rounded-lg p-2">
                                         <div className="text-xl font-bold">{campaign.platforms?.length || 0}</div>
                                         <div className="text-xs text-muted-foreground">平台</div>
                                     </div>
-                                    <div className="bg-white/5 rounded-lg p-2">
+                                    <div className="bg-black border border-white/10 rounded-lg p-2">
                                         <div className="text-xl font-bold">{campaign.account_ids?.length || 0}</div>
                                         <div className="text-xs text-muted-foreground">账号</div>
                                     </div>

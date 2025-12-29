@@ -49,7 +49,8 @@ REM Enable OCR/Selenium helpers (can be overridden by existing env vars)
 if not defined ENABLE_OCR_RESCUE set "ENABLE_OCR_RESCUE=1"
 if not defined ENABLE_SELENIUM_RESCUE set "ENABLE_SELENIUM_RESCUE=1"
 if not defined ENABLE_SELENIUM_DEBUG set "ENABLE_SELENIUM_DEBUG=1"
-if not defined PLAYWRIGHT_AUTO_INSTALL set "PLAYWRIGHT_AUTO_INSTALL=1"
+REM Disable Playwright auto-install in synenv to avoid startup hangs
+if not defined PLAYWRIGHT_AUTO_INSTALL set "PLAYWRIGHT_AUTO_INSTALL=0"
 if not defined START_CELERY set "START_CELERY=1"
 if not defined FORCE_CELERY set "FORCE_CELERY=0"
 echo [CONFIG] Playwright path: %PLAYWRIGHT_BROWSERS_PATH%
@@ -96,9 +97,7 @@ if not exist "db\cookie_store.db" (
 )
 echo.
 
-REM Magentic-UI disabled
-echo [SKIP] Magentic-UI not started at this time
-echo.
+
 
 echo [5/7] Checking Redis connectivity...
 set "REDIS_CHECK=FAIL"

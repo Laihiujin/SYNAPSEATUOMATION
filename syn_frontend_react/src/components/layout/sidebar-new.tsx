@@ -117,11 +117,11 @@ export function SidebarNew({
                 animate={{ width: collapsed ? 80 : 280 }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
-                    "relative flex h-screen flex-col border-r border-white/5 bg-black text-white",
+                    "relative flex h-screen flex-col border-r border-white/10 bg-black text-white",
                     className
                 )}
             >
-                <div className="flex h-16 items-center justify-between border-b border-white/5 px-6">
+                <div className="flex h-16 items-center justify-between border-b border-white/10 px-6">
                     <AnimatePresence mode="wait">
                         {!collapsed && (
                             <motion.div
@@ -348,7 +348,7 @@ export function SidebarNew({
                     </nav>
                 </ScrollArea>
 
-                <div className="border-t border-white/5 p-4">
+                <div className="border-t border-white/10 p-4">
                     <AnimatePresence mode="wait">
                         {!collapsed && (
                             <motion.div

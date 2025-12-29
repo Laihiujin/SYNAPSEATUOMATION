@@ -4,6 +4,7 @@
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from loguru import logger
 
 router = APIRouter(prefix="/tasks", tags=["任务队列"])
 
@@ -90,23 +91,42 @@ async def task_stats(request: Request):
     return {"success": True, "data": stats}
 
 
-@router.get("/")
+@router.get("/", include_in_schema=True)
+@router.get("", include_in_schema=False)
 async def list_tasks(
     request: Request,
     limit: int = Query(100, ge=1, le=1000),
     status: Optional[str] = Query(None, description="过滤状态：pending/running/success/failed/cancelled")
 ):
-    tm = _get_task_manager(request)
-    tasks = tm.list_tasks(limit=limit, status=status)
-    summary = _summarize_tasks(tasks)
-    stats = tm.get_queue_stats() if hasattr(tm, "get_queue_stats") else {}
-    return {
-        "success": True,
-        "data": tasks,
-        "total": len(tasks),
-        "summary": summary,
-        "stats": stats,
-    }
+    # 优先使用 Redis TaskStateManager，如果不可用则回退到旧的 SQLite task_manager
+    from fastapi_app.tasks.task_state_manager import task_state_manager
+
+    try:
+        # 从 Redis 获取任务列表
+        tasks = task_state_manager.list_tasks(status=status, limit=limit)
+        summary = _summarize_tasks(tasks)
+
+        return {
+            "success": True,
+            "data": tasks,
+            "total": len(tasks),
+            "summary": summary,
+            "stats": {},
+        }
+    except Exception as e:
+        # 回退到旧的 SQLite 任务管理器
+        logger.warning(f"[Tasks] Redis unavailable, falling back to SQLite: {e}")
+        tm = _get_task_manager(request)
+        tasks = tm.list_tasks(limit=limit, status=status)
+        summary = _summarize_tasks(tasks)
+        stats = tm.get_queue_stats() if hasattr(tm, "get_queue_stats") else {}
+        return {
+            "success": True,
+            "data": tasks,
+            "total": len(tasks),
+            "summary": summary,
+            "stats": stats,
+        }
 
 
 @router.get("/list")

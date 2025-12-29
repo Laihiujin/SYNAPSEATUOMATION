@@ -368,7 +368,7 @@ export default function DistributionPage() {
                 </div>
             </div>
 
-            <Card className="border-white/5 bg-white/5">
+            <Card className="border-white/10 bg-black">
                 <CardHeader>
                     <CardTitle>任务列表</CardTitle>
                     <CardDescription>查看所有已创建的扫码派发任务</CardDescription>
@@ -406,7 +406,7 @@ export default function DistributionPage() {
 
                     <Table>
                         <TableHeader>
-                            <TableRow className="border-white/5 hover:bg-white/5">
+                            <TableRow className="border-white/10 hover:bg-white/5">
                                 <TableHead>ID</TableHead>
                                 <TableHead>平台</TableHead>
                                 <TableHead>标题模板</TableHead>
@@ -427,7 +427,7 @@ export default function DistributionPage() {
                                 paginatedTasks.map((task) => (
                                     <TableRow
                                         key={task.task_id}
-                                        className="border-white/5 hover:bg-white/5 cursor-pointer"
+                                        className="border-white/10 hover:bg-white/5 cursor-pointer"
                                         onClick={() => {
                                             setSelectedTask({
                                                 id: String(task.task_id),

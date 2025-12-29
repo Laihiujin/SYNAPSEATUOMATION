@@ -42,7 +42,8 @@ async def get_task_status(task_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/")
+@router.get("/", include_in_schema=True)
+@router.get("", include_in_schema=False)
 async def list_tasks(
     platform: Optional[str] = None,
     task_type: Optional[str] = None,

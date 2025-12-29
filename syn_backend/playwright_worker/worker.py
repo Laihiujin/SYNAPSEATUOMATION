@@ -32,12 +32,30 @@ def _resolve_executable_path() -> str | None:
 
     # 2. 从 config.conf 读取（开发模式）
     try:
-        from config.conf import LOCAL_CHROME_PATH  # type: ignore
-
-        if LOCAL_CHROME_PATH and Path(str(LOCAL_CHROME_PATH)).exists():
-            return str(LOCAL_CHROME_PATH)
+        from config.conf import LOCAL_CHROME_PATH, BASE_DIR # type: ignore
+        if LOCAL_CHROME_PATH:
+            p = Path(str(LOCAL_CHROME_PATH))
+            if not p.is_absolute():
+                p = Path(BASE_DIR) / p
+            if p.exists():
+                return str(p)
     except Exception:
-        return None
+        pass
+
+    # 3. 兜底：手动检测 E:\SynapseAutomation\browsers
+    # 特别针对用户指定的路径模式
+    try:
+        common_paths = [
+            r"E:\SynapseAutomation\browsers\chromium\chromium-1148\chrome-win\chrome.exe",
+            r"E:\SynapseAutomation\browsers\chrome-for-testing\chrome-win64\chrome.exe",
+            r"E:\SynapseAutomation\browsers\firefox\firefox-1457\firefox\firefox.exe"
+        ]
+        for cp in common_paths:
+            if Path(cp).exists():
+                return cp
+    except Exception:
+        pass
+        
     return None
 
 # 设置正确的事件循环策略（Windows）
@@ -296,7 +314,7 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 logger.warning(f"[Worker] Apply fingerprint failed (ignored): {e}")
 
         if use_persistent_profile:
-            profile_root = policy.get("persistent_profile_dir") or "syn_backend/browser_profiles"
+            profile_root = policy.get("persistent_profile_dir") or "browser_profiles"
             try:
                 from config.conf import BASE_DIR
 
@@ -312,12 +330,77 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 except Exception:
                     custom_manager = persistent_browser_manager
             user_data_dir = custom_manager.get_user_data_dir(req.account_id, platform_code)
+
+            # 🔧 修复：Playwright 的 launch_persistent_context 不支持 storage_state 参数
+            # 正确的做法：
+            # 1. 首次创建持久化目录时，先用临时上下文导入 Cookie，保存到目录
+            # 2. 后续使用 launch_persistent_context，会自动加载已保存的 Cookie
+            # 3. Cookie 更新时，需要先清理持久化目录或手动添加新 Cookie
+
+            user_data_dir_path = Path(user_data_dir)
+            is_first_time = not user_data_dir_path.exists() or not any(user_data_dir_path.iterdir())
+
+            logger.info(f"[Worker] Persistent profile: path={user_data_dir}, first_time={is_first_time}")
+
+            # 🔧 首次创建或 Cookie 更新时：先用临时上下文导入 storage_state
+            if is_first_time and req.storage_state:
+                logger.info(f"[Worker] First-time setup: importing storage_state into persistent profile")
+                try:
+                    # 创建目录
+                    user_data_dir_path.mkdir(parents=True, exist_ok=True)
+
+                    # 使用临时浏览器上下文导入 Cookie
+                    temp_browser = await pw.chromium.launch(**launch_kwargs)
+                    temp_context = await temp_browser.new_context(**context_opts)
+
+                    # 等待 Cookie 加载完成
+                    await asyncio.sleep(0.5)
+
+                    # 保存 storage_state 到持久化目录的默认位置
+                    # Chromium 的持久化上下文会自动读取这个文件
+                    state_file = user_data_dir_path / "storage_state.json"
+                    await temp_context.storage_state(path=str(state_file))
+
+                    await temp_context.close()
+                    await temp_browser.close()
+
+                    logger.success(f"[Worker] Storage state saved to {state_file}")
+                except Exception as e:
+                    logger.error(f"[Worker] Failed to import storage_state (will fallback to empty profile): {e}")
+
+            # 🔧 启动持久化浏览器上下文（不传 storage_state）
             persistent_context_opts = {k: v for k, v in context_opts.items() if k != "storage_state"}
+
+            # 如果首次创建且有 storage_state.json，Chromium 会自动加载
+            # 否则会使用空的持久化目录（需要登录）
             context = await pw.chromium.launch_persistent_context(
                 str(user_data_dir),
                 **persistent_context_opts,
                 **launch_kwargs,
             )
+
+            # 🔧 关键修复：即使是持久化上下文，也要检查并补充 Cookie
+            # 原因：持久化目录可能存在但 Cookie 已过期/被清除
+            if req.storage_state and req.storage_state.get("cookies"):
+                try:
+                    current_cookies = await context.cookies()
+                    cookie_count = len(current_cookies)
+                    required_cookies = len(req.storage_state.get("cookies", []))
+
+                    logger.info(f"[Worker] Persistent context cookies: {cookie_count}/{required_cookies}")
+
+                    # 如果 Cookie 数量明显不足，说明可能过期了，重新应用
+                    if cookie_count < required_cookies * 0.5:  # 少于50%就补充
+                        logger.warning(f"[Worker] Cookie count insufficient, re-applying storage_state")
+                        await _apply_storage_state(context, req.storage_state)
+                        await asyncio.sleep(1)
+
+                        # 重新检查
+                        updated_cookies = await context.cookies()
+                        logger.info(f"[Worker] After re-apply: {len(updated_cookies)} cookies")
+                except Exception as e:
+                    logger.warning(f"[Worker] Cookie check/补充 failed (ignored): {e}")
+
             try:
                 browser = context.browser()
             except Exception:
@@ -338,8 +421,49 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
             except Exception as e:
                 logger.warning(f"[Worker] Add stealth script failed (ignored): {e}")
 
-        page = await context.new_page()
-        await page.goto(profile_url, wait_until="domcontentloaded", timeout=req.timeout_ms)
+        # 对于持久化上下文，复用已有的页面而不是创建新页面（避免 about:blank）
+        pages = context.pages
+        if pages:
+            page = pages[0]
+            logger.info(f"[Worker] Reusing existing page: {page.url}")
+            await page.goto(profile_url, wait_until="domcontentloaded", timeout=req.timeout_ms)
+        else:
+            page = await context.new_page()
+            logger.info(f"[Worker] Created new page, navigating to {profile_url}")
+            await page.goto(profile_url, wait_until="domcontentloaded", timeout=req.timeout_ms)
+
+        # 🔧 调试：记录最终的页面 URL 和 Cookie 数量
+        final_url = page.url
+        final_cookies = await context.cookies()
+        logger.info(f"[Worker] Page loaded: url={final_url}, cookies={len(final_cookies)}")
+
+        # 🔧 视频号特殊检查：如果跳转到登录页，立即返回错误
+        if platform_code in ["channels", "tencent"]:
+            # 检查是否在登录页
+            if "login" in final_url.lower() or final_url == "https://channels.weixin.qq.com/":
+                logger.error(f"[Worker] WeChat Channels redirected to login page, cookies may be invalid")
+                # 截图保存（用于调试）
+                try:
+                    screenshot_path = Path("logs") / f"channels_login_redirect_{req.account_id}.png"
+                    screenshot_path.parent.mkdir(exist_ok=True)
+                    await page.screenshot(path=str(screenshot_path), full_page=False)
+                    logger.info(f"[Worker] Screenshot saved: {screenshot_path}")
+                except Exception:
+                    pass
+                # 清理并返回错误
+                with contextlib.suppress(Exception):
+                    await page.close()
+                with contextlib.suppress(Exception):
+                    await context.close()
+                with contextlib.suppress(Exception):
+                    await browser.close()
+                with contextlib.suppress(Exception):
+                    await pw.stop()
+                return JSONResponse(status_code=401, content={
+                    "success": False,
+                    "error": "Login required: cookies may be expired or invalid",
+                    "detail": f"Redirected to {final_url}"
+                })
 
         if platform_code == "bilibili":
             current_url = (page.url or "").lower()

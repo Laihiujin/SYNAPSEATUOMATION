@@ -240,21 +240,38 @@ class TaskStateManager:
         try:
             # 确定查询的索引
             if status:
+                # 按指定状态筛选
                 index_key = self._index_key(f"status:{status}")
+                task_ids = self.redis.zrevrange(index_key, offset, offset + limit - 1)
             elif task_type:
+                # 按类型筛选
                 index_key = self._index_key(f"type:{task_type}")
+                task_ids = self.redis.zrevrange(index_key, offset, offset + limit - 1)
             else:
-                # 查询所有 pending 任务作为默认
-                index_key = self._index_key("status:pending")
+                # 获取所有任务：合并所有状态索引
+                all_task_ids = set()
+                for s in ["pending", "running", "success", "failed", "retry", "cancelled"]:
+                    status_key = self._index_key(f"status:{s}")
+                    ids = self.redis.zrevrange(status_key, 0, -1)
+                    all_task_ids.update(ids)
 
-            # 从索引中获取任务ID列表（按时间倒序）
-            task_ids = self.redis.zrevrange(
-                index_key,
-                offset,
-                offset + limit - 1
-            )
+                # 获取所有任务的详情并按创建时间排序
+                all_tasks_with_time = []
+                for task_id in all_task_ids:
+                    task_state = self.get_task_state(task_id)
+                    if task_state:
+                        # 使用创建时间作为排序依据
+                        created_at = task_state.get('created_at', '')
+                        all_tasks_with_time.append((created_at, task_state))
 
-            # 批量获取任务详情
+                # 按创建时间倒序排序
+                all_tasks_with_time.sort(key=lambda x: x[0], reverse=True)
+
+                # 应用分页
+                tasks = [task for _, task in all_tasks_with_time[offset:offset + limit]]
+                return tasks
+
+            # 批量获取任务详情（当按状态或类型筛选时）
             tasks = []
             for task_id in task_ids:
                 task_state = self.get_task_state(task_id)

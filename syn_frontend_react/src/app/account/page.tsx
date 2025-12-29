@@ -65,7 +65,7 @@ export default function AccountPage() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">加载账户页...</div>
+        <div className="rounded-2xl border border-white/10 bg-black p-6 text-sm text-white/60">加载账户页...</div>
       }
     >
       <AccountPageContent />
@@ -384,22 +384,52 @@ function AccountPageContent() {
 
   const handleOpenCreatorCenter = async (account: Account) => {
     const accountId = account.id
-    const isBilibili = account.platform === "bilibili"
-    const endpoint = isBilibili ? "creator-center/open-biliup" : "creator-center/open"
     try {
+      // 1. 获取需要打开的 URL 和 Cookie 数据
       const response = await fetch(
-        `${backendBaseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/${endpoint}`,
-        { method: "POST" }
+        `${backendBaseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/creator-center/data`,
+        { method: "GET" }
       )
-      const json = await response.json().catch(() => ({}))
-      if (!response.ok || json?.success === false) {
-        throw new Error(json?.detail || json?.message || "打开失败")
+      const res = await response.json()
+
+      if (!response.ok || !res.success) {
+        throw new Error(res.detail || res.message || "获取账号数据失败")
       }
-      toast({
-        title: "已打开创作中心",
-        // description: "浏览器窗口已启动）",
-      })
+
+      const { url, storage_state, platform } = res.data
+      const cookies = storage_state?.cookies || []
+
+      // 2. 检测是否正在 Electron Shell 中运行
+      const isElectron = typeof window !== 'undefined' &&
+        (window.navigator.userAgent.indexOf('Electron') > -1 || (window as any).electronAPI);
+
+      if (isElectron) {
+        // 通知外部 Shell 打开新标签并注入 Cookie
+        window.parent.postMessage({
+          type: 'OPEN_CREATOR_TAB',
+          url: url,
+          cookies: cookies,
+          platform: platform
+        }, '*')
+
+        toast({
+          title: "正在侧边栏打开",
+          description: `正在为您加载 ${account.platform} 创作中心...`,
+        })
+      } else {
+        // 非 Electron 环境，回退到原有后台打开逻辑 (仅用于兼容性)
+        const openResponse = await fetch(
+          `${backendBaseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/creator-center/open`,
+          { method: "POST" }
+        )
+        if (!openResponse.ok) throw new Error("启动浏览器失败")
+        toast({
+          title: "已请求打开创作者中心",
+          description: "浏览器窗口已启动 (非集成模式)",
+        })
+      }
     } catch (e) {
+      console.error("Open Creator Center Error:", e)
       toast({ variant: "destructive", title: "打开失败", description: String(e) })
     }
   }
@@ -638,7 +668,7 @@ function AccountPageContent() {
                     />
                   </div>
                   {!formState.id && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="rounded-2xl border border-white/10 bg-black p-4">
                       <p className="text-sm font-semibold">二维码登录</p>
                       <p className="text-xs text-white/60">点击按钮获取二维码</p>
                       <div className="mt-4 flex flex-col items-center justify-center gap-3 py-4">
@@ -771,11 +801,11 @@ function AccountPageContent() {
             placeholder="输入名称或 ID 搜索..."
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            className="max-w-sm rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/40"
+            className="max-w-sm rounded-2xl border-white/10 bg-black text-white placeholder:text-white/40"
           />
           <div className="ml-auto">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PlatformKey)}>
-              <TabsList className="flex flex-wrap gap-2 rounded-2xl bg-white/5 p-1 border border-white/10 backdrop-blur-sm">
+              <TabsList className="flex flex-wrap gap-2 rounded-2xl bg-black p-1 border border-white/10 backdrop-blur-sm">
                 {platformTabs.map((tab) => (
                   <TabsTrigger
                     key={tab.value}
@@ -791,7 +821,7 @@ function AccountPageContent() {
         </div>
 
         {isLoading && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+          <div className="rounded-2xl border border-white/10 bg-black p-6 text-sm text-white/60">
             正在加载账号列表...
           </div>
         )}
