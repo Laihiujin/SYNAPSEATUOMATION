@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent.parent
 # 优先使用本地 Chromium（更快，无需下载）
 CHROME_PATHS = [
     ROOT_DIR / "browsers/chromium/chromium-1161/chrome-win/chrome.exe",
-    ROOT_DIR / "browsers/chromium/chromium_headless_shell-1161/chrome-win/headless_shell.exe",
+    ROOT_DIR / "browsers/chromium/chromium_headless_shell-1161/chrome-win/chrome-headless-shell.exe",
 ]
 
 # 爬虫配置

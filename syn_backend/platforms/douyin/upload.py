@@ -8,10 +8,9 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright, Page
 from typing import Dict, Any, Optional
-
-from config.conf import LOCAL_CHROME_PATH
+# from config.conf import LOCAL_CHROME_PATH
 from utils.base_social_media import set_init_script, HEADLESS_FLAG
-from myUtils.browser_context import build_context_options
+from myUtils.browser_context import build_context_options, build_firefox_args
 from myUtils.close_guide import try_close_guide
 from utils.video_probe import probe_video_metadata
 from ..base import BasePlatform
@@ -235,20 +234,15 @@ class DouyinUpload(BasePlatform):
                             raise ValueError(
                                 f"抖音定时发布时间不能超过14天，当前距离: {int(time_diff / 86400)}天"
                             )
-                browser_options = {'headless': HEADLESS_FLAG}
-
-                # 优先使用项目内集成的 Chromium（.playwright-browsers）
-                # 不使用本地Chrome，不使用Chrome for Testing
-                # 注意：不要设置 channel 和 executable_path，让 Playwright 自动选择 chromium
-
-                if LOCAL_CHROME_PATH:
-                    # 只有明确配置了本地路径才使用
-                    browser_options['executable_path'] = LOCAL_CHROME_PATH
-                    logger.info(f"[DouyinUpload] 使用本地Chrome: {LOCAL_CHROME_PATH}")
+                # Use Firefox for Douyin publish to improve network stability.
+                browser_options = build_firefox_args()
+                browser_options["headless"] = HEADLESS_FLAG
+                # Do not pass empty executable_path, otherwise Playwright may try to spawn '.' (ENOENT)
+                if not browser_options.get("executable_path"):
+                    browser_options.pop("executable_path", None)
+                    logger.info("[DouyinUpload] 使用 Playwright 内置 Firefox")
                 else:
-                    # 默认使用 Playwright 内置的 Chromium
-                    # playwright.chromium.launch() 会自动使用 .playwright-browsers/chromium-*
-                    logger.info("[DouyinUpload] 使用 Playwright 内置 Chromium")
+                    logger.info(f"[DouyinUpload] 使用本地 Firefox: {browser_options['executable_path']}")
 
                 # 🆕 代理支持（从旧版迁移）
                 if proxy:

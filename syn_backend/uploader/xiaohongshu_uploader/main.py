@@ -329,7 +329,8 @@ class XiaoHongShuVideo(object):
                     # 填写标签
                     for index, tag in enumerate(self.tags, start=1):
                         await page.keyboard.type("#" + tag)
-                        await page.keyboard.press("Space")
+                        await asyncio.sleep(0.2)
+                        await page.keyboard.press("Enter")
                         await asyncio.sleep(0.2)
 
                     xiaohongshu_logger.info(f'  [+] 使用选择器 {selector} 成功添加{len(self.tags)}个话题')
