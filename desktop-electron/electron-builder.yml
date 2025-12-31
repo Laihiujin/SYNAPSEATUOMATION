@@ -4,7 +4,7 @@ copyright: Copyright © 2025 SynapseAutomation
 
 # 目录配置
 directories:
-  output: dist-electron
+  output: dist-electron-v1
   buildResources: build
 
 # 文件打包规则
