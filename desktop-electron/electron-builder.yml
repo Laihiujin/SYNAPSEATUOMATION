@@ -24,6 +24,22 @@ extraResources:
     to: backend
     filter:
       - "**/*"
+  - from: resources/frontend
+    to: frontend
+    filter:
+      - "**/*"
+  - from: resources/synenv
+    to: synenv
+    filter:
+      - "**/*"
+  - from: resources/redis
+    to: redis
+    filter:
+      - "**/*"
+  - from: resources/services
+    to: services
+    filter:
+      - "**/*"
 
 # Windows 配置
 win:
@@ -31,7 +47,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: ${productName}-Setup-V1.${ext}
 
 # NSIS 安装程序配置
 nsis:

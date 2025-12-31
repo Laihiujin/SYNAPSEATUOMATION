@@ -12,10 +12,10 @@
     "build:main": "echo Main process ready",
     "prepare-browsers": "node build/prepare-browsers.js",
     "prepare-resources": "node build/prepare-resources.js",
-    "prebuild": "npm run prepare-browsers && npm run prepare-resources",
-    "build": "npm run build:renderer && npm run build:main && electron-builder --dir",
-    "dist": "npm run build:renderer && npm run build:main && electron-builder",
-    "dist:win": "npm run build:renderer && npm run build:main && electron-builder --win",
+    "prebuild": "npm run prepare-browsers",
+    "build": "npm run build:renderer && npm run prepare-resources && npm run build:main && electron-builder --dir",
+    "dist": "npm run build:renderer && npm run prepare-resources && npm run build:main && electron-builder",
+    "dist:win": "npm run build:renderer && npm run prepare-resources && npm run build:main && electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

@@ -1750,7 +1750,7 @@ export default function PublishPage() {
                           {account.user_id || "未知"}
                         </div>
                         <div className={cn("text-xs truncate", isExpired ? "text-white/40" : "text-white/60")}>
-                          {PLATFORMS.find(p => p.key === account.platform)?.label || account.platform}
+                          {PLATFORMS.find(p => p.key === account.platform)?.name || account.platform}
                         </div>
                         <div className="flex justify-center">
                           <Badge

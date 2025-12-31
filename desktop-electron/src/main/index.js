@@ -12,8 +12,13 @@ class SynapseApp {
   constructor() {
     this.mainWindow = null;
     this.backendProcess = null;
+    this.celeryProcess = null;
+    this.redisProcess = null;
+    this.playwrightWorkerProcess = null;
+    this.frontendProcess = null;
     this.playwrightBrowserPath = null;
     this.visualBrowserWindows = new Map();
+    this.servicesStarted = false;
   }
 
   async initialize() {
@@ -21,12 +26,17 @@ class SynapseApp {
 
     // 等待 Electron 准备就绪
     await app.whenReady();
+    this.isDev = !app.isPackaged;
+    this.repoRoot = path.join(__dirname, '../../../');
 
     // 1. 设置 Playwright 浏览器路径
     this.setupPlaywrightPath();
 
-    // 2. 启动 FastAPI 后端
-    // await this.startBackend();
+    // 2. 启动后端/前端服务（生产默认启动，开发可用 SYNAPSE_START_SERVICES=1 强制）
+    const shouldStartServices = process.env.SYNAPSE_START_SERVICES === '1' || !this.isDev;
+    if (shouldStartServices) {
+      await this.startServices();
+    }
 
     // 3. 创建主窗口
     this.createMainWindow();
@@ -65,53 +75,245 @@ class SynapseApp {
     }
   }
 
-  async startBackend() {
-    const isDev = !app.isPackaged;
+  getResourcesRoot() {
+    return this.isDev ? this.repoRoot : process.resourcesPath;
+  }
+
+  getBackendDir() {
+    return this.isDev
+      ? path.join(this.repoRoot, 'syn_backend')
+      : path.join(process.resourcesPath, 'backend');
+  }
+
+  getPythonPath() {
+    const pythonPath = path.join(this.getResourcesRoot(), 'synenv', 'Scripts', 'python.exe');
+    if (fs.existsSync(pythonPath)) {
+      return pythonPath;
+    }
+    return 'python';
+  }
+
+  getBrowsersRoot() {
+    return this.isDev
+      ? path.join(this.repoRoot, 'browsers')
+      : path.join(process.resourcesPath, 'browsers');
+  }
+
+  resolveFirstPath(candidates) {
+    return candidates.find((candidate) => candidate && fs.existsSync(candidate));
+  }
+
+  getServiceExe(name) {
+    if (this.isDev) {
+      return null;
+    }
+    const exePath = path.join(process.resourcesPath, 'services', `${name}.exe`);
+    return fs.existsSync(exePath) ? exePath : null;
+  }
+
+  buildServiceEnv() {
+    const browsersRoot = this.getBrowsersRoot();
+    const chromiumRoot = path.join(browsersRoot, 'chromium');
+    const env = {
+      ...process.env,
+      PYTHONUTF8: '1',
+      PYTHONIOENCODING: 'utf-8',
+      PLAYWRIGHT_BROWSERS_PATH: chromiumRoot
+    };
+
+    const chromePath = this.resolveFirstPath([
+      path.join(chromiumRoot, 'chromium-1161', 'chrome-win', 'chrome.exe'),
+      path.join(browsersRoot, 'chrome-for-testing', 'chrome-143.0.7499.169', 'chrome-win64', 'chrome.exe')
+    ]);
+    if (chromePath) {
+      env.LOCAL_CHROME_PATH = chromePath;
+    }
+
+    const firefoxPath = this.resolveFirstPath([
+      path.join(browsersRoot, 'firefox', 'firefox-1495', 'firefox', 'firefox.exe')
+    ]);
+    if (firefoxPath) {
+      env.LOCAL_FIREFOX_PATH = firefoxPath;
+    }
+
+    return env;
+  }
+
+  async startServices() {
+    if (this.servicesStarted) {
+      return;
+    }
+    const env = this.buildServiceEnv();
+    this.startRedis(env);
+    this.startPlaywrightWorker(env);
+    await this.startBackend(env);
+    this.startCelery(env);
+    this.startFrontend(env);
+    this.servicesStarted = true;
+  }
+
+  startRedis(env) {
+    if (this.redisProcess) {
+      return;
+    }
+    const redisPath = this.isDev
+      ? 'redis-server'
+      : path.join(process.resourcesPath, 'redis', 'redis-server.exe');
+    if (!this.isDev && !fs.existsSync(redisPath)) {
+      log.warn(`⚠️ Redis 未找到: ${redisPath}`);
+      return;
+    }
+    log.info('🧩 启动 Redis...');
+    this.redisProcess = spawn(redisPath, [], {
+      env,
+      cwd: this.getResourcesRoot(),
+      windowsHide: true
+    });
+    this.redisProcess.stdout?.on('data', (data) => log.info('[Redis]', data.toString()));
+    this.redisProcess.stderr?.on('data', (data) => log.error('[Redis Error]', data.toString()));
+    this.redisProcess.on('exit', (code) => {
+      log.warn(`⚠️ Redis 退出，退出码: ${code}`);
+    });
+  }
+
+  startPlaywrightWorker(env) {
+    if (this.playwrightWorkerProcess) {
+      return;
+    }
+    const backendDir = this.getBackendDir();
+    const workerExe = this.getServiceExe('playwright-worker');
+    const workerScript = path.join(backendDir, 'playwright_worker', 'worker.py');
+    if (!workerExe && !fs.existsSync(workerScript)) {
+      log.warn(`⚠️ Playwright Worker 未找到: ${workerScript}`);
+      return;
+    }
+    const pythonPath = this.getPythonPath();
+    log.info('🧩 启动 Playwright Worker...');
+    const launchCmd = workerExe || pythonPath;
+    const launchArgs = workerExe ? [] : [workerScript];
+    this.playwrightWorkerProcess = spawn(launchCmd, launchArgs, {
+      env: { ...env, PYTHONPATH: backendDir },
+      cwd: backendDir,
+      windowsHide: true
+    });
+    this.playwrightWorkerProcess.stdout?.on('data', (data) => log.info('[Worker]', data.toString()));
+    this.playwrightWorkerProcess.stderr?.on('data', (data) => log.error('[Worker Error]', data.toString()));
+    this.playwrightWorkerProcess.on('exit', (code) => {
+      log.warn(`⚠️ Playwright Worker 退出，退出码: ${code}`);
+    });
+  }
+
+  startCelery(env) {
+    if (this.celeryProcess) {
+      return;
+    }
+    const backendDir = this.getBackendDir();
+    const celeryExe = this.getServiceExe('celery-worker');
+    const pythonPath = this.getPythonPath();
+    log.info('🧩 启动 Celery Worker...');
+    const launchCmd = celeryExe || pythonPath;
+    const launchArgs = celeryExe
+      ? []
+      : [
+          '-m',
+          'celery',
+          '-A',
+          'fastapi_app.tasks.celery_app',
+          'worker',
+          '--loglevel=info',
+          '--pool=threads',
+          '--concurrency=1000',
+          '--hostname=synapse-worker@electron'
+        ];
+    this.celeryProcess = spawn(launchCmd, launchArgs, {
+      env: { ...env, PYTHONPATH: backendDir },
+      cwd: backendDir,
+      windowsHide: true
+    });
+    this.celeryProcess.stdout?.on('data', (data) => log.info('[Celery]', data.toString()));
+    this.celeryProcess.stderr?.on('data', (data) => log.error('[Celery Error]', data.toString()));
+    this.celeryProcess.on('exit', (code) => {
+      log.warn(`⚠️ Celery 退出，退出码: ${code}`);
+    });
+  }
+
+  startFrontend(env) {
+    if (this.frontendProcess || this.isDev) {
+      if (this.isDev) {
+        log.info('ℹ️ 开发模式未自动启动前端');
+      }
+      return;
+    }
+    const frontendDir = path.join(process.resourcesPath, 'frontend', 'standalone');
+    const serverJs = path.join(frontendDir, 'server.js');
+    if (!fs.existsSync(serverJs)) {
+      log.warn(`⚠️ 前端服务器未找到: ${serverJs}`);
+      return;
+    }
+    log.info('🧩 启动前端服务...');
+    const frontendEnv = {
+      ...env,
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_ENV: 'production',
+      PORT: '3000',
+      HOSTNAME: '127.0.0.1',
+      NEXT_PUBLIC_BACKEND_URL: 'http://127.0.0.1:7000',
+      SYN_BACKEND_URL: 'http://127.0.0.1:7000',
+      NEXT_TELEMETRY_DISABLED: '1'
+    };
+    this.frontendProcess = spawn(process.execPath, [serverJs], {
+      env: frontendEnv,
+      cwd: frontendDir,
+      windowsHide: true
+    });
+    this.frontendProcess.stdout?.on('data', (data) => log.info('[Frontend]', data.toString()));
+    this.frontendProcess.stderr?.on('data', (data) => log.error('[Frontend Error]', data.toString()));
+    this.frontendProcess.on('exit', (code) => {
+      log.warn(`⚠️ 前端服务退出，退出码: ${code}`);
+    });
+  }
+
+  async startBackend(env) {
+    if (this.backendProcess) {
+      return;
+    }
+    const backendDir = this.getBackendDir();
+    const backendExe = this.getServiceExe('backend');
+    const pythonPath = this.getPythonPath();
+    const mainScript = path.join(backendDir, 'fastapi_app', 'run.py');
 
     log.info('🔄 启动 FastAPI 后端...');
+    log.info('Python 路径:', pythonPath);
+    log.info('主脚本:', mainScript);
 
     return new Promise((resolve, reject) => {
-      let pythonPath, mainScript, cwd;
-
-      if (isDev) {
-        // 开发环境：使用系统 Python 和源码
-        pythonPath = 'python';
-        mainScript = path.join(__dirname, '../../../syn_backend/fastapi_app/main.py');
-        cwd = path.join(__dirname, '../../../syn_backend/fastapi_app');
-      } else {
-        // 生产环境：使用打包的后端（需要系统 Python）
-        const backendPath = path.join(process.resourcesPath, 'backend');
-        pythonPath = 'python';  // 使用系统 Python
-        mainScript = path.join(backendPath, 'fastapi_app/main.py');
-        cwd = path.join(backendPath, 'fastapi_app');
+      if (!backendExe && !fs.existsSync(mainScript)) {
+        log.warn(`⚠️ FastAPI 脚本未找到: ${mainScript}`);
+        resolve();
+        return;
       }
 
-      log.info('Python 路径:', pythonPath);
-      log.info('主脚本:', mainScript);
-
-      // 启动后端进程
-      this.backendProcess = spawn(pythonPath, [mainScript], {
-        cwd: cwd,
+      const launchCmd = backendExe || pythonPath;
+      const launchArgs = backendExe ? [] : [mainScript];
+      this.backendProcess = spawn(launchCmd, launchArgs, {
+        cwd: backendDir,
         env: {
-          ...process.env,
-          PLAYWRIGHT_BROWSERS_PATH: this.playwrightBrowserPath,
-          PYTHONPATH: cwd
-        }
+          ...env,
+          PYTHONPATH: backendDir
+        },
+        windowsHide: true
       });
 
-      // 监听后端输出
-      this.backendProcess.stdout.on('data', (data) => {
+      this.backendProcess.stdout?.on('data', (data) => {
         const output = data.toString();
         log.info('[Backend]', output);
-
-        // 检测后端是否启动成功
         if (output.includes('Uvicorn running') || output.includes('Application startup complete')) {
           log.info('✅ FastAPI 后端启动成功');
           resolve();
         }
       });
 
-      this.backendProcess.stderr.on('data', (data) => {
+      this.backendProcess.stderr?.on('data', (data) => {
         log.error('[Backend Error]', data.toString());
       });
 
@@ -124,7 +326,6 @@ class SynapseApp {
         log.warn(`⚠️ 后端进程退出，退出码: ${code}`);
       });
 
-      // 超时保护：10秒后如果还没启动就继续
       setTimeout(() => {
         log.warn('⚠️ 后端启动超时，继续启动应用');
         resolve();
@@ -297,12 +498,27 @@ class SynapseApp {
     }
     this.visualBrowserWindows.clear();
 
-    // 终止后端进程
-    if (this.backendProcess && !this.backendProcess.killed) {
-      log.info('🛑 终止后端进程...');
-      this.backendProcess.kill();
-      this.backendProcess = null;
-    }
+    const stopProcess = (proc, label) => {
+      if (proc && !proc.killed) {
+        log.info(`🛑 终止${label}进程...`);
+        proc.kill();
+      }
+    };
+
+    stopProcess(this.frontendProcess, '前端');
+    this.frontendProcess = null;
+
+    stopProcess(this.celeryProcess, 'Celery');
+    this.celeryProcess = null;
+
+    stopProcess(this.playwrightWorkerProcess, 'Playwright Worker');
+    this.playwrightWorkerProcess = null;
+
+    stopProcess(this.backendProcess, '后端');
+    this.backendProcess = null;
+
+    stopProcess(this.redisProcess, 'Redis');
+    this.redisProcess = null;
 
     log.info('✅ 资源清理完成');
   }

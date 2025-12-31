@@ -98,6 +98,22 @@ syn_backend/logs/*.html
 /TEST_*.md
 /docs/archived/
 
+# 大型外部库和资源
+syn_backend/MediaCrawler/
+syn_backend/biliup/
+syn_backend/Redis/
+syn_backend/browsers/
+desktop-electron/resources/
+dist/
+scripts/packaging/
+
+# Electron build artifacts
+desktop-electron/dist/
+desktop-electron/build/
+*.exe
+*.dmg
+*.AppImage
+
 # 临时脚本和备份
 /cleanup.bat
 /restart_backend.bat

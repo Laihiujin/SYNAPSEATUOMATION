@@ -103,7 +103,6 @@ html2text>=2024.2.26
 browsergym>=0.13.3
 browser-use>=0.1.40
 mcp>=1.0.0
-datasets>=3.2
 unidiff>=0.7.5
 structlog>=24.4.0
 tomli>=2.0.0
@@ -126,5 +125,4 @@ mediacrawler @ git+https://github.com/NanmiCoder/MediaCrawler
 boto3
 
 # 其他工具
-huggingface-hub
 docker
