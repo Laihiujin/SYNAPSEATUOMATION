@@ -22,6 +22,37 @@ import {
     Globe,
     ChevronDown,
 } from "lucide-react"
+import Image from "next/image"
+
+const DouyinIcon = ({ className }: { className?: string }) => (
+    <div className={cn("relative flex items-center justify-center shrink-0", className)}>
+        <Image src="/douYin.svg" alt="Douyin" width={16} height={16} className="object-contain" />
+    </div>
+)
+
+const BilibiliIcon = ({ className }: { className?: string }) => (
+    <div className={cn("relative flex items-center justify-center shrink-0", className)}>
+        <Image src="/bilibili.svg" alt="Bilibili" width={16} height={16} className="object-contain" />
+    </div>
+)
+
+const KuaishouIcon = ({ className }: { className?: string }) => (
+    <div className={cn("relative flex items-center justify-center shrink-0", className)}>
+        <Image src="/kuaiShou.svg" alt="Kuaishou" width={16} height={16} className="object-contain" />
+    </div>
+)
+
+const XhsIcon = ({ className }: { className?: string }) => (
+    <div className={cn("relative flex items-center justify-center shrink-0", className)}>
+        <Image src="/xiaoHongShu.svg" alt="XHS" width={16} height={16} className="object-contain" />
+    </div>
+)
+
+const ChannelsIcon = ({ className }: { className?: string }) => (
+    <div className={cn("relative flex items-center justify-center shrink-0", className)}>
+        <Image src="/shiPingHao.svg" alt="Channels" width={16} height={16} className="object-contain" />
+    </div>
+)
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -61,25 +92,25 @@ const navSections: NavSection[] = [
     {
         label: "Distribution",
         items: [
-            { label: "投放计划", href: "/campaigns", icon: Calendar },
+            // { label: "投放计划", href: "/campaigns", icon: Calendar },
             { label: "矩阵发布", href: "/publish/matrix", icon: LayoutGrid },
             { label: "任务管理", href: "/tasks", icon: ClipboardList },
-            { label: "扫码派发", href: "/tasks/distribution", icon: QrCode },
+            // { label: "扫码派发", href: "/tasks/distribution", icon: QrCode },
         ],
     },
     {
         label: "Analytics",
         items: [
-            // { label: "数据中心", href: "/analytics", icon: BarChart3 },
+            { label: "数据中心", href: "/analytics", icon: BarChart3 },
             {
                 label: "视频数据",
                 icon: Video,
                 children: [
-                    { label: "抖音", href: "/analytics/videos?platform=douyin", icon: Video },
-                    { label: "B站", href: "/analytics/videos?platform=bilibili", icon: Video },
-                    { label: "快手", href: "/analytics/videos?platform=kuaishou", icon: Video },
-                    { label: "小红书", href: "/analytics/videos?platform=xiaohongshu", icon: Video },
-                    { label: "视频号", href: "/analytics/videos?platform=channels", icon: Video },
+                    { label: "抖音", href: "/analytics/videos/douyin", icon: DouyinIcon },
+                    { label: "B站", href: "/analytics/videos/bilibili", icon: BilibiliIcon },
+                    { label: "快手", href: "/analytics/videos/kuaishou", icon: KuaishouIcon },
+                    { label: "小红书", href: "/analytics/videos/xiaohongshu", icon: XhsIcon },
+                    { label: "视频号", href: "/analytics/videos/channels", icon: ChannelsIcon },
                 ],
             },
             { label: "数据趋势", href: "/analytics/trends", icon: TrendingUp },
@@ -248,7 +279,7 @@ export function SidebarNew({
                                                                             : "text-white/60 hover:bg-white/5 hover:text-white"
                                                                     )}
                                                                 >
-                                                                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                                                                    {child.icon && <child.icon className="h-4 w-4" />}
                                                                     <span className="relative overflow-hidden whitespace-nowrap">{child.label}</span>
                                                                 </Link>
                                                             )

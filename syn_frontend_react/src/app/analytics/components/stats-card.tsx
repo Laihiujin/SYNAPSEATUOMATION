@@ -20,7 +20,7 @@ const colorClasses = {
 
 export function StatsCard({ title, value, icon, color = 'blue' }: StatsCardProps) {
     return (
-        <Card className="border-white/10 bg-white/5">
+        <Card className="border-black bg-black/40">
             <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-white/60">{title}</span>

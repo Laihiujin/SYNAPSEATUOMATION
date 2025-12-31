@@ -30,10 +30,10 @@ export default function PublishLayout({
             <div className="px-6 pt-6 pb-4 border-b border-white/10 space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">发布中心</h1>
-                        <p className="text-sm text-white/60 mt-1">
-                            多平台矩阵发布管理
-                        </p>
+                        {/* <h1 className="text-2xl font-bold tracking-tight">发布中心</h1> */}
+                        {/* <p className="text-sm text-white/60 mt-1"> */}
+                        {/* 多平台矩阵发布管理 */}
+                        {/* </p> */}
                     </div>
                 </div>
 

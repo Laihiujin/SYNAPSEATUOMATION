@@ -12,11 +12,14 @@ const platformMap: Record<number, PlatformKey> = {
   5: "bilibili",
 }
 
-const statusMap: Record<string, "正常" | "异常" | "待激活"> = {
+const statusMap: Record<string, "正常" | "异常" | "待激活" | "在线"> = {
   valid: "正常",
   expired: "异常",
   error: "异常",
   active: "正常",
+  在线: "在线",
+  正常: "正常",
+  过期: "异常",
 }
 
 export async function GET() {
@@ -70,6 +73,7 @@ export async function GET() {
           user_id: (row?.user_id as string) ?? null,
           original_name: (row?.original_name as string) ?? null,
           note: (row?.note as string) ?? null,
+          login_status: (row?.login_status as string) ?? null,
         }
       })
     )

@@ -29,7 +29,7 @@ PLATFORM_CONFIGS = {
         'selectors': {
             'name': ['xpath=//div[@class="name-_lSSDc"]', 'div[class*="name-_lSSDc"]', 'div[class*="header-right-name"]', '.header-right-name'],
             'avatar': ['div[class*="avatar-"] img', '.semi-avatar img', '.header-right-avatar img'],
-            'user_id_text': 'text=/抖音号[:：]?\\s*\\d+/'
+            'user_id_text': 'text=/抖音号[:：]?\\s*[\\w.-]+/'
         }
     },
     'channels': {
@@ -41,7 +41,7 @@ PLATFORM_CONFIGS = {
         }
     },
     'xiaohongshu': {
-        'url': 'https://creator.xiaohongshu.com/creator/home',
+        'url': 'https://creator.xiaohongshu.com/new/home',
         'selectors': {
             'name': ['.base .text .account-name', '.account-name', '.user-name'],
             'avatar': ['.base .avatar img', '.avatar img', 'img[alt*="头像"]'],

@@ -36,7 +36,7 @@ export function DatePicker({
                 <Button
                     variant="outline"
                     className={cn(
-                        "justify-start gap-2 rounded-2xl border-white/10 /50 text-left font-normal text-white hover:bg-white/5",
+                        "justify-start gap-2 rounded-2xl border-white/10 text-left font-normal text-white hover:bg-white/5",
                         !value && "text-white/60",
                         className
                     )}

@@ -139,7 +139,7 @@ export function Chat() {
 
                 if (result.success && result.data) {
                     const data = result.data
-                    let resultText = `✅ **任务执行完成**\n\n**结果**: ${data.result}\n\n**执行步骤**:\n`
+                    let resultText = `**结果**: ${data.result}\n\n`
 
                     if (data.steps && Array.isArray(data.steps)) {
                         data.steps.forEach((step: any, index: number) => {

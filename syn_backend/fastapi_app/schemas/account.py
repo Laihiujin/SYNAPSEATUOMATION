@@ -51,6 +51,7 @@ class AccountResponse(BaseModel):
     original_name: Optional[str] = None
     note: Optional[str] = None
     user_id: Optional[str] = None
+    login_status: Optional[str] = Field(None, description="登录状态(logged_in/session_expired/unknown)")
 
     class Config:
         populate_by_name = True
@@ -62,7 +63,8 @@ class AccountResponse(BaseModel):
                 "name": "测试账号",
                 "status": "valid",
                 "filePath": "account_12345.json",
-                "user_id": "1234567890"
+                "user_id": "1234567890",
+                "login_status": "logged_in"
             }
         }
 
@@ -127,3 +129,13 @@ class AccountFilterRequest(BaseModel):
     note_keyword: Optional[str] = None
     skip: int = Field(default=0, ge=0)
     limit: int = Field(default=100, ge=1, le=1000)
+
+
+class FrontendAccountItem(BaseModel):
+    account_id: str = Field(..., description="账号ID")
+    platform: str = Field(..., description="平台")
+
+
+class FrontendAccountSnapshotRequest(BaseModel):
+    """Frontend account list snapshot for pruning."""
+    accounts: List[FrontendAccountItem]

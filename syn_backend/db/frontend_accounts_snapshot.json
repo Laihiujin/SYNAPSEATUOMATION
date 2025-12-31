@@ -1,0 +1,37 @@
+{
+  "updated_at": "2025-12-31T10:38:38.032210",
+  "accounts": [
+    {
+      "account_id": "account_1767155136624",
+      "platform": "bilibili"
+    },
+    {
+      "account_id": "account_1767154714055",
+      "platform": "channels"
+    },
+    {
+      "account_id": "account_1767161735979",
+      "platform": "channels"
+    },
+    {
+      "account_id": "account_1767083652448",
+      "platform": "douyin"
+    },
+    {
+      "account_id": "account_1767011435306",
+      "platform": "douyin"
+    },
+    {
+      "account_id": "account_1767083679295",
+      "platform": "douyin"
+    },
+    {
+      "account_id": "account_1767011674508",
+      "platform": "kuaishou"
+    },
+    {
+      "account_id": "account_1767153564266",
+      "platform": "xiaohongshu"
+    }
+  ]
+}

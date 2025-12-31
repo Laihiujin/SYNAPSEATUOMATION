@@ -13,6 +13,9 @@ import asyncio
 import os
 import platform
 import contextlib
+import traceback
+from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 from typing import Dict, Any
 from loguru import logger
@@ -138,7 +141,7 @@ PLATFORM_ADAPTERS = {
 
 class EnrichAccountRequest(BaseModel):
     platform: str = Field(..., description="平台名称 (tencent/douyin/kuaishou/xiaohongshu/bilibili)")
-    storage_state: Dict[str, Any] = Field(..., description="Playwright storage_state JSON")
+    storage_state: Dict[str, Any] = Field(default_factory=dict, description="Playwright storage_state JSON")
     account_id: str | None = Field(default=None, description="账号ID(用于设备指纹)")
     # None => 使用环境变量 `PLAYWRIGHT_HEADLESS` 的默认值
     headless: bool | None = Field(default=None, description="是否无头模式（None 表示使用 PLAYWRIGHT_HEADLESS）")
@@ -153,6 +156,16 @@ class OpenCreatorCenterRequest(BaseModel):
     headless: bool | None = Field(default=None, description="是否无头模式（None 表示使用 PLAYWRIGHT_HEADLESS）")
     timeout_ms: int = Field(default=60000, description="页面加载超时(ms)")
     expires_in: int = Field(default=3600, description="会话保留时间(秒)")
+    url: str | None = Field(default=None, description="可选，直接打开的 URL")
+
+
+class CreatorSecUidRequest(BaseModel):
+    platform: str = Field(..., description="platform name (douyin only)")
+    storage_state: Dict[str, Any] = Field(..., description="Playwright storage_state JSON")
+    account_id: str | None = Field(default=None, description="account id (fingerprint)")
+    headless: bool | None = Field(default=None, description="headless mode (None => env default)")
+    timeout_ms: int = Field(default=30000, description="page load timeout (ms)")
+    input_selector: str | None = Field(default=None, description="input selector to trigger sec_uid request")
 
 
 _PLATFORM_PROFILE_URL = {
@@ -160,9 +173,20 @@ _PLATFORM_PROFILE_URL = {
     "channels": "https://channels.weixin.qq.com/platform",
     "douyin": "https://creator.douyin.com/creator-micro/home",
     "kuaishou": "https://cp.kuaishou.com/profile",
-    "xiaohongshu": "https://creator.xiaohongshu.com/creator/home",
+    "xiaohongshu": "https://creator.xiaohongshu.com/new/home",
     "bilibili": "https://member.bilibili.com/platform/home",
 }
+
+
+def _append_sec_uid_log(message: str) -> None:
+    try:
+        log_root = Path(__file__).resolve().parents[1] / "logs"
+        log_root.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).isoformat()
+        with (log_root / "sec_uid_worker.log").open("a", encoding="utf-8") as fh:
+            fh.write(f"[{stamp}] {message}\n")
+    except Exception:
+        pass
 
 
 async def _apply_storage_state(context, storage_state: Dict[str, Any]) -> None:
@@ -268,7 +292,7 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
     """
     try:
         platform_code = (req.platform or "").strip().lower()
-        profile_url = _PLATFORM_PROFILE_URL.get(platform_code)
+        profile_url = (req.url or "").strip() or _PLATFORM_PROFILE_URL.get(platform_code)
         if not profile_url:
             return JSONResponse(status_code=400, content={"success": False, "error": f"Unsupported platform: {req.platform}"})
 
@@ -329,6 +353,43 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                     custom_manager = persistent_browser_manager.__class__(profile_root_path)
                 except Exception:
                     custom_manager = persistent_browser_manager
+
+            # 🔧 检查该账号是否已有打开的会话（避免同一个 profile 被多次打开）
+            existing_session_id = None
+            async with sessions_lock:
+                for sid, sess in sessions.items():
+                    if (sess.get("type") == "creator_center" and
+                        sess.get("account_id") == req.account_id and
+                        sess.get("platform") == platform_code):
+                        existing_session_id = sid
+                        break
+
+            if existing_session_id:
+                logger.warning(f"[Worker] Account {req.account_id} already has session {existing_session_id}, closing old session first")
+                try:
+                    # 先关闭旧会话
+                    async with sessions_lock:
+                        old_sess = sessions.pop(existing_session_id, None)
+                    if old_sess:
+                        with contextlib.suppress(Exception):
+                            if old_sess.get("page"):
+                                await old_sess["page"].close()
+                        with contextlib.suppress(Exception):
+                            if old_sess.get("context"):
+                                await old_sess["context"].close()
+                        with contextlib.suppress(Exception):
+                            browser_obj = old_sess.get("browser")
+                            if browser_obj:
+                                await browser_obj.close()
+                        with contextlib.suppress(Exception):
+                            if old_sess.get("pw"):
+                                await old_sess["pw"].stop()
+                        # 等待浏览器进程完全退出
+                        await asyncio.sleep(1)
+                        logger.info(f"[Worker] Old session {existing_session_id} closed successfully")
+                except Exception as e:
+                    logger.error(f"[Worker] Failed to close old session: {e}")
+
             user_data_dir = custom_manager.get_user_data_dir(req.account_id, platform_code)
 
             # 🔧 修复：Playwright 的 launch_persistent_context 不支持 storage_state 参数
@@ -491,6 +552,8 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
                 "page": page,
                 "profile_url": profile_url,
                 "persistent": bool(use_persistent_profile),
+                "account_id": req.account_id,
+                "platform": platform_code,
             }
 
         logger.info(f"[Worker] Creator center opened: platform={platform_code} session={session_id}")
@@ -500,6 +563,391 @@ async def open_creator_center(req: OpenCreatorCenterRequest):
         err = str(e) or type(e).__name__
         logger.error(f"[Worker] Open creator center failed: {err}", exc_info=True)
         return JSONResponse(status_code=500, content={"success": False, "error": err})
+
+
+@app.post("/creator/sec-uid")
+async def fetch_creator_sec_uid(req: CreatorSecUidRequest):
+    """Fetch Douyin sec_uid by opening creator center with storage_state."""
+    try:
+        platform_code = (req.platform or "").strip().lower()
+        if platform_code != "douyin":
+            return JSONResponse(status_code=400, content={"success": False, "error": "sec_uid only supported for douyin"})
+
+        profile_url = _PLATFORM_PROFILE_URL.get(platform_code)
+        if not profile_url:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Missing profile url"})
+
+        from playwright.async_api import async_playwright
+        from myUtils.playwright_context_factory import create_context_with_policy
+
+        headless = req.headless if req.headless is not None else _env_bool("PLAYWRIGHT_HEADLESS", True)
+        _append_sec_uid_log(f"start account_id={req.account_id} headless={headless} url={profile_url}")
+        pw = await async_playwright().start()
+        browser = None
+        context = None
+        try:
+            browser, context, _, _ = await create_context_with_policy(
+                pw,
+                platform=platform_code,
+                account_id=req.account_id,
+                headless=headless,
+                storage_state=req.storage_state,
+                force_ephemeral=bool(req.storage_state),
+                launch_kwargs={"args": ["--no-sandbox"]},
+            )
+            _append_sec_uid_log("context created")
+            page = await context.new_page()
+            sec_uid_future: asyncio.Future[str | None] = asyncio.get_running_loop().create_future()
+
+            async def _capture_from_response(resp) -> None:
+                try:
+                    url = resp.url
+                    if "/aweme/v1/creator/check/user/" in url:
+                        qs = parse_qs(urlparse(url).query)
+                        sec_uid_val = (qs.get("sec_uid") or [None])[0]
+                        if sec_uid_val and not sec_uid_future.done():
+                            sec_uid_future.set_result(sec_uid_val)
+                        return
+                    if "/passport/user_info/get_sec_ts/" in url:
+                        data = await resp.json()
+                        if isinstance(data, dict):
+                            for key in ("sec_uid", "secUid"):
+                                sec_uid_val = data.get(key)
+                                if sec_uid_val and not sec_uid_future.done():
+                                    sec_uid_future.set_result(str(sec_uid_val))
+                                    return
+                            user_info = data.get("user_info")
+                            if isinstance(user_info, dict):
+                                for key in ("sec_uid", "secUid"):
+                                    sec_uid_val = user_info.get(key)
+                                    if sec_uid_val and not sec_uid_future.done():
+                                        sec_uid_future.set_result(str(sec_uid_val))
+                                        return
+                except Exception:
+                    pass
+
+            def _on_response(resp) -> None:
+                asyncio.create_task(_capture_from_response(resp))
+
+            page.on("response", _on_response)
+            _append_sec_uid_log("response listener attached")
+
+            await page.goto(profile_url, timeout=req.timeout_ms, wait_until="domcontentloaded")
+            _append_sec_uid_log(f"page loaded url={page.url}")
+            await asyncio.sleep(0.2)
+
+            sec_uid = None
+            try:
+                sec_uid = await asyncio.wait_for(sec_uid_future, timeout=1.2)
+            except Exception:
+                sec_uid = None
+
+            _append_sec_uid_log(f"done sec_uid={sec_uid}")
+            return {"success": True, "data": {"sec_uid": sec_uid}}
+        finally:
+            with contextlib.suppress(Exception):
+                if context:
+                    await context.close()
+            with contextlib.suppress(Exception):
+                if browser:
+                    await browser.close()
+            with contextlib.suppress(Exception):
+                await pw.stop()
+    except Exception as e:
+        err = str(e) or type(e).__name__
+        _append_sec_uid_log(f"error {err} traceback={traceback.format_exc()}")
+        logger.error(f"[Worker] fetch_creator_sec_uid failed: {err}", exc_info=True)
+        return JSONResponse(status_code=500, content={"success": False, "error": err})
+
+
+class CheckLoginStatusRequest(BaseModel):
+    """检查账号登录状态请求"""
+    account_ids: list[str] | None = Field(default=None, description="账号ID列表(为空则检查下一批)")
+    batch_size: int = Field(default=5, ge=1, le=100, description="批量检查数量")
+
+
+@app.post("/creator/check-login-status")
+async def check_login_status_batch(req: CheckLoginStatusRequest):
+    """
+    批量检查账号登录状态（高并发，直接在Worker内部实现）
+
+    - 如果提供 account_ids，则检查指定账号
+    - 如果不提供，则使用轮询策略检查下一批账号
+    - 使用高并发 asyncio.gather() 检查
+    - 完全在Worker内部实现，无需调用外部 login_status_checker
+    """
+    try:
+        if req.account_ids:
+            # 指定账号检查
+            logger.info(f"[Worker] 检查指定账号登录状态: {req.account_ids}")
+            stats = await _check_specific_accounts_status(req.account_ids)
+        else:
+            # 轮询策略检查 - 直接在Worker内部实现
+            logger.info(f"[Worker] 轮询检查下一批账号登录状态 (batch_size={req.batch_size})")
+            stats = await _check_batch_accounts_rotation(batch_size=req.batch_size)
+
+        return {
+            "success": True,
+            "logged_in": stats["logged_in"],
+            "session_expired": stats["session_expired"],
+            "errors": stats["errors"],
+            "details": stats["details"],
+        }
+
+    except Exception as e:
+        err = str(e) or type(e).__name__
+        logger.error(f"[Worker] check_login_status_batch failed: {err}", exc_info=True)
+        return JSONResponse(status_code=500, content={"success": False, "error": err})
+
+
+async def _check_batch_accounts_rotation(batch_size: int = 5) -> dict:
+    """轮询检查下一批账号（直接在Worker内部实现）"""
+    from myUtils.cookie_manager import cookie_manager
+    from myUtils.login_status_checker import login_status_checker
+
+    # 使用 login_status_checker 的轮询索引
+    batch = login_status_checker.get_next_batch_accounts(batch_size)
+
+    if not batch:
+        return {
+            "checked": 0,
+            "logged_in": 0,
+            "session_expired": 0,
+            "errors": 0,
+            "skipped": 0,
+            "details": [],
+        }
+
+    logger.info(f"[Worker] 开始轮询检查 {len(batch)} 个账号 (直接在Worker内部)")
+
+    # 高并发检查 - 直接调用 Worker 内部方法
+    tasks = [
+        _check_single_account_login_worker(
+            account_id=acc.get("account_id"),
+            platform=acc.get("platform"),
+            cookie_file=acc.get("cookie_file"),
+        )
+        for acc in batch
+    ]
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # 处理结果
+    processed_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            account = batch[i]
+            processed_results.append({
+                "account_id": account.get("account_id"),
+                "platform": account.get("platform"),
+                "login_status": "error",
+                "error": str(result),
+            })
+            logger.error(f"[Worker] 检查异常: {account.get('account_id')} - {result}")
+        else:
+            processed_results.append(result)
+
+    # 统计结果
+    stats = {
+        "checked": len(processed_results),
+        "logged_in": sum(1 for r in processed_results if r["login_status"] == "logged_in"),
+        "session_expired": sum(1 for r in processed_results if r["login_status"] == "session_expired"),
+        "errors": sum(1 for r in processed_results if r["login_status"] == "error"),
+        "skipped": sum(1 for r in processed_results if r["login_status"] == "skipped"),
+        "details": processed_results,
+    }
+
+    logger.info(
+        f"[Worker] 轮询检查完成: "
+        f"总数={stats['checked']}, 在线={stats['logged_in']}, "
+        f"掉线={stats['session_expired']}, 错误={stats['errors']}, 跳过={stats['skipped']}"
+    )
+
+    return stats
+
+
+async def _check_single_account_login_worker(account_id: str, platform: str, cookie_file: str) -> dict:
+    """在 Worker 内部直接检查单个账号登录状态"""
+    import json
+    import random
+    from pathlib import Path
+    from myUtils.cookie_manager import cookie_manager
+
+    result = {
+        "account_id": account_id,
+        "platform": platform,
+        "login_status": "unknown",
+        "error": None,
+    }
+
+    # 跳过B站账号
+    if platform == "bilibili":
+        result["login_status"] = "skipped"
+        result["error"] = "B站账号跳过检查"
+        return result
+
+    # 平台创作者中心URL
+    PLATFORM_CREATOR_URLS = {
+        "douyin": "https://creator.douyin.com/creator-micro/home",
+        "xiaohongshu": "https://creator.xiaohongshu.com/new/home",
+        "kuaishou": "https://cp.kuaishou.com/profile",
+        "channels": "https://channels.weixin.qq.com/platform/home",
+    }
+
+    creator_url = PLATFORM_CREATOR_URLS.get(platform)
+    if not creator_url:
+        result["login_status"] = "error"
+        result["error"] = f"不支持的平台: {platform}"
+        return result
+
+    # 读取 cookie 文件
+    cookies_dir = Path(__file__).parent.parent / "cookiesFile"
+    cookie_file_path = cookies_dir / cookie_file
+    if not cookie_file_path.exists():
+        result["login_status"] = "error"
+        result["error"] = "Cookie文件不存在"
+        return result
+
+    try:
+        with open(cookie_file_path, 'r', encoding='utf-8') as f:
+            storage_state = json.load(f)
+    except Exception as e:
+        result["login_status"] = "error"
+        result["error"] = f"读取Cookie文件失败: {str(e)}"
+        return result
+
+    # 直接在 Worker 内部启动浏览器检查
+    browser = None
+    context = None
+    page = None
+    try:
+        from playwright.async_api import async_playwright
+        from myUtils.playwright_context_factory import create_context_with_policy
+
+        pw = await async_playwright().start()
+
+        # 使用 create_context_with_policy 创建浏览器上下文
+        browser, context, fingerprint, policy = await create_context_with_policy(
+            pw,
+            platform=platform,
+            account_id=account_id,
+            headless=True,
+            storage_state=storage_state,
+        )
+
+        page = await context.new_page()
+
+        # 访问创作者中心
+        logger.info(f"[Worker] 直接检查 {platform} 账号: {account_id}")
+        response = await page.goto(creator_url, wait_until="domcontentloaded", timeout=30000)
+
+        # 等待1-2秒让页面加载/重定向
+        wait_time = random.uniform(1, 2)
+        await asyncio.sleep(wait_time)
+
+        final_url = page.url
+
+        # 判断登录状态: 如果URL包含login则表示掉线
+        if "login" in final_url.lower():
+            result["login_status"] = "session_expired"
+            result["final_url"] = final_url
+            logger.warning(f"[Worker] 账号 {account_id} ({platform}) 已掉线 - URL: {final_url}")
+        else:
+            result["login_status"] = "logged_in"
+            result["final_url"] = final_url
+            logger.info(f"[Worker] 账号 {account_id} ({platform}) 在线")
+
+        # 更新数据库（使用 login_status_checker 而不是 cookie_manager）
+        from myUtils.login_status_checker import login_status_checker
+        login_status_checker.update_login_status(account_id, platform, result["login_status"])
+
+    except Exception as e:
+        result["login_status"] = "error"
+        result["error"] = str(e)
+        logger.error(f"[Worker] {account_id} 检查失败: {e}")
+    finally:
+        # 清理资源
+        try:
+            if page:
+                await page.close()
+            if context:
+                await context.close()
+            if browser:
+                await browser.close()
+        except Exception as e:
+            logger.warning(f"[Worker] 清理资源失败: {e}")
+
+    return result
+
+
+async def _check_specific_accounts_status(account_ids: list[str]) -> dict:
+    """检查指定账号的登录状态(高并发，直接在Worker内部实现)"""
+    from myUtils.cookie_manager import cookie_manager
+
+    # 获取指定账号信息
+    all_accounts = cookie_manager.list_flat_accounts()
+    target_accounts = [
+        acc for acc in all_accounts
+        if acc.get("account_id") in account_ids and acc.get("platform") != "bilibili"
+    ]
+
+    if not target_accounts:
+        return {
+            "checked": 0,
+            "logged_in": 0,
+            "session_expired": 0,
+            "errors": 0,
+            "skipped": 0,
+            "details": [],
+        }
+
+    count_text = f"{len(target_accounts)} 个账号" if len(target_accounts) > 1 else "账号"
+    logger.info(f"[Worker] 开始检查指定的 {count_text}: {[a.get('account_id') for a in target_accounts]}")
+
+    # 并发检查（多个账号时才并发）
+    tasks = [
+        _check_single_account_login_worker(
+            account_id=acc.get("account_id"),
+            platform=acc.get("platform"),
+            cookie_file=acc.get("cookie_file"),
+        )
+        for acc in target_accounts
+    ]
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # 处理结果
+    processed_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            account = target_accounts[i]
+            processed_results.append({
+                "account_id": account.get("account_id"),
+                "platform": account.get("platform"),
+                "login_status": "error",
+                "error": str(result),
+            })
+            logger.error(f"[Worker] 检查异常: {account.get('account_id')} - {result}")
+        else:
+            processed_results.append(result)
+
+    # 统计结果
+    stats = {
+        "checked": len(processed_results),
+        "logged_in": sum(1 for r in processed_results if r["login_status"] == "logged_in"),
+        "session_expired": sum(1 for r in processed_results if r["login_status"] == "session_expired"),
+        "errors": sum(1 for r in processed_results if r["login_status"] == "error"),
+        "skipped": sum(1 for r in processed_results if r["login_status"] == "skipped"),
+        "details": processed_results,
+    }
+
+    logger.info(
+        f"[Worker] 指定账号检查完成: "
+        f"总数={stats['checked']}, 在线={stats['logged_in']}, "
+        f"掉线={stats['session_expired']}, 错误={stats['errors']}, 跳过={stats['skipped']}"
+    )
+
+    return stats
 
 
 @app.delete("/creator/close/{session_id}")
@@ -580,6 +1028,7 @@ async def enrich_account(req: EnrichAccountRequest):
                 account_id=req.account_id,
                 headless=headless,
                 storage_state=req.storage_state,
+                force_ephemeral=bool(req.storage_state),
                 launch_kwargs={"args": ["--no-sandbox"]},
             )
             page = await context.new_page()

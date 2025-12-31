@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import asyncio
+import random
 
 # 添加路径以导入现有模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -191,6 +192,94 @@ class AccountService:
             raise
 
 
+
+
+    async def check_account_status(
+        self,
+        platform: Optional[str] = None,
+        account_ids: Optional[List[str]] = None,
+        sample_size: Optional[int] = None,
+        fallback: bool = False,
+    ) -> Dict[str, Any]:
+        """Fast status check: only update status/last_checked (no info changes)."""
+        try:
+            from myUtils.fast_cookie_validator import FastCookieValidator
+
+            accounts = self.manager.list_flat_accounts()
+            if platform:
+                accounts = [a for a in accounts if a.get("platform") == platform]
+            if account_ids:
+                account_set = set(account_ids)
+                accounts = [a for a in accounts if a.get("account_id") in account_set]
+
+            total = len(accounts)
+            if total == 0:
+                return {"success": True, "checked": 0, "valid": 0, "expired": 0, "details": []}
+
+            if sample_size is None:
+                sample_size = min(5, total)
+            else:
+                sample_size = max(1, min(sample_size, total))
+
+            random.shuffle(accounts)
+            sample_accounts = accounts[:sample_size]
+
+            validator = FastCookieValidator()
+            tasks = [
+                validator.validate_cookie_fast(
+                    acc.get("platform"),
+                    account_file=acc.get("cookie_file"),
+                    fallback=fallback,
+                )
+                for acc in sample_accounts
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            checked = 0
+            valid = 0
+            expired = 0
+            details = []
+            for acc, result in zip(sample_accounts, results):
+                checked += 1
+                new_status = "expired"
+                error = None
+                elapsed_ms = None
+                source = None
+                if isinstance(result, Exception):
+                    error = str(result)
+                else:
+                    new_status = "valid" if result.get("status") == "valid" else "expired"
+                    error = result.get("error")
+                    elapsed_ms = result.get("elapsed_ms")
+                    source = result.get("source")
+
+                self.manager.update_account_status(acc.get("platform"), acc.get("account_id"), new_status)
+                if new_status == "valid":
+                    valid += 1
+                else:
+                    expired += 1
+
+                details.append(
+                    {
+                        "account_id": acc.get("account_id"),
+                        "platform": acc.get("platform"),
+                        "status": new_status,
+                        "elapsed_ms": elapsed_ms,
+                        "source": source,
+                        "error": error,
+                    }
+                )
+
+            return {
+                "success": True,
+                "checked": checked,
+                "valid": valid,
+                "expired": expired,
+                "details": details,
+            }
+        except Exception as e:
+            logger.error(f"Status check failed: {e}")
+            raise
 
 
     async def sync_user_info(self) -> Dict[str, Any]:

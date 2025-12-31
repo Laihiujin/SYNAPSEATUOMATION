@@ -62,6 +62,7 @@ export const accountSchema = z.object({
   avatar: z.string().nullable().optional().default(""),
   boundAt: z.string().nullable().optional().default(""),
   filePath: z.string().nullable().optional(),
+  login_status: z.string().nullable().optional(),
 }).passthrough()
 
 export const accountsResponseSchema = z.object({

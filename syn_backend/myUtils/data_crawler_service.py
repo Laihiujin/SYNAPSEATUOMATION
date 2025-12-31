@@ -4,8 +4,12 @@
 支持抖音、快手、小红书、B站等平台的数据抓取
 """
 import httpx
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from loguru import logger
+from playwright.async_api import async_playwright
+from myUtils.cookie_manager import cookie_manager
 
 
 class DataCrawlerService:
@@ -20,6 +24,9 @@ class DataCrawlerService:
         """
         self.tk_api_base_url = tk_api_base_url
         self.client = httpx.AsyncClient(timeout=30.0)
+        self._base_dir = Path(__file__).resolve().parent.parent
+        self._cookies_dir = self._base_dir / "cookiesFile"
+        self._default_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
     async def close(self):
         """关闭HTTP客户端"""
@@ -70,6 +77,76 @@ class DataCrawlerService:
                 "error": str(e),
                 "platform": "douyin"
             }
+
+    async def _load_cookie_file(self, account_file: str) -> Optional[Dict[str, Any]]:
+        """
+        读取存储状态文件
+        """
+        file_path = self._cookies_dir / account_file
+        if not file_path.exists():
+            return None
+        try:
+            with file_path.open("r", encoding="utf-8") as fp:
+                return json.load(fp)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"读取cookie文件失败 {account_file}: {exc}")
+            return None
+
+    async def fetch_xiaohongshu_video(self, note_id: str, account_file: str) -> Dict[str, Any]:
+        """
+        使用 MediaCrawler 的 API 客户端抓取小红书笔记详情
+
+        Args:
+            note_id: 小红书笔记ID
+            account_file: cookiesFile 下的账号 cookie 存储文件
+        """
+        try:
+            cookie_state = await self._load_cookie_file(account_file)
+            if not cookie_state:
+                return {"success": False, "error": "Cookie 文件不存在", "platform": "xiaohongshu"}
+
+            from mediacrawler.media_platform.xhs.client import XiaoHongShuClient
+            from mediacrawler.tools.crawler_util import convert_cookies
+
+            cookies = cookie_state.get("cookies") or []
+            if not cookies:
+                return {"success": False, "error": "Cookie 文件缺少 cookies 字段", "platform": "xiaohongshu"}
+
+            cookie_str, cookie_dict = convert_cookies(cookies)
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                try:
+                    context = await browser.new_context(storage_state=cookie_state, user_agent=self._default_ua)
+                    page = await context.new_page()
+                    await page.goto("https://www.xiaohongshu.com", timeout=30000)
+
+                    client = XiaoHongShuClient(
+                        headers={
+                            "accept": "application/json, text/plain, */*",
+                            "accept-language": "zh-CN,zh;q=0.9",
+                            "content-type": "application/json;charset=UTF-8",
+                            "origin": "https://www.xiaohongshu.com",
+                            "referer": "https://www.xiaohongshu.com/",
+                            "user-agent": self._default_ua,
+                            "Cookie": cookie_str,
+                        },
+                        playwright_page=page,
+                        cookie_dict=cookie_dict,
+                        proxy=None,
+                    )
+
+                    detail = await client.get_note_by_id(note_id)
+
+                    if detail:
+                        return {"success": True, "data": detail, "platform": "xiaohongshu"}
+                    return {"success": False, "error": "未获取到笔记详情", "platform": "xiaohongshu"}
+                finally:
+                    await browser.close()
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"小红书视频抓取异常: {exc}")
+            return {"success": False, "error": str(exc), "platform": "xiaohongshu"}
 
     async def fetch_douyin_user_posts(
         self,
@@ -267,6 +344,20 @@ class DataCrawlerService:
                 aweme_id = self._extract_douyin_id(video_url)
                 return await self.fetch_douyin_video(aweme_id)
 
+            elif platform == "xiaohongshu":
+                note_id = self._extract_xiaohongshu_id(video_url)
+                account_file = self._pick_default_cookie_file("xiaohongshu")
+                if not account_file:
+                    return {"success": False, "error": "未找到可用小红书账号", "platform": "xiaohongshu"}
+                return await self.fetch_xiaohongshu_video(note_id, account_file)
+
+            elif platform == "kuaishou":
+                photo_id = self._extract_kuaishou_id(video_url)
+                account_file = self._pick_default_cookie_file("kuaishou")
+                if not account_file:
+                    return {"success": False, "error": "未找到可用快手账号", "platform": "kuaishou"}
+                return await self.fetch_kuaishou_video(photo_id, account_file)
+
             elif platform == "bilibili":
                 # 从URL提取bvid
                 bvid = self._extract_bilibili_id(video_url)
@@ -300,6 +391,25 @@ class DataCrawlerService:
         else:
             return "unknown"
 
+    def _extract_xiaohongshu_id(self, url: str) -> str:
+        """从小红书URL提取笔记ID"""
+        import re
+
+        # 支持 https://www.xiaohongshu.com/explore/<id>
+        match = re.search(r"/explore/([a-zA-Z0-9]+)", url)
+        if match:
+            return match.group(1)
+        raise ValueError("无法从URL提取笔记ID")
+
+    def _extract_kuaishou_id(self, url: str) -> str:
+        """从快手URL提取photoId"""
+        import re
+
+        match = re.search(r"short-video/([a-zA-Z0-9_-]+)", url)
+        if match:
+            return match.group(1)
+        raise ValueError("无法从URL提取video ID")
+
     def _extract_douyin_id(self, url: str) -> str:
         """从抖音URL提取视频ID"""
         # 简化实现，实际需要更复杂的解析
@@ -320,6 +430,81 @@ class DataCrawlerService:
         if match:
             return match.group(0)
         raise ValueError("无法从URL提取视频ID")
+
+    def _pick_default_cookie_file(self, platform: str) -> Optional[str]:
+        """从 cookie_manager 选出一个有效账号的 cookie 文件。"""
+        try:
+            accounts = cookie_manager.list_flat_accounts()
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"读取账号列表失败: {exc}")
+            accounts = []
+
+        for acc in accounts:
+            if acc.get("status") != "valid":
+                continue
+            if (acc.get("platform") or "").lower() != platform:
+                continue
+            cookie_file = acc.get("cookie_file")
+            if cookie_file:
+                target = self._cookies_dir / cookie_file
+                if target.exists():
+                    return cookie_file
+
+        # fallback: 按前缀寻找
+        prefix_map = {"xiaohongshu": "xiaohongshu", "kuaishou": "kuaishou"}
+        prefix = prefix_map.get(platform)
+        if prefix:
+            for path in self._cookies_dir.glob(f"{prefix}*.json"):
+                return path.name
+        return None
+
+    async def fetch_kuaishou_video(self, photo_id: str, account_file: str) -> Dict[str, Any]:
+        """使用 MediaCrawler 的 API 客户端抓取快手视频详情"""
+        try:
+            cookie_state = await self._load_cookie_file(account_file)
+            if not cookie_state:
+                return {"success": False, "error": "Cookie 文件不存在", "platform": "kuaishou"}
+
+            from mediacrawler.media_platform.kuaishou.client import KuaiShouClient
+            from mediacrawler.tools.crawler_util import convert_cookies
+
+            cookies = cookie_state.get("cookies") or []
+            if not cookies:
+                return {"success": False, "error": "Cookie 文件缺少 cookies 字段", "platform": "kuaishou"}
+
+            cookie_str, cookie_dict = convert_cookies(cookies)
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                try:
+                    context = await browser.new_context(storage_state=cookie_state, user_agent=self._default_ua)
+                    page = await context.new_page()
+                    await page.goto("https://www.kuaishou.com", timeout=30000)
+
+                    client = KuaiShouClient(
+                        headers={
+                            "User-Agent": self._default_ua,
+                            "Cookie": cookie_str,
+                            "Origin": "https://www.kuaishou.com",
+                            "Referer": "https://www.kuaishou.com",
+                            "Content-Type": "application/json;charset=UTF-8",
+                        },
+                        playwright_page=page,
+                        cookie_dict=cookie_dict,
+                        proxy=None,
+                    )
+
+                    detail = await client.get_video_info(photo_id)
+
+                    if detail:
+                        return {"success": True, "data": detail, "platform": "kuaishou"}
+                    return {"success": False, "error": "未获取到视频详情", "platform": "kuaishou"}
+                finally:
+                    await browser.close()
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"快手视频抓取异常: {exc}")
+            return {"success": False, "error": str(exc), "platform": "kuaishou"}
 
 
 # 全局实例

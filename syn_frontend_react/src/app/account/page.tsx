@@ -92,6 +92,13 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   pending: { label: "待激活", variant: "default" },
 }
 
+const loginStatusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  logged_in: { label: "在线", variant: "secondary" },
+  session_expired: { label: "掉线", variant: "destructive" },
+  skipped: { label: "-", variant: "outline" },
+  unknown: { label: "未检测", variant: "outline" },
+}
+
 interface AccountFormState {
   id?: string
   name: string
@@ -103,7 +110,7 @@ function AccountPageContent() {
   const queryClient = useQueryClient()
   const { data: accountResponse, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["accounts"],
-    queryFn: () => fetcher("/api/accounts", accountsResponseSchema),
+    queryFn: () => fetcher("/api/accounts?limit=1000", accountsResponseSchema),
     refetchInterval: 10000,
   })
 
@@ -116,7 +123,7 @@ function AccountPageContent() {
   const [keyword, setKeyword] = useState("")
   const [activeTab, setActiveTab] = useState<PlatformKey>("all")
   const [isSyncing, setIsSyncing] = useState(false)
-  const [isUserInfoSyncing, setIsUserInfoSyncing] = useState(false)
+  const [isStatusChecking, setIsStatusChecking] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formState, setFormState] = useState<AccountFormState>({ name: "", platform: "kuaishou" })
   const [bindingStatus, setBindingStatus] = useState<"idle" | "pending" | "code" | "success" | "error">("idle")
@@ -130,6 +137,23 @@ function AccountPageContent() {
       setAccounts(accountResponse.data)
     })
   }, [accountResponse])
+
+  useEffect(() => {
+    if (!accounts.length) return
+    const snapshot = {
+      accounts: accounts.map((account) => ({
+        account_id: account.id,
+        platform: account.platform,
+      })),
+    }
+    fetch("/api/accounts/sync-frontend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(snapshot),
+    }).catch((error) => {
+      console.warn("Sync frontend accounts failed:", error)
+    })
+  }, [accounts])
 
   useEffect(() => {
     const platformParam = searchParams.get("platform") as PlatformKey | null
@@ -425,7 +449,7 @@ function AccountPageContent() {
         if (!openResponse.ok) throw new Error("启动浏览器失败")
         toast({
           title: "已请求打开创作者中心",
-          description: "浏览器窗口已启动 (非集成模式)",
+          // description: "浏览器窗口已启动 (非集成模式)",
         })
       }
     } catch (e) {
@@ -434,6 +458,40 @@ function AccountPageContent() {
     }
   }
 
+  // 检查单个账号登录状态
+  const checkAccountLoginStatus = async (accountId: string) => {
+    try {
+      const response = await fetch(`/api/v1/creator/check-login-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_ids: [accountId] })
+      })
+
+      if (!response.ok) {
+        throw new Error("检查失败")
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // 强制刷新账号列表
+        await queryClient.invalidateQueries({ queryKey: ["accounts"] })
+        await refetch()
+
+        const logged_in = result.logged_in || 0
+        const session_expired = result.session_expired || 0
+        const errors = result.errors || 0
+
+        toast({
+          title: "Bingo~",
+          // description: `在线=${logged_in}, 掉线=${session_expired}, 错误=${errors}`
+        })
+      }
+    } catch (e) {
+      console.error("Check Login Status Error:", e)
+      toast({ variant: "destructive", title: "检查失败", description: String(e) })
+    }
+  }
 
 
   const columns: ColumnDef<Account>[] = [
@@ -537,15 +595,35 @@ function AccountPageContent() {
       ),
     },
     {
-      accessorKey: "status",
-      header: "状态",
+      id: "login_status",
+      header: "登录状态",
       cell: ({ row }) => {
-        const statusConfig = statusMap[row.original.status] || { label: row.original.status, variant: "outline" }
+        // B站特殊处理：无论 login_status 是什么，都默认显示为在线（因为使用biliup库）
+        const platform = row.original.platform
+        let loginStatus = (row.original as any).login_status || "unknown"
+
+        if (platform === "bilibili") {
+          // B站账号始终显示为在线
+          loginStatus = "logged_in"
+        }
+
+        const loginConfig = loginStatusMap[loginStatus] || { label: loginStatus, variant: "outline" }
+        const accountId = row.original.id
+
+        // 所有状态都可点击重新检测
         return (
           <div className="flex justify-start">
-            <Badge variant={statusConfig.variant as any} className="border-none text-xs">
-              {statusConfig.label}
-            </Badge>
+            <button
+              onClick={() => checkAccountLoginStatus(accountId)}
+              className="group transition-all"
+            >
+              <Badge
+                variant={loginConfig.variant as any}
+                className="border-none text-xs cursor-pointer group-hover:ring-2 group-hover:ring-white/20 group-hover:scale-105 transition-all"
+              >
+                {loginConfig.label}
+              </Badge>
+            </button>
           </div>
         )
       },
@@ -606,11 +684,10 @@ function AccountPageContent() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
       <PageHeader
-        eyebrow="资产中心"
         title="账号管理"
-        description="集中管理矩阵账号，支持扫码绑定、验证码校验、批量同步和异常清理。"
+        // description="集中管理矩阵账号，支持扫码绑定"
         actions={
           <>
 
@@ -736,39 +813,53 @@ function AccountPageContent() {
         description={`当前已绑定 ${accounts.length} 个矩阵账号${isFetching ? " · 刷新中..." : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {/* 同步账号功能暂时关闭（等待优化） */}
-            {/* <Button
+            <Button
               variant="default"
               className="rounded-2xl"
               onClick={async () => {
-                setIsUserInfoSyncing(true)
+                setIsStatusChecking(true)
                 try {
-                  const res = await fetch(`${backendBaseUrl}/api/v1/accounts/sync-user-info`, { method: "POST" })
+                  // 高并发检测所有账号：收集所有账号ID，传给Worker一次性检查
+                  const allAccountIds = accounts.map(acc => acc.id)
+                  if (allAccountIds.length === 0) {
+                    toast({ title: "无账号", description: "当前没有账号可检测" })
+                    return
+                  }
+
+                  const res = await fetch(`/api/v1/creator/check-login-status`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ account_ids: allAccountIds })  // 传入所有账号ID
+                  })
                   const json = await res.json()
                   if (json.success) {
+                    // 强制刷新账号列表
+                    await queryClient.invalidateQueries({ queryKey: ["accounts"] })
+                    await refetch()
+
+                    const logged_in = json.logged_in || 0
+                    const session_expired = json.session_expired || 0
+                    const errors = json.errors || 0
+
                     toast({
                       variant: "success",
-                      title: "同步成功",
-                      description: json.data?.message || `更新 ${json.data?.updated || 0} 个账号`
+                      title: "检测Bingo~",
+                      // description: `在线=${logged_in}, 掉线=${session_expired}, 错误=${errors}`
                     })
-                    refetch()
                   } else {
-                    throw new Error(json.message || '同步失败')
+                    throw new Error(json.message || "检测失败")
                   }
                 } catch (e) {
-                  toast({ variant: "destructive", title: "同步失败" })
+                  toast({ variant: "destructive", title: "检测失败", description: String(e) })
                 } finally {
-                  setIsUserInfoSyncing(false)
+                  setIsStatusChecking(false)
                 }
               }}
-              disabled={isFetching || isUserInfoSyncing}
+              disabled={isFetching || isStatusChecking}
             >
-              {isUserInfoSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-              {isUserInfoSyncing ? "同步中..." : "同步账号"}
-            </Button> */}
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
-              💡 同步账号功能暂时关闭（等待优化）
-            </div>
+              {isStatusChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              {isStatusChecking ? "检测中..." : "检测所有账号登录状态"}
+            </Button>
             <Button
               variant="destructive"
               className="rounded-2xl"

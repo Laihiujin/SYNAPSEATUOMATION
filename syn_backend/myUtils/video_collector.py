@@ -55,6 +55,35 @@ class VideoDataCollector:
     def __init__(self):
         self.init_database()
 
+    def _build_launch_args(self) -> Dict[str, Any]:
+        """Build Playwright launch args with optional local Chrome path."""
+        args: Dict[str, Any] = {
+            "headless": HEADLESS,
+            "args": ["--disable-blink-features=AutomationControlled"],
+        }
+        try:
+            from config.conf import LOCAL_CHROME_PATH
+            if LOCAL_CHROME_PATH:
+                args["executable_path"] = str(LOCAL_CHROME_PATH)
+        except Exception:
+            pass
+        return args
+
+    def _resolve_cookie_path(self, cookie_file: str) -> Path:
+        """Resolve cookie path from filename, relative path, or absolute path."""
+        if not cookie_file:
+            return BASE_DIR / "cookiesFile" / ""
+        raw_path = Path(cookie_file)
+        candidates = []
+        if raw_path.is_absolute():
+            candidates.append(raw_path)
+        candidates.append(BASE_DIR / cookie_file)
+        candidates.append(BASE_DIR / "cookiesFile" / cookie_file)
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return candidates[-1]
+
     def init_database(self):
         """Ensure the analytics table exists and has current schema."""
         db_str = str(DB_PATH)
@@ -318,7 +347,7 @@ class VideoDataCollector:
 
     def _load_cookie_list(self, cookie_file: str) -> List[Dict[str, Any]]:
         """Load cookies from playwright storage or raw list."""
-        path = BASE_DIR / "cookiesFile" / cookie_file
+        path = self._resolve_cookie_path(cookie_file)
         if not path.exists():
             return []
         try:
@@ -402,15 +431,12 @@ class VideoDataCollector:
         """Collect Kuaishou videos for the given account."""
         print("[Kuaishou] Start collecting data...")
 
-        cookie_path = BASE_DIR / "cookiesFile" / cookie_file
+        cookie_path = self._resolve_cookie_path(cookie_file)
         if not cookie_path.exists():
             return {"success": False, "error": "Cookie file not found"}
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=HEADLESS,
-                args=["--disable-blink-features=AutomationControlled"],
-            )
+            browser = await p.chromium.launch(**self._build_launch_args())
             context = await browser.new_context(
                 storage_state=cookie_path,
                 user_agent=DEFAULT_UA,
@@ -513,15 +539,12 @@ class VideoDataCollector:
         """Collect Xiaohongshu videos for the given account."""
         print("[XHS] Start collecting data...")
 
-        cookie_path = BASE_DIR / "cookiesFile" / cookie_file
+        cookie_path = self._resolve_cookie_path(cookie_file)
         if not cookie_path.exists():
             return {"success": False, "error": "Cookie file not found"}
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=HEADLESS,
-                args=["--disable-blink-features=AutomationControlled"],
-            )
+            browser = await p.chromium.launch(**self._build_launch_args())
             context = await browser.new_context(
                 storage_state=cookie_path,
                 user_agent=DEFAULT_UA,

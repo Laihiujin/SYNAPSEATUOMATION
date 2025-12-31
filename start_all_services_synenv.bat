@@ -31,7 +31,7 @@ if errorlevel 1 (
 
 echo.
 echo [2] 启动 Celery Worker（发布任务队列）...
-start "Celery Worker" "%~dp0start_celery_worker_synenv.bat"
+start "Celery Worker (synenv)" "%~dp0start_celery_worker_synenv.bat"
 timeout /t 2 /nobreak >nul
 
 echo.

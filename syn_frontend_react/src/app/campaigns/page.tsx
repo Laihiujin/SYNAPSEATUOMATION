@@ -21,6 +21,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 export default function CampaignsPage() {
     const router = useRouter()
@@ -96,17 +97,17 @@ export default function CampaignsPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold">投放计划</h1>
-                    <p className="text-sm text-white/60 mt-1">管理多账号、多素材、多日的矩阵投放</p>
-                </div>
-                <Button className="rounded-2xl" onClick={() => setCreateDialogOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    新建计划
-                </Button>
-            </div>
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="投放计划"
+                description="管理多账号、多素材、多日的矩阵投放"
+                actions={
+                    <Button className="rounded-2xl" onClick={() => setCreateDialogOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        新建计划
+                    </Button>
+                }
+            />
 
             <div className="flex items-center gap-4">
                 <div className="relative flex-1 max-w-sm">

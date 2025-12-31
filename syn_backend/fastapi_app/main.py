@@ -61,13 +61,14 @@ async def _normalize_duplicated_api_prefix(request: Request, call_next):
     return await call_next(request)
 
 
-# 配置CORS
+# 配置CORS - 允许所有来源（开发环境）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],  # 允许所有来源，避免 CORS 问题
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -95,6 +96,21 @@ if settings.DOUYIN_TIKTOK_API_ENABLED:
             logger.warning(f"[Douyin_TikTok_API] Repo not found at {douyin_root}")
     except Exception as exc:
         logger.warning(f"[Douyin_TikTok_API] Mount failed: {exc}")
+
+# Optional: mount MediaCrawler API under a prefix.
+if settings.MEDIACRAWLER_API_ENABLED:
+    try:
+        mediacrawler_root = Path(settings.BASE_DIR) / "MediaCrawler"
+        if mediacrawler_root.exists():
+            sys.path.insert(0, str(mediacrawler_root))
+            from api.main import app as mediacrawler_app  # type: ignore
+
+            app.mount(settings.MEDIACRAWLER_API_PREFIX, mediacrawler_app)
+            logger.info(f"[MediaCrawler] Mounted at {settings.MEDIACRAWLER_API_PREFIX}")
+        else:
+            logger.warning(f"[MediaCrawler] Repo not found at {mediacrawler_root}")
+    except Exception as exc:
+        logger.warning(f"[MediaCrawler] Mount failed: {exc}")
 
 
 # 全局异常处理
@@ -223,17 +239,36 @@ async def startup_event():
     else:
         logger.info("用户信息定时同步已关闭（ENABLE_USER_INFO_SYNC=false）")
 
+    # 初始化 OpenManus Agent（应用启动时预加载）
+    try:
+        from fastapi_app.agent.manus_agent import get_manus_agent
+        agent = await get_manus_agent()
+        app.state.manus_agent = agent
+        logger.info("✅ OpenManus Agent 初始化成功")
+    except Exception as e:
+        logger.warning(f"OpenManus Agent 初始化失败（可选功能）: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭事件"""
     logger.info("应用正在关闭...")
+
+    # 清理 OpenManus Agent
+    try:
+        if hasattr(app.state, 'manus_agent'):
+            await app.state.manus_agent.cleanup()
+            logger.info("OpenManus Agent 已清理")
+    except Exception as e:
+        logger.warning(f"OpenManus Agent 清理失败: {e}")
+
     # 停止账号信息定时同步
     try:
         from myUtils.user_info_sync_scheduler import user_info_sync_scheduler
         user_info_sync_scheduler.stop()
     except Exception:
         pass
+
     # 关闭数据库连接池
     from .db.session import main_db_pool, cookie_db_pool, ai_logs_db_pool
     main_db_pool.close_all()

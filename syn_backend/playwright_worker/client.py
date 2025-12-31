@@ -121,6 +121,20 @@ class PlaywrightWorkerClient:
             logger.error(f"[WorkerClient] Cancel failed: {e}")
             return False
 
+    async def close_creator_center(self, session_id: str) -> bool:
+        """
+        关闭创作者中心浏览器会话
+        """
+        try:
+            url = f"{self.worker_url}/creator/close/{session_id}"
+            response = await self.client.delete(url)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("success", False)
+        except Exception as e:
+            logger.error(f"[WorkerClient] Close creator center failed: {e}")
+            return False
+
     async def open_creator_center(
         self,
         platform: str,
@@ -130,12 +144,13 @@ class PlaywrightWorkerClient:
         headless: bool = False,
         timeout_ms: int = 60000,
         expires_in: int = 3600,
+        url: str | None = None,
     ) -> Dict[str, Any]:
         """
         Ask Worker to open a creator center page using the given storage_state.
         Returns {session_id, url}.
         """
-        url = f"{self.worker_url}/creator/open"
+        endpoint_url = f"{self.worker_url}/creator/open"
         payload = {
             "platform": platform,
             "storage_state": storage_state,
@@ -144,6 +159,38 @@ class PlaywrightWorkerClient:
             "headless": headless,
             "timeout_ms": timeout_ms,
             "expires_in": expires_in,
+            "url": url,
+        }
+        response = await self.client.post(endpoint_url, json=payload, timeout=30.0)
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+        if response.status_code >= 400:
+            worker_error = (data.get("error") if isinstance(data, dict) else None) or response.text
+            raise RuntimeError(f"Playwright Worker error ({response.status_code}): {worker_error}".strip())
+        if not isinstance(data, dict) or not data.get("success"):
+            raise RuntimeError((data.get("error") if isinstance(data, dict) else None) or "Unknown error")
+        return data.get("data") or {}
+
+    async def fetch_creator_sec_uid(
+        self,
+        platform: str,
+        storage_state: Dict[str, Any],
+        account_id: str | None = None,
+        headless: bool = True,
+        timeout_ms: int = 3000,
+        input_selector: str | None = None,
+    ) -> Dict[str, Any]:
+        """Fetch sec_uid from creator center using storage_state."""
+        url = f"{self.worker_url}/creator/sec-uid"
+        payload = {
+            "platform": platform,
+            "storage_state": storage_state,
+            "account_id": account_id,
+            "headless": headless,
+            "timeout_ms": timeout_ms,
+            "input_selector": input_selector,
         }
         response = await self.client.post(url, json=payload, timeout=30.0)
         try:

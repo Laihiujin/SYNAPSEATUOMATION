@@ -709,6 +709,67 @@ async def delete_file(
     )
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    file_ids: list[int] = Field(..., description="要删除的文件ID列表", min_items=1)
+
+
+class BatchDeleteResponse(BaseModel):
+    """批量删除响应"""
+    success_count: int = Field(..., description="成功删除的文件数")
+    failed_count: int = Field(..., description="删除失败的文件数")
+    failed_ids: list[int] = Field(default_factory=list, description="删除失败的文件ID列表")
+
+
+@router.post(
+    "/batch-delete",
+    response_model=Response,
+    summary="批量删除文件",
+    description="""
+    批量删除多个文件，单次请求完成所有删除操作。
+
+    优势：
+    - 单次HTTP请求，避免并发竞争
+    - 批量数据库操作，性能更高
+    - 批量文件删除，减少I/O阻塞
+    - 支持部分成功，返回失败列表
+
+    参数：
+    - file_ids: 要删除的文件ID列表
+    """
+)
+async def batch_delete_files(
+    request: BatchDeleteRequest,
+    db=Depends(get_db),
+    service: FileService = Depends(get_file_service)
+):
+    """批量删除文件"""
+    try:
+        result = await service.batch_delete_files(db, request.file_ids)
+
+        success_count = result["success_count"]
+        failed_count = result["failed_count"]
+        failed_ids = result["failed_ids"]
+
+        message = f"批量删除完成: 成功{success_count}个, 失败{failed_count}个"
+        if failed_count > 0:
+            message += f"（失败ID: {failed_ids}）"
+
+        return Response(
+            success=True,
+            message=message,
+            data=BatchDeleteResponse(
+                success_count=success_count,
+                failed_count=failed_count,
+                failed_ids=failed_ids
+            ).dict()
+        )
+
+    except Exception as e:
+        logger.error(f"Batch delete error: {e}")
+        raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
+
+
 @router.get(
     "/stats/summary",
     response_model=FileStatsResponse,

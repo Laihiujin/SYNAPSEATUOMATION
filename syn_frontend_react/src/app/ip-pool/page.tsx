@@ -71,6 +71,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { Textarea } from "@/components/ui/textarea"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 // Types
 interface ProxyIP {
@@ -308,27 +309,31 @@ export default function IPPoolPage() {
     const [qgLink, setQgLink] = useState("https://exclusive.proxy.qg.net/replace?key=880E8B24&num=1&area=&isp=0&format=json&distinct=false&keep_alive=1440")
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">IP资源池</h2>
-                    <p className="text-muted-foreground">管理代理IP资源及其账号绑定关系</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => checkAllHealthMutation.mutate()}
-                        disabled={checkAllHealthMutation.isPending}
-                    >
-                        <RefreshCcw className={cn("mr-2 h-4 w-4", checkAllHealthMutation.isPending && "animate-spin")} />
-                        批量检测
-                    </Button>
-                    <Button onClick={() => setIsAddDialogOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        添加IP
-                    </Button>
-                </div>
-            </div>
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="IP资源池"
+                // description="管理代理IP资源及其账号绑定关系"
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            className="rounded-xl border-white/10 bg-white/5 hover:bg-white/10"
+                            onClick={() => checkAllHealthMutation.mutate()}
+                            disabled={checkAllHealthMutation.isPending}
+                        >
+                            <RefreshCcw className={cn("mr-2 h-4 w-4", checkAllHealthMutation.isPending && "animate-spin")} />
+                            批量检测
+                        </Button>
+                        <Button
+                            className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+                            onClick={() => setIsAddDialogOpen(true)}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            添加IP
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* Stats */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

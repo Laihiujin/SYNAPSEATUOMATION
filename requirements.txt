@@ -281,3 +281,7 @@ ua-parser
 user-agents
 websockets
 tenacity
+
+
+#openmanus
+app.tool

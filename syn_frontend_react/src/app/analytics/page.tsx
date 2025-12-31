@@ -1,8 +1,9 @@
 "use client"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Calendar, Download, ExternalLink, Play, Heart, MessageCircle, Bookmark, RefreshCcw } from "lucide-react"
+import { Calendar, Download, ExternalLink, Play, Heart, MessageCircle, Bookmark, RefreshCcw, TrendingUp, BarChart3, PieChart, Activity } from "lucide-react"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -144,46 +145,43 @@ export default function AnalyticsPage() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold">数据中心</h1>
-                    <p className="text-sm text-white/60 mt-1">
-                        视频数据分析与统计
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        className="rounded-2xl"
-                        onClick={handleCollectData}
-                        disabled={isCollecting}
-                    >
-                        <RefreshCcw className={`mr-2 h-4 w-4 ${isCollecting ? 'animate-spin' : ''}`} />
-                        {isCollecting ? '采集中...' : '刷新数据'}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="rounded-2xl"
-                        onClick={() => handleExport('csv')}
-                    >
-                        <Download className="mr-2 h-4 w-4" />
-                        导出CSV
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="rounded-2xl"
-                        onClick={() => handleExport('excel')}
-                    >
-                        <Download className="mr-2 h-4 w-4" />
-                        导出Excel
-                    </Button>
-                </div>
-            </div>
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="数据中心"
+                // description="视频数据分析与统计"
+                actions={
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            className="rounded-2xl border-black bg-black/40 hover:bg-black/60"
+                            onClick={handleCollectData}
+                            disabled={isCollecting}
+                        >
+                            <RefreshCcw className={`mr-2 h-4 w-4 ${isCollecting ? 'animate-spin' : ''}`} />
+                            {isCollecting ? '采集中...' : '刷新数据'}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="rounded-2xl border-black bg-black/40 hover:bg-black/60"
+                            onClick={() => handleExport('csv')}
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            导出CSV
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="rounded-2xl border-black bg-black/40 hover:bg-black/60"
+                            onClick={() => handleExport('excel')}
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            导出Excel
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* Date Range Filter */}
-            <Card>
+            <Card className="border-black bg-black/40">
                 <CardHeader>
                     <CardTitle className="text-base">数据筛选</CardTitle>
                 </CardHeader>
@@ -193,12 +191,14 @@ export default function AnalyticsPage() {
                             value={startDate}
                             onChange={setStartDate}
                             placeholder="开始日期"
+                            className="border-black bg-black/40"
                         />
                         <span className="text-white/60">至</span>
                         <DatePicker
                             value={endDate}
                             onChange={setEndDate}
                             placeholder="结束日期"
+                            className="border-black bg-black/40"
                         />
                         <Button
                             variant="ghost"
@@ -248,7 +248,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Trend Chart */}
-            <Card>
+            <Card className="border-black bg-black/40">
                 <CardHeader>
                     <CardTitle>播放量趋势</CardTitle>
                     <CardDescription>近期视频播放量变化</CardDescription>
@@ -259,7 +259,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Video Data Table */}
-            <Card>
+            <Card className="border-black bg-black/40">
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <div>
@@ -274,7 +274,7 @@ export default function AnalyticsPage() {
                 <CardContent>
                     <Table>
                         <TableHeader>
-                            <TableRow className="border-white/5 hover:bg-white/5">
+                            <TableRow className="border-black/5 hover:bg-black/5">
                                 <TableHead>视频</TableHead>
                                 <TableHead>视频链接</TableHead>
                                 <TableHead>平台</TableHead>
@@ -295,7 +295,7 @@ export default function AnalyticsPage() {
                                 </TableRow>
                             ) : (
                                 videos.map((video) => (
-                                    <TableRow key={video.id} className="border-white/5 hover:bg-white/5">
+                                    <TableRow key={video.id} className="border-black/5 hover:bg-black/5">
                                         <TableCell>
                                             <div className="flex items-center gap-3">
                                                 <img

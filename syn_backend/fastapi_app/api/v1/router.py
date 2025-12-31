@@ -28,6 +28,9 @@ from .campaigns.task_packages import router as task_packages_router
 from .ip_pool.router import router as ip_pool_router
 from .concurrency.router import router as concurrency_router
 from .cookies.router import router as cookies_router
+from .wechat_channels.router import router as wechat_channels_router
+from .creator.router import router as creator_router
+from .mediacrawler.router import router as mediacrawler_router
 
 # 导入平台路由
 from .platforms.douyin.router import router as douyin_router
@@ -65,6 +68,9 @@ api_router.include_router(task_packages_router)  # /task-packages (原 /api/task
 api_router.include_router(ip_pool_router)  # router 已自带 /ip-pool 前缀
 api_router.include_router(concurrency_router)  # router 已自带 /concurrency 前缀
 api_router.include_router(cookies_router)  # router 已自带 /cookies 前缀
+api_router.include_router(wechat_channels_router, tags=["视频号数据采集"])  # router 已自带 /wechat-channels 前缀
+api_router.include_router(creator_router)  # router 已自带 /creator 前缀
+api_router.include_router(mediacrawler_router)  # /mediacrawler
 
 # 注册平台路由
 api_router.include_router(douyin_router)  # router 已自带 /platforms/douyin 前缀

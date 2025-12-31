@@ -96,15 +96,18 @@ python-multipart
 email-validator
 
 # OpenManus Agent 相关
-openai
-tenacity
-tiktoken
-html2text
-browsergym
-browser-use
-mcp
-datasets
-unidiff
+openai>=1.58.1
+tenacity>=9.0.0
+tiktoken>=0.8.0
+html2text>=2024.2.26
+browsergym>=0.13.3
+browser-use>=0.1.40
+mcp>=1.0.0
+datasets>=3.2
+unidiff>=0.7.5
+structlog>=24.4.0
+tomli>=2.0.0
+daytona-sdk>=0.1.0
 
 # 搜索引擎
 googlesearch-python
@@ -113,6 +116,7 @@ duckduckgo-search
 
 # 爬虫相关
 beautifulsoup4
+mediacrawler @ git+https://github.com/NanmiCoder/MediaCrawler
 #
 # NOTE: `crawl4ai==0.6.3` requires `aiohttp>=3.11.11`, which conflicts with
 # `biliup==0.4.98` (requires `aiohttp<3.10.0`). If you need Crawl4AI, install it

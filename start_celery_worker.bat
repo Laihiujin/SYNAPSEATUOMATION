@@ -34,9 +34,9 @@ echo.
 
 cd /d %BACKEND_DIR%
 
-echo Starting Celery Worker with 1000 concurrency...
+echo Starting Celery Worker with 1000 concurrency (threads pool)...
 echo.
 
-python -m celery -A fastapi_app.tasks.celery_app worker --loglevel=info --pool=solo --concurrency=1000 --hostname=synapse-worker@%%h
+python -m celery -A fastapi_app.tasks.celery_app worker --loglevel=info --pool=threads --concurrency=1000 --hostname=synapse-worker@%%h
 
 pause

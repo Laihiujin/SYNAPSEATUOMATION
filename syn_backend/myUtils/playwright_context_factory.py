@@ -17,6 +17,7 @@ async def create_context_with_policy(
     account_id: Optional[str],
     headless: bool,
     storage_state: Any = None,
+    force_ephemeral: bool = False,
     base_context_opts: Optional[Dict[str, Any]] = None,
     launch_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[Any], Any, Optional[Dict[str, Any]], Dict[str, Any]]:
@@ -28,6 +29,11 @@ async def create_context_with_policy(
     apply_fingerprint = bool(policy.get("apply_fingerprint", True)) and bool(account_id)
     apply_stealth = bool(policy.get("apply_stealth", True))
     use_persistent_profile = bool(policy.get("use_persistent_profile", True)) and bool(account_id)
+    if force_ephemeral:
+        use_persistent_profile = False
+    if storage_state is not None and use_persistent_profile:
+        # storage_state is not supported by launch_persistent_context; fall back to non-persistent
+        use_persistent_profile = False
 
     launch_opts = {"headless": headless}
     if launch_kwargs:
@@ -123,4 +129,3 @@ async def create_context_with_policy(
         logger.warning("[fp] tls_ja3 enabled in policy, but Playwright does not support JA3 spoofing.")
 
     return browser, context, fingerprint, policy
-

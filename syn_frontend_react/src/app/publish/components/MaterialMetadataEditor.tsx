@@ -268,7 +268,7 @@ export function MaterialMetadataEditor({
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl bg-[#0A0A0A] border-white/10 text-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl bg-black border-black text-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Video className="w-5 h-5" />
@@ -279,7 +279,7 @@ export function MaterialMetadataEditor({
                 <div className="grid grid-cols-2 gap-6">
                     {/* 左侧：预览 */}
                     <div className="space-y-4">
-                        <div className={cn("relative rounded-xl overflow-hidden border border-white/10 bg-black", previewAspectClass)}>
+                        <div className={cn("relative rounded-xl overflow-hidden border border-black bg-black", previewAspectClass)}>
                             {videoSrc ? (
                                 <video
                                     src={videoSrc}
@@ -335,7 +335,7 @@ export function MaterialMetadataEditor({
                                 }}
                                 placeholder="请入视频标题（30字内）"
                                 maxLength={30}
-                                className="bg-black border-white/10 text-white"
+                                className="bg-black border-black text-white"
                             />
                         </div>
 
@@ -353,13 +353,13 @@ export function MaterialMetadataEditor({
                                         }
                                     }}
                                     placeholder="输入标签后按回车"
-                                    className="bg-black border-white/10 text-white"
+                                    className="bg-black border-black text-white"
                                 />
                                 <Button
                                     onClick={() => addTag(tagInput)}
                                     size="sm"
                                     variant="outline"
-                                    className="border-white/10 hover:bg-white/5"
+                                    className="border-black hover:bg-white/5"
                                 >
                                     添加
                                 </Button>
@@ -386,7 +386,7 @@ export function MaterialMetadataEditor({
                         </div>
 
                         {/* AI 封面生成 (替换原平台预览) */}
-                        <div className="space-y-2 pt-4 border-t border-white/10">
+                        <div className="space-y-2 pt-4 border-t border-black">
                             <Label className="text-sm text-white/80 flex items-center gap-2">
                                 <ImageIcon className="w-3 h-3" />
                                 AI 生成封面
@@ -403,7 +403,7 @@ export function MaterialMetadataEditor({
                                         }
                                     }}
                                     placeholder="描述你想要的封面画面..."
-                                    className="bg-black border-white/10 text-white"
+                                    className="bg-black border-black text-white"
                                 />
                                 <Button
                                     onClick={handleGenerateCover}
@@ -421,7 +421,7 @@ export function MaterialMetadataEditor({
                             {coverSrc && (
                                 <div
                                     className={cn(
-                                        "relative w-full rounded-lg overflow-hidden border border-white/10 mt-2",
+                                        "relative w-full rounded-lg overflow-hidden border border-black mt-2",
                                         aspectRatio === "4:3" ? "aspect-[4/3]" : "aspect-[3/4]"
                                     )}
                                 >
@@ -459,7 +459,7 @@ export function MaterialMetadataEditor({
                             <Button
                                 onClick={onClose}
                                 variant="outline"
-                                className="flex-1 border-white/10 hover:bg-white/5"
+                                className="flex-1 border-black hover:bg-white/5"
                             >
                                 取消
                             </Button>

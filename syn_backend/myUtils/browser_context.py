@@ -136,10 +136,15 @@ class PersistentBrowserManager:
 
     def __init__(self, base_dir: Optional[Path] = None):
         if base_dir is None:
-            from config.conf import BASE_DIR
-            base_dir = Path(BASE_DIR) / "browser_profiles"  # 修复：移除重复的 syn_backend
+            try:
+                from config.conf import BASE_DIR
+                base_dir = Path(BASE_DIR) / "browser_profiles"
+            except Exception:
+                base_dir = Path(__file__).resolve().parents[1] / "browser_profiles"
 
-        self.base_dir = base_dir
+        self.base_dir = Path(base_dir)
+        alt_dir = Path(__file__).resolve().parents[1] / "syn_backend" / "browser_profiles"
+        self.alt_base_dir = alt_dir if alt_dir.exists() and alt_dir != self.base_dir else None
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def get_user_data_dir(self, account_id: str, platform: str) -> Path:
@@ -154,6 +159,11 @@ class PersistentBrowserManager:
             Path: 用户数据目录路径
         """
         # 为每个账号创建独立的目录
+        if self.alt_base_dir:
+            alt_dir = self.alt_base_dir / f"{platform}_{account_id}"
+            if alt_dir.exists():
+                return alt_dir
+
         user_dir = self.base_dir / f"{platform}_{account_id}"
         user_dir.mkdir(parents=True, exist_ok=True)
 

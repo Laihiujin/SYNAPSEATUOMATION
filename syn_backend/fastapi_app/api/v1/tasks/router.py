@@ -72,13 +72,24 @@ async def task_cancel(
         task_id: 任务ID
         force: 是否强制取消（默认False，仅取消pending/retry任务；True时可取消running任务）
     """
+    from fastapi_app.tasks.task_state_manager import task_state_manager
+
+    # 优先使用 Redis TaskStateManager
+    task_status = task_state_manager.get_task_state(task_id)
+    if task_status:
+        # 使用 Redis
+        ok = task_state_manager.cancel_task(task_id)
+        if ok:
+            return {"success": True, "message": f"任务已取消"}
+        raise HTTPException(status_code=400, detail="无法取消任务")
+
+    # 回退到 SQLite
     tm = _get_task_manager(request)
     task_status = tm.get_task_status(task_id)
     if not task_status:
         raise HTTPException(status_code=404, detail="任务不存在")
-    current_status = (task_status.get("status") or "").lower()
-    # Allowed to cancel pending/retry/running tasks
-    ok = tm.cancel_task(task_id, force=force)
+
+    ok = tm.cancel_task(task_id, force=force) if hasattr(tm, 'cancel_task') else False
     if ok:
         return {"success": True, "message": f"任务已取消 (force={force})"}
     raise HTTPException(status_code=400, detail="无法取消任务（任务可能已完成或不存在）")
@@ -106,12 +117,15 @@ async def list_tasks(
         tasks = task_state_manager.list_tasks(status=status, limit=limit)
         summary = _summarize_tasks(tasks)
 
+        # 添加 stats 字段（从 TaskStateManager 获取）
+        stats = task_state_manager.get_queue_stats()
+
         return {
             "success": True,
             "data": tasks,
             "total": len(tasks),
             "summary": summary,
-            "stats": {},
+            "stats": stats,
         }
     except Exception as e:
         # 回退到旧的 SQLite 任务管理器
@@ -249,25 +263,41 @@ async def delete_task(task_id: str, request: Request):
     删除任务记录
     注意：这只会从记录中删除，不会影响正在运行的任务
     """
-    tm = _get_task_manager(request)
+    from fastapi_app.tasks.task_state_manager import task_state_manager
 
-    # 检查任务是否存在
+    # 优先使用 Redis TaskStateManager
+    task_status = task_state_manager.get_task_state(task_id)
+    if task_status:
+        # 如果任务正在运行，先取消
+        if task_status.get("status") == "running":
+            task_state_manager.cancel_task(task_id)
+
+        # 删除任务记录
+        try:
+            ok = task_state_manager.delete_task(task_id)
+            if ok:
+                return {"success": True, "message": "任务已删除"}
+            raise HTTPException(status_code=500, detail="删除任务失败")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"删除任务失败: {str(e)}")
+
+    # 回退到 SQLite
+    tm = _get_task_manager(request)
     task_status = tm.get_task_status(task_id)
     if not task_status:
         raise HTTPException(status_code=404, detail="任务不存在")
 
     # 如果任务正在运行，先取消
     if task_status.get("status") == "running":
-        tm.cancel_task(task_id)
+        if hasattr(tm, 'cancel_task'):
+            tm.cancel_task(task_id)
 
-    # 删除任务记录（需要在 task_queue_manager 中实现）
+    # 删除任务记录
     try:
         if hasattr(tm, 'delete_task'):
             tm.delete_task(task_id)
             return {"success": True, "message": "任务已删除"}
         else:
-            # 如果没有delete方法，至少取消任务
-            tm.cancel_task(task_id)
             return {"success": True, "message": "任务已取消（记录保留）"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除任务失败: {str(e)}")
@@ -421,61 +451,53 @@ async def batch_delete_tasks(req: BatchTaskRequest, request: Request):
     """
     批量删除任务 - 强制删除
     """
-    tm = _get_task_manager(request)
+    from fastapi_app.tasks.task_state_manager import task_state_manager
 
     success_count = 0
     failed_count = 0
     errors = []
 
-    import sqlite3
+    for task_id in req.task_ids:
+        try:
+            # 优先使用 Redis
+            task_status = task_state_manager.get_task_state(task_id)
+            if task_status:
+                # Redis 任务
+                ok = task_state_manager.delete_task(task_id)
+                if ok:
+                    success_count += 1
+                    logger.info(f"[Tasks] Deleted task from Redis: {task_id}")
+                else:
+                    failed_count += 1
+                    errors.append(f"删除任务 {task_id} 失败")
+            else:
+                # 回退到 SQLite
+                tm = _get_task_manager(request)
+                import sqlite3
 
-    try:
-        with sqlite3.connect(tm.db_path) as conn:
-            cursor = conn.cursor()
-
-            for task_id in req.task_ids:
-                try:
-                    status = tm.get_task_status(task_id)
-                    # we allow deleting tasks in any status now, 
-                    # but if it is running, cancel it first is handled in delete_task or we can do it here
-                    pass
-                    # 强制从数据库删除
+                with sqlite3.connect(tm.db_path) as conn:
+                    cursor = conn.cursor()
                     cursor.execute("DELETE FROM task_queue WHERE task_id = ?", (task_id,))
-
                     if cursor.rowcount > 0:
                         success_count += 1
-                        print(f"[DEBUG] 已删除任务: {task_id}")
+                        logger.info(f"[Tasks] Deleted task from SQLite: {task_id}")
                     else:
                         failed_count += 1
                         errors.append(f"任务 {task_id} 不存在")
-                        print(f"[DEBUG] 任务不存在: {task_id}")
+                    conn.commit()
 
-                except Exception as e:
-                    failed_count += 1
-                    errors.append(f"删除任务 {task_id} 失败: {str(e)}")
-                    print(f"[DEBUG] 删除任务 {task_id} 失败: {e}")
+        except Exception as e:
+            failed_count += 1
+            errors.append(f"删除任务 {task_id} 失败: {str(e)}")
+            logger.error(f"[Tasks] Delete failed: {task_id} - {e}")
 
-            conn.commit()
-
-        # 清理内存中的活跃任务
-        with tm.lock:
-            for task_id in req.task_ids:
-                if task_id in tm.active_tasks:
-                    del tm.active_tasks[task_id]
-
-        return {
-            "success": True,
-            "message": f"批量删除完成: 成功 {success_count} 个，失败 {failed_count} 个",
-            "success_count": success_count,
-            "failed_count": failed_count,
-            "errors": errors if errors else None
-        }
-
-    except Exception as e:
-        print(f"[DEBUG] 批量删除异常: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
+    return {
+        "success": True,
+        "message": f"批量删除完成: 成功 {success_count} 个，失败 {failed_count} 个",
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "errors": errors if errors else None
+    }
 
 
 @router.post("/batch/retry")
@@ -560,7 +582,7 @@ async def batch_cancel_tasks(
         req: 包含task_ids列表的请求
         force: 是否强制取消（默认False，仅取消pending/retry任务；True时可取消running任务）
     """
-    tm = _get_task_manager(request)
+    from fastapi_app.tasks.task_state_manager import task_state_manager
 
     success_count = 0
     failed_count = 0
@@ -568,16 +590,31 @@ async def batch_cancel_tasks(
 
     for task_id in req.task_ids:
         try:
-            # we allow cancelling tasks in pending/retry/running now
-            pass
-            if tm.cancel_task(task_id, force=force):
-                success_count += 1
+            # 优先使用 Redis
+            task_status = task_state_manager.get_task_state(task_id)
+            if task_status:
+                # Redis 任务
+                ok = task_state_manager.cancel_task(task_id)
+                if ok:
+                    success_count += 1
+                    logger.info(f"[Tasks] Cancelled task from Redis: {task_id}")
+                else:
+                    failed_count += 1
+                    errors.append(f"无法取消任务 {task_id}")
             else:
-                failed_count += 1
-                errors.append(f"无法取消任务 {task_id}")
+                # 回退到 SQLite
+                tm = _get_task_manager(request)
+                if hasattr(tm, 'cancel_task') and tm.cancel_task(task_id, force=force):
+                    success_count += 1
+                    logger.info(f"[Tasks] Cancelled task from SQLite: {task_id}")
+                else:
+                    failed_count += 1
+                    errors.append(f"无法取消任务 {task_id}")
+
         except Exception as e:
             failed_count += 1
             errors.append(f"取消任务 {task_id} 失败: {str(e)}")
+            logger.error(f"[Tasks] Cancel failed: {task_id} - {e}")
 
     return {
         "success": True,

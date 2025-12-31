@@ -16,7 +16,8 @@ from ....schemas.account import (
     AccountUpdate,
     AccountStatsResponse,
     DeepSyncResponse,
-    AccountFilterRequest
+    AccountFilterRequest,
+    FrontendAccountSnapshotRequest
 )
 from ....schemas.common import Response, StatusResponse
 from .services import account_service
@@ -177,6 +178,64 @@ async def open_creator_center(account_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"打开创作中心失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{account_id}/sec-uid", response_model=Response[dict])
+async def fetch_account_sec_uid(account_id: str):
+    """
+    Fetch Douyin sec_uid using creator center with stored cookies.
+    """
+    try:
+        account = cookie_manager.get_account_by_id(account_id)
+        if not account:
+            raise NotFoundException(f"Account not found: {account_id}")
+
+        platform = (account.get("platform") or "").strip().lower()
+        if platform != "douyin":
+            raise BadRequestException("sec_uid only supported for douyin")
+
+        cookie_file = account.get("cookie_file") or account.get("cookieFile")
+        if not cookie_file:
+            raise BadRequestException("Missing cookie_file for account")
+
+        cookie_path = resolve_cookie_file(cookie_file)
+        p = Path(cookie_path)
+        if not p.exists():
+            raise BadRequestException(f"Cookie file not found: {cookie_path}")
+
+        raw_state = json.loads(p.read_text(encoding="utf-8"))
+        storage_state = raw_state
+
+        from playwright_worker.client import get_worker_client
+        client = get_worker_client()
+        data = await client.fetch_creator_sec_uid(
+            platform=platform,
+            storage_state=storage_state,
+            account_id=account_id,
+            headless=True,
+        )
+        sec_uid = (data or {}).get("sec_uid")
+
+        if sec_uid:
+            if not isinstance(raw_state, dict):
+                raw_state = {}
+            user_info = raw_state.get("user_info")
+            if not isinstance(user_info, dict):
+                user_info = {}
+                raw_state["user_info"] = user_info
+            if user_info.get("sec_uid") != sec_uid:
+                user_info["sec_uid"] = sec_uid
+                p.write_text(json.dumps(raw_state, ensure_ascii=True, indent=2), encoding="utf-8")
+
+        return Response(success=True, data={"sec_uid": sec_uid})
+
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BadRequestException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Fetch sec_uid failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -411,6 +470,21 @@ async def filter_accounts(filter_req: AccountFilterRequest):
         )
     except Exception as e:
         logger.error(f"筛选账号失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/prune-by-frontend", response_model=Response[dict])
+async def prune_by_frontend_snapshot(request: FrontendAccountSnapshotRequest):
+    """
+    Delete backend accounts/cookies that are not present in frontend list.
+    """
+    try:
+        snapshot = [{"account_id": acc.account_id, "platform": acc.platform} for acc in request.accounts]
+        cookie_manager.save_frontend_snapshot(snapshot)
+        result = cookie_manager.prune_accounts_not_in_frontend(snapshot)
+        return Response(success=True, data=result)
+    except Exception as e:
+        logger.error(f"Prune by frontend failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

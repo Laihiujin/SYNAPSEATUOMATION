@@ -41,6 +41,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { PageHeader } from "@/components/layout/page-scaffold"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlatformSelector, PlatformKey, PLATFORMS } from "../components/PlatformSelector"
 import { DouyinConfig, KuaishouConfig, XhsConfig, BilibiliConfig, VideoChannelConfig } from "../components/PlatformConfigs"
@@ -119,7 +127,7 @@ interface PublishPlan {
 export default function PublishPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [isSyncing, setIsSyncing] = useState(false)
+  const [isStatusChecking, setIsStatusChecking] = useState(false)
   const [accountSource, setAccountSource] = useState<"internal" | "dispatch">("internal")
 
   const toBackendFileUrl = useCallback((raw?: string) => {
@@ -129,21 +137,25 @@ export default function PublishPage() {
     return `${backendBaseUrl}/getFile?filename=${encodeURIComponent(raw)}`
   }, [])
 
-  const handleDeepSync = async () => {
-    setIsSyncing(true)
+  const handleStatusCheck = async () => {
+    setIsStatusChecking(true)
     try {
       const res = await fetch("/api/accounts/deep-sync", { method: "POST" })
       const data = await res.json()
       if (data.success) {
-        toast({ title: "同步成功", description: data.message })
+        const stats = data.data
+        toast({
+          title: "Status check done",
+          description: `Checked ${stats?.checked || 0} accounts - Valid ${stats?.valid || 0} - Expired ${stats?.expired || 0}`
+        })
         queryClient.invalidateQueries({ queryKey: ["accounts"] })
       } else {
-        toast({ title: "同步失败", description: data.error, variant: "destructive" })
+        toast({ title: "Status check failed", description: data.error, variant: "destructive" })
       }
     } catch (e) {
-      toast({ title: "同步出错", description: String(e), variant: "destructive" })
+      toast({ title: "Status check error", description: String(e), variant: "destructive" })
     } finally {
-      setIsSyncing(false)
+      setIsStatusChecking(false)
     }
   }
 
@@ -178,7 +190,7 @@ export default function PublishPage() {
   // 获取账号和素材
   const { data: accountsData } = useQuery({
     queryKey: ["accounts"],
-    queryFn: () => fetcher("/api/accounts", accountsResponseSchema),
+    queryFn: () => fetcher("/api/accounts?limit=1000", accountsResponseSchema),
     refetchInterval: 10000, // 每10秒自动刷新
   })
 
@@ -224,14 +236,16 @@ export default function PublishPage() {
   const [materialKeyword, setMaterialKeyword] = useState("")
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null)
   const [firstFrameById, setFirstFrameById] = useState<Record<string, string>>({})
+  const [accountDrawerOpen, setAccountDrawerOpen] = useState(false)
+  const [accountSearchKeyword, setAccountSearchKeyword] = useState("")
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
 
-  // 账号分页状态
-  const [accountPage, setAccountPage] = useState(1)
-  const accountsPerPage = 12
+  // 账号抽屉分页状态
+  const [accountDrawerPage, setAccountDrawerPage] = useState(1)
+  const accountDrawerPerPage = 20
 
   // 素材元数据状态
   interface MaterialMetadata {
@@ -518,8 +532,9 @@ export default function PublishPage() {
 
   const platformAccounts = useMemo(() => {
     if (plan.platforms.length === 0) return []
+    // 显示所有平台匹配的账号，不再过滤状态
     return accounts.filter((acc) =>
-      plan.platforms.includes(acc.platform as PlatformKey) && acc.status === "正常"
+      plan.platforms.includes(acc.platform as PlatformKey)
     )
   }, [plan.platforms, accounts])
 
@@ -538,19 +553,35 @@ export default function PublishPage() {
     [accountSource, dispatchAccounts, internalAccounts]
   )
 
-  const paginatedAccounts = useMemo(() => {
-    const startIndex = (accountPage - 1) * accountsPerPage
-    return filteredAccounts.slice(startIndex, startIndex + accountsPerPage)
-  }, [filteredAccounts, accountPage])
+  // 账号抽屉内的搜索和分页
+  const drawerFilteredAccounts = useMemo(() => {
+    if (!accountSearchKeyword.trim()) return filteredAccounts
+    const keyword = accountSearchKeyword.toLowerCase()
+    return filteredAccounts.filter((acc) => {
+      const displayName = getAccountDisplayName(acc).toLowerCase()
+      const userId = (acc.user_id || "").toLowerCase()
+      return displayName.includes(keyword) || userId.includes(keyword)
+    })
+  }, [filteredAccounts, accountSearchKeyword])
 
-  const totalAccountPages = Math.ceil(filteredAccounts.length / accountsPerPage)
+  const drawerPaginatedAccounts = useMemo(() => {
+    const startIndex = (accountDrawerPage - 1) * accountDrawerPerPage
+    return drawerFilteredAccounts.slice(startIndex, startIndex + accountDrawerPerPage)
+  }, [drawerFilteredAccounts, accountDrawerPage, accountDrawerPerPage])
+
+  const totalDrawerPages = Math.ceil(drawerFilteredAccounts.length / accountDrawerPerPage)
 
   // 当总页数减少且当前页超过总页数时，自动跳转到最后一页
   useMemo(() => {
-    if (accountPage > totalAccountPages && totalAccountPages > 0) {
-      setAccountPage(totalAccountPages)
+    if (accountDrawerPage > totalDrawerPages && totalDrawerPages > 0) {
+      setAccountDrawerPage(totalDrawerPages)
     }
-  }, [totalAccountPages, accountPage])
+  }, [totalDrawerPages, accountDrawerPage])
+
+  // 已选账号的显示（主页面预览区）
+  const selectedAccountsList = useMemo(() => {
+    return accounts.filter(acc => plan.accounts.includes(acc.id))
+  }, [accounts, plan.accounts])
 
   const selectedMaterialsList = useMemo(() => {
     return materials.filter(m => plan.materials.includes(String(m.id)))
@@ -584,6 +615,33 @@ export default function PublishPage() {
 
   // 切换账号选择
   const toggleAccount = (accountId: string) => {
+    const account = accounts.find(acc => acc.id === accountId)
+
+    if (!account) return
+
+    // 根据 login_status 判断账号是否有效
+    const loginStatus = (account as any).login_status || "unknown"
+    const platform = account.platform
+
+    // B站特殊处理：无论 login_status 是什么，都默认视为正常（因为使用biliup库）
+    let isValidStatus: boolean
+    if (platform === "bilibili") {
+      isValidStatus = true  // B站账号始终视为有效
+    } else {
+      isValidStatus = loginStatus === "logged_in"
+    }
+
+    // 如果账号登录状态异常，提示用户
+    if (!isValidStatus) {
+      const statusText = loginStatus === "session_expired" ? "掉线" : "待检测"
+      toast({
+        title: "账号登录状态异常",
+        description: `账号 ${getAccountDisplayName(account)} 的登录状态为"${statusText}"，可能无法正常发布。建议先在账号管理页面重新登录。`,
+        variant: "destructive"
+      })
+      // 仍然允许选择，但给出警告
+    }
+
     setPlan(prev => ({
       ...prev,
       accounts: prev.accounts.includes(accountId)
@@ -843,288 +901,288 @@ export default function PublishPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-transparent text-white overflow-y-auto">
-      <div className="mx-auto w-full p-6 space-y-8">
-
-        {/* 操作按钮 */}
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            onClick={() => savePlanMutation.mutate()}
-            disabled={savePlanMutation.isPending || plan.platforms.length === 0}
-            className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
-          >
-            {savePlanMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            存草稿
-          </Button>
-          <Button
-            onClick={() => publishMutation.mutate()}
-            disabled={publishMutation.isPending || plan.platforms.length === 0}
-            className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
-          >
-            {publishMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="mr-2 h-4 w-4" />
-            )}
-            立即发布
-          </Button>
-        </div>
-
-        {/* 1. 平台选择 */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">发布渠道</Label>
-          <div className="rounded-2xl border border-white/10 bg-black p-5">
-            <PlatformSelector
-              selected={plan.platforms}
-              onSelect={togglePlatform}
-            />
-          </div>
-        </div>
-
-        {/* 2. 通用内容配置 */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <Label className="text-base font-medium">内容编辑</Label>
+    <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+      <PageHeader
+        title="矩阵发布"
+        // description="一键分发内容到多个平台，支持定时、变量、间隔控制"
+        actions={
+          <div className="flex gap-3">
             <Button
               variant="outline"
-              size="sm"
-              className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-white"
-              onClick={() => setMaterialPickerOpen(true)}
+              onClick={() => savePlanMutation.mutate()}
+              disabled={savePlanMutation.isPending || plan.platforms.length === 0}
+              className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
             >
-              <Plus className="w-3 h-3 mr-2" />
-              添加素材
+              {savePlanMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              存草稿
+            </Button>
+            <Button
+              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending || plan.platforms.length === 0}
+              className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
+            >
+              {publishMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              立即发布
             </Button>
           </div>
+        }
+      />
 
-          <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-6">
-            {/* 素材列表 - 分页列表形式 */}
-            {selectedMaterialsList.length > 0 ? (
-              <div className="space-y-3">
-                {paginatedMaterials.map((m, index) => {
-                  const globalIndex = (currentPage - 1) * itemsPerPage + index
-                  const metadata = materialMetadata[m.id]
-                  const hasMetadata = metadata && (metadata.title || (metadata.tags && metadata.tags.length > 0) || metadata.cover_image || metadata.coverPath)
+      {/* 1. 平台选择 */}
+      <div className="space-y-4">
+        <Label className="text-base font-medium">发布渠道</Label>
+        <div className="rounded-2xl border border-white/10 bg-black p-5">
+          <PlatformSelector
+            selected={plan.platforms}
+            onSelect={togglePlatform}
+          />
+        </div>
+      </div>
 
-                  return (
-                    <div
-                      key={m.id}
-                      className="flex items-start gap-4 p-4 rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition-all group"
-                    >
-                      {/* 序号 */}
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs text-white/60 font-medium">
-                        {globalIndex + 1}
-                      </div>
+      {/* 2. 通用内容配置 */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-medium">内容编辑</Label>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-white"
+            onClick={() => setMaterialPickerOpen(true)}
+          >
+            <Plus className="w-3 h-3 mr-2" />
+            添加素材
+          </Button>
+        </div>
 
-                      {/* 首帧预览（不叠加 AI 封面） */}
-                      <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-neutral-900">
-                        {(() => {
-                          const firstFrame = firstFrameById[String(m.id)]
-                          if (firstFrame) {
-                            return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || m.filename} fill className="object-cover" unoptimized />
-                          }
-                          return (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Video className="w-6 h-6 text-white/20" />
-                            </div>
-                          )
-                        })()}
-                        {/* 元数据指示器 */}
-                        {hasMetadata && (
-                          <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-0.5">
-                            <Sparkles className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        )}
-                      </div>
+        <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-6">
+          {/* 素材列表 - 分页列表形式 */}
+          {selectedMaterialsList.length > 0 ? (
+            <div className="space-y-3">
+              {paginatedMaterials.map((m, index) => {
+                const globalIndex = (currentPage - 1) * itemsPerPage + index
+                const metadata = materialMetadata[m.id]
+                const hasMetadata = metadata && (metadata.title || (metadata.tags && metadata.tags.length > 0) || metadata.cover_image || metadata.coverPath)
 
-                      {/* 信息和元数据 */}
-                      <div className="flex-1 min-w-0 space-y-3">
-                        {/* 文件名 */}
-                        <div>
-                          <p className="text-sm font-medium text-white truncate">{m.filename}</p>
-                          <p className="text-xs text-white/40 mt-0.5">
-                            ID: {m.id} · {formatSizeMb((m as any).filesize)}MB · 时长: {formatDuration((m as any).duration)}
-                          </p>
-                        </div>
-
-                        {/* 元数据预览 */}
-                        {hasMetadata ? (
-                          <div className="space-y-2">
-                            {metadata.title && (
-                              <div className="flex items-start gap-2">
-                                <span className="text-xs text-white/40 shrink-0 min-w-[40px]">标题:</span>
-                                <p className="text-xs text-white/80 line-clamp-1">{String(metadata.title)}</p>
-                              </div>
-                            )}
-                            {metadata.tags && metadata.tags.length > 0 && (
-                              <div className="flex items-start gap-2">
-                                <span className="text-xs text-white/40 shrink-0 min-w-[40px]">标签:</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {metadata.tags.map((tag, i) => (
-                                    <Badge key={i} variant="secondary" className="text-[10px] h-5 px-1.5">
-                                      #{tag}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {(metadata.cover_image || metadata.coverPath) && (
-                              <div className="flex items-start gap-2">
-                                <span className="text-xs text-white/40 shrink-0 min-w-[40px]">封面:</span>
-                                <div className="relative w-16 h-20 rounded border border-white/10 overflow-hidden">
-                                  <Image src={toBackendFileUrl(metadata.cover_image || metadata.coverPath || "")} alt="封面" fill className="object-cover" unoptimized />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-white/30 italic">未配置元数据，点击编辑按钮添加</p>
-                        )}
-                      </div>
-
-                      {/* 操作按钮 */}
-                      <div className="flex flex-col gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 border-white/10 hover:bg-white/10"
-                          onClick={() => setEditingMaterialId(String(m.id))}
-                        >
-                          <Edit2 className="w-3 h-3 mr-1.5" />
-                          编辑
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                          onClick={() => setPlan(prev => ({ ...prev, materials: prev.materials.filter(id => id !== String(m.id)) }))}
-                        >
-                          <Trash2 className="w-3 h-3 mr-1.5" />
-                          删除
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-
-                {/* 分页控件 */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between py-2 border-t border-white/10">
-                    <div className="text-xs text-white/40">
-                      第 {currentPage} 页 / 共 {totalPages} 页
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="h-7 text-xs"
-                      >
-                        上一页
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="h-7 text-xs"
-                      >
-                        下一页
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 批量操作提示 */}
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                  <div className="flex items-center gap-2 text-xs text-white/40">
-                    <Sparkles className="w-3 h-3" />
-                    <span>共 {selectedMaterialsList.length} 个素材</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
-                    onClick={handleBatchAIGenerate}
-                    disabled={isGeneratingAI}
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-start gap-4 p-4 rounded-xl border border-white/10 bg-black/20 hover:bg-black/30 transition-all group"
                   >
-                    <Sparkles className={cn("w-3 h-3 mr-1.5", isGeneratingAI && "animate-spin")} />
-                    {isGeneratingAI ? "批量生成中..." : "批量AI生成"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="border-2 border-dashed border-white/10 rounded-xl h-32 flex flex-col items-center justify-center text-white/40 cursor-pointer hover:border-white/20 hover:bg-white/5 transition-all"
-                onClick={() => setMaterialPickerOpen(true)}
-              >
-                <Plus className="w-6 h-6 mb-2" />
-                <span>点击添加视频素材</span>
-              </div>
-            )}
+                    {/* 序号 */}
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs text-white/60 font-medium">
+                      {globalIndex + 1}
+                    </div>
 
+                    {/* 首帧预览（不叠加 AI 封面） */}
+                    <div className="relative w-24 h-32 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-neutral-900">
+                      {(() => {
+                        const firstFrame = firstFrameById[String(m.id)]
+                        if (firstFrame) {
+                          return <Image src={toBackendFileUrl(firstFrame)} alt={m.title || m.filename} fill className="object-cover" unoptimized />
+                        }
+                        return (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Video className="w-6 h-6 text-white/20" />
+                          </div>
+                        )
+                      })()}
+                      {/* 元数据指示器 */}
+                      {hasMetadata && (
+                        <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-0.5">
+                          <Sparkles className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 信息和元数据 */}
+                    <div className="flex-1 min-w-0 space-y-3">
+                      {/* 文件名 */}
+                      <div>
+                        <p className="text-sm font-medium text-white truncate">{m.filename}</p>
+                        <p className="text-xs text-white/40 mt-0.5">
+                          ID: {m.id} · {formatSizeMb((m as any).filesize)}MB · 时长: {formatDuration((m as any).duration)}
+                        </p>
+                      </div>
+
+                      {/* 元数据预览 */}
+                      {hasMetadata ? (
+                        <div className="space-y-2">
+                          {metadata.title && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs text-white/40 shrink-0 min-w-[40px]">标题:</span>
+                              <p className="text-xs text-white/80 line-clamp-1">{String(metadata.title)}</p>
+                            </div>
+                          )}
+                          {metadata.tags && metadata.tags.length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs text-white/40 shrink-0 min-w-[40px]">标签:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {metadata.tags.map((tag, i) => (
+                                  <Badge key={i} variant="secondary" className="text-[10px] h-5 px-1.5">
+                                    #{tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {(metadata.cover_image || metadata.coverPath) && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs text-white/40 shrink-0 min-w-[40px]">封面:</span>
+                              <div className="relative w-16 h-20 rounded border border-white/10 overflow-hidden">
+                                <Image src={toBackendFileUrl(metadata.cover_image || metadata.coverPath || "")} alt="封面" fill className="object-cover" unoptimized />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-white/30 italic">未配置元数据，点击编辑按钮添加</p>
+                      )}
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-white/10 hover:bg-white/10"
+                        onClick={() => setEditingMaterialId(String(m.id))}
+                      >
+                        <Edit2 className="w-3 h-3 mr-1.5" />
+                        编辑
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                        onClick={() => setPlan(prev => ({ ...prev, materials: prev.materials.filter(id => id !== String(m.id)) }))}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1.5" />
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* 分页控件 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between py-2 border-t border-white/10">
+                  <div className="text-xs text-white/40">
+                    第 {currentPage} 页 / 共 {totalPages} 页
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-7 text-xs"
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-7 text-xs"
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 批量操作提示 */}
+              <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                <div className="flex items-center gap-2 text-xs text-white/40">
+                  <Sparkles className="w-3 h-3" />
+                  <span>共 {selectedMaterialsList.length} 个素材</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                  onClick={handleBatchAIGenerate}
+                  disabled={isGeneratingAI}
+                >
+                  <Sparkles className={cn("w-3 h-3 mr-1.5", isGeneratingAI && "animate-spin")} />
+                  {isGeneratingAI ? "批量生成中..." : "批量AI生成"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="border-2 border-dashed border-white/10 rounded-xl h-32 flex flex-col items-center justify-center text-white/40 cursor-pointer hover:border-white/20 hover:bg-white/5 transition-all"
+              onClick={() => setMaterialPickerOpen(true)}
+            >
+              <Plus className="w-6 h-6 mb-2" />
+              <span>点击添加视频素材</span>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+
+      {/* 4. 账号选择 */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-medium">选择账号</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/10 bg-white/5 hover:bg-white/10 text-white"
+              onClick={() => setAccountDrawerOpen(true)}
+            >
+              <Plus className="w-3 h-3 mr-2" />
+              选择账号
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-white/50 hover:text-white"
+              onClick={handleStatusCheck}
+              disabled={isStatusChecking}
+            >
+              <RefreshCcw className={cn("w-3 h-3", isStatusChecking && "animate-spin")} />
+            </Button>
           </div>
         </div>
 
-
-        {/* 4. 账号选择 */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-base font-medium">选择账号</Label>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={accountSource === "internal" ? "secondary" : "ghost"}
-                className={cn("h-7 text-xs", accountSource === "internal" ? "bg-white text-black" : "text-white/70")}
-                onClick={() => setAccountSource("internal")}
-              >
-                内部账号
-              </Button>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "h-7 text-xs",
-                  accountSource === "dispatch" ? "bg-white/20 text-white" : "text-white/40 hover:text-white/60 hover:bg-white/5"
-                )}
-                onClick={() => setAccountSource("dispatch")}
-              >
-                派发账号
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-white/50 hover:text-white ml-2"
-                onClick={handleDeepSync}
-                disabled={isSyncing}
-              >
-                <RefreshCcw className={cn("w-3 h-3", isSyncing && "animate-spin")} />
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-black p-5">
-            {plan.platforms.length > 0 ? (
-              <div className="flex flex-col h-full">
+        <div className="rounded-2xl border border-white/10 bg-black p-5">
+          {plan.platforms.length > 0 ? (
+            selectedAccountsList.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <div className="text-xs text-white/60">
+                    已选 {selectedAccountsList.length} 个账号
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    onClick={() => setPlan(prev => ({ ...prev, accounts: [] }))}
+                  >
+                    清空
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {paginatedAccounts.map(account => {
-                    const isSelected = plan.accounts.includes(account.id)
+                  {selectedAccountsList.map(account => {
                     const displayName = getAccountDisplayName(account)
-
                     return (
                       <div
                         key={account.id}
-                        onClick={() => toggleAccount(account.id)}
-                        className={cn(
-                          "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all hover:bg-white/10 group relative overflow-hidden",
-                          isSelected
-                            ? "border-primary bg-primary/10"
-                            : "border-white/10 bg-black"
-                        )}
+                        className="flex items-center gap-3 p-3 rounded-xl border border-primary/50 bg-primary/10 relative group"
                       >
                         <div className="relative w-10 h-10 shrink-0">
                           <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center border border-white/10 overflow-hidden">
@@ -1150,258 +1208,232 @@ export default function PublishPage() {
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className={cn("text-sm font-medium truncate", isSelected ? "text-primary" : "text-white")}>
+                          <div className="text-sm font-medium truncate text-primary">
                             {displayName}
                           </div>
                           <div className="text-[10px] text-white/50 truncate">
                             ID: {account.user_id || "未知"}
                           </div>
                         </div>
-                        {isSelected && (
-                          <div className="absolute top-2 right-2">
-                            <Check className="w-3.5 h-3.5 text-primary" />
-                          </div>
-                        )}
+                        <button
+                          onClick={() => toggleAccount(account.id)}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3.5 h-3.5 text-white/50 hover:text-red-400" />
+                        </button>
                       </div>
                     )
                   })}
-                  {filteredAccounts.length === 0 && (
-                    <div className="col-span-full py-8 text-center text-white/40 text-sm">
-                      暂无符合条件的账号
-                    </div>
-                  )}
                 </div>
-
-                {/* 账号分页控件 */}
-                {totalAccountPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 mt-2 shrink-0">
-                    <div className="text-xs text-white/40">
-                      {accountPage} / {totalAccountPages} 页
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAccountPage(p => Math.max(1, p - 1))}
-                        disabled={accountPage === 1}
-                        className="h-6 w-6 p-0 rounded-md hover:bg-white/10"
-                      >
-                        &lt;
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAccountPage(p => Math.min(totalAccountPages, p + 1))}
-                        disabled={accountPage === totalAccountPages}
-                        className="h-6 w-6 p-0 rounded-md hover:bg-white/10"
-                      >
-                        &gt;
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="py-12 text-center text-white/40 text-sm border-2 border-dashed border-white/10 rounded-xl">
-                请先选择发布平台
+              <div
+                className="border-2 border-dashed border-white/10 rounded-xl h-32 flex flex-col items-center justify-center text-white/40 cursor-pointer hover:border-white/20 hover:bg-white/5 transition-all"
+                onClick={() => setAccountDrawerOpen(true)}
+              >
+                <Plus className="w-6 h-6 mb-2" />
+                <span>点击选择发布账号</span>
+              </div>
+            )
+          ) : (
+            <div className="py-12 text-center text-white/40 text-sm border-2 border-dashed border-white/10 rounded-xl">
+              请先选择发布平台
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 5. 发布设置 */}
+      <div className="space-y-4">
+        <Label className="text-base font-medium">发布设置</Label>
+        <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-8">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Label className="text-white/70">发布时间</Label>
+                <Badge variant="outline" className="rounded-full border-white/20 bg-white/5 text-[11px] text-white/70">
+                  必选
+                </Badge>
+              </div>
+              <div className="text-xs text-white/50">
+                {plan.publishTiming === "immediate" ? "提交后立即触发" : "按设定时间自动发布"}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handlePublishTimingChange("immediate")}
+                className={cn(
+                  "group rounded-2xl border p-4 text-left transition-all",
+                  plan.publishTiming === "immediate"
+                    ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "h-4 w-4 rounded-full border",
+                      plan.publishTiming === "immediate"
+                        ? "border-primary bg-primary/70"
+                        : "border-white/30"
+                    )}
+                  />
+                  <div>
+                    <div className="font-medium">立即发布</div>
+                    <div className="text-xs text-white/60 mt-1">快速发出，适合实时热点</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePublishTimingChange("scheduled")}
+                className={cn(
+                  "group rounded-2xl border p-4 text-left transition-all",
+                  plan.publishTiming === "scheduled"
+                    ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                    : "border-white/10 bg-black hover:border-white/20"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "h-4 w-4 rounded-full border",
+                      plan.publishTiming === "scheduled"
+                        ? "border-primary bg-primary/70"
+                        : "border-white/30"
+                    )}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <div className="font-medium">定时发布</div>
+                    <div className="text-xs text-white/60">设置时间自动发，适合批量排期</div>
+                    {plan.scheduleDate && plan.scheduleTime && (
+                      <div className="text-[11px] text-primary/90">
+                        已设置：{plan.scheduleDate} {plan.scheduleTime}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {plan.publishTiming === "scheduled" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/60">日期</Label>
+                  <DatePicker
+                    value={plan.scheduleDate}
+                    onChange={(date) => setPlan(prev => ({ ...prev, scheduleDate: date }))}
+                    placeholder="选择日期"
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-white/60">时间</Label>
+                  <TimePicker
+                    value={plan.scheduleTime}
+                    onChange={(time) => setPlan(prev => ({ ...prev, scheduleTime: time }))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Label className="text-white/70">间隔方式</Label>
+                <Badge variant="outline" className="rounded-full border-white/20 bg-white/5 text-[11px] text-white/70">
+                  矩阵节奏
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-white/50 hidden md:block">
+                  {plan.intervalControlEnabled ? "选择账号与视频的排布方式" : "关闭：默认同时发布（高并发）"}
+                </div>
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5">
+                  <span className="text-xs text-white/70">发布间隔控制</span>
+                  <Switch
+                    checked={plan.intervalControlEnabled}
+                    onCheckedChange={(checked) => setPlan((prev) => ({ ...prev, intervalControlEnabled: checked }))}
+                    className="scale-90"
+                  />
+                </div>
+              </div>
+            </div>
+            {plan.intervalControlEnabled ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {INTERVAL_OPTIONS.map((option) => {
+                  const active = plan.intervalMode === option.key
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setPlan(prev => ({ ...prev, intervalMode: option.key }))}
+                      className={cn(
+                        "group rounded-2xl border p-4 text-left transition-all",
+                        active
+                          ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
+                          : "border-white/10 bg-black hover:border-white/20"
+                      )}
+                    >
+                      <div className="flex items-start gap-3 mb-3">
+                        <span
+                          className={cn(
+                            "mt-1 h-4 w-4 rounded-full border",
+                            active ? "border-primary bg-primary/70" : "border-white/30"
+                          )}
+                        />
+                        <div className="space-y-1">
+                          <div className="font-medium">{option.title}</div>
+                          <div className="text-xs text-white/60 leading-relaxed">{option.description}</div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-2">
+                        <div className="grid grid-cols-[60px_repeat(3,minmax(0,1fr))] gap-2 text-[11px] text-white/60">
+                          <div />
+                          {PREVIEW_ACCOUNTS.map((name, idx) => (
+                            <div key={`${option.key}-account-${idx}`} className="text-center font-medium">
+                              {name}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-2">
+                          {option.preview.map((row, rowIdx) => (
+                            <div
+                              key={`${option.key}-row-${rowIdx}`}
+                              className="grid grid-cols-[60px_repeat(3,minmax(0,1fr))] gap-2 items-center"
+                            >
+                              <div className="text-right text-xs text-white/50">{row.time}</div>
+                              {row.slots.map((slot, slotIdx) => (
+                                <div
+                                  key={`${option.key}-slot-${rowIdx}-${slotIdx}`}
+                                  className={cn(
+                                    "flex h-8 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/5 text-[11px]",
+                                    slot && `${PREVIEW_COLORS[slotIdx % PREVIEW_COLORS.length]} border-solid font-medium`
+                                  )}
+                                >
+                                  {slot && <span>{slot}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
+                未开启间隔控制：将按高并发提交任务（同时发布）。如需节奏控制，请开启开关并选择一种排布方式。
               </div>
             )}
           </div>
         </div>
-
-        {/* 5. 发布设置 */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">发布设置</Label>
-          <div className="rounded-2xl border border-white/10 bg-black p-6 space-y-8">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Label className="text-white/70">发布时间</Label>
-                  <Badge variant="outline" className="rounded-full border-white/20 bg-white/5 text-[11px] text-white/70">
-                    必选
-                  </Badge>
-                </div>
-                <div className="text-xs text-white/50">
-                  {plan.publishTiming === "immediate" ? "提交后立即触发" : "按设定时间自动发布"}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handlePublishTimingChange("immediate")}
-                  className={cn(
-                    "group rounded-2xl border p-4 text-left transition-all",
-                    plan.publishTiming === "immediate"
-                      ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                      : "border-white/10 bg-white/5 hover:border-white/20"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "h-4 w-4 rounded-full border",
-                        plan.publishTiming === "immediate"
-                          ? "border-primary bg-primary/70"
-                          : "border-white/30"
-                      )}
-                    />
-                    <div>
-                      <div className="font-medium">立即发布</div>
-                      <div className="text-xs text-white/60 mt-1">快速发出，适合实时热点</div>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handlePublishTimingChange("scheduled")}
-                  className={cn(
-                    "group rounded-2xl border p-4 text-left transition-all",
-                    plan.publishTiming === "scheduled"
-                      ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                      : "border-white/10 bg-black hover:border-white/20"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "h-4 w-4 rounded-full border",
-                        plan.publishTiming === "scheduled"
-                          ? "border-primary bg-primary/70"
-                          : "border-white/30"
-                      )}
-                    />
-                    <div className="flex flex-col gap-1">
-                      <div className="font-medium">定时发布</div>
-                      <div className="text-xs text-white/60">设置时间自动发，适合批量排期</div>
-                      {plan.scheduleDate && plan.scheduleTime && (
-                        <div className="text-[11px] text-primary/90">
-                          已设置：{plan.scheduleDate} {plan.scheduleTime}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {plan.publishTiming === "scheduled" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white/60">日期</Label>
-                    <DatePicker
-                      value={plan.scheduleDate}
-                      onChange={(date) => setPlan(prev => ({ ...prev, scheduleDate: date }))}
-                      placeholder="选择日期"
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-white/60">时间</Label>
-                    <TimePicker
-                      value={plan.scheduleTime}
-                      onChange={(time) => setPlan(prev => ({ ...prev, scheduleTime: time }))}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Label className="text-white/70">间隔方式</Label>
-                  <Badge variant="outline" className="rounded-full border-white/20 bg-white/5 text-[11px] text-white/70">
-                    矩阵节奏
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-white/50 hidden md:block">
-                    {plan.intervalControlEnabled ? "选择账号与视频的排布方式" : "关闭：默认同时发布（高并发）"}
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5">
-                    <span className="text-xs text-white/70">发布间隔控制</span>
-                    <Switch
-                      checked={plan.intervalControlEnabled}
-                      onCheckedChange={(checked) => setPlan((prev) => ({ ...prev, intervalControlEnabled: checked }))}
-                      className="scale-90"
-                    />
-                  </div>
-                </div>
-              </div>
-              {plan.intervalControlEnabled ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {INTERVAL_OPTIONS.map((option) => {
-                    const active = plan.intervalMode === option.key
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setPlan(prev => ({ ...prev, intervalMode: option.key }))}
-                        className={cn(
-                          "group rounded-2xl border p-4 text-left transition-all",
-                          active
-                            ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_rgba(94,234,212,0.2)]"
-                            : "border-white/10 bg-black hover:border-white/20"
-                        )}
-                      >
-                        <div className="flex items-start gap-3 mb-3">
-                          <span
-                            className={cn(
-                              "mt-1 h-4 w-4 rounded-full border",
-                              active ? "border-primary bg-primary/70" : "border-white/30"
-                            )}
-                          />
-                          <div className="space-y-1">
-                            <div className="font-medium">{option.title}</div>
-                            <div className="text-xs text-white/60 leading-relaxed">{option.description}</div>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-white/5 bg-black/20 p-3 space-y-2">
-                          <div className="grid grid-cols-[60px_repeat(3,minmax(0,1fr))] gap-2 text-[11px] text-white/60">
-                            <div />
-                            {PREVIEW_ACCOUNTS.map((name, idx) => (
-                              <div key={`${option.key}-account-${idx}`} className="text-center font-medium">
-                                {name}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="space-y-2">
-                            {option.preview.map((row, rowIdx) => (
-                              <div
-                                key={`${option.key}-row-${rowIdx}`}
-                                className="grid grid-cols-[60px_repeat(3,minmax(0,1fr))] gap-2 items-center"
-                              >
-                                <div className="text-right text-xs text-white/50">{row.time}</div>
-                                {row.slots.map((slot, slotIdx) => (
-                                  <div
-                                    key={`${option.key}-slot-${rowIdx}-${slotIdx}`}
-                                    className={cn(
-                                      "flex h-8 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/5 text-[11px]",
-                                      slot && `${PREVIEW_COLORS[slotIdx % PREVIEW_COLORS.length]} border-solid font-medium`
-                                    )}
-                                  >
-                                    {slot && <span>{slot}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
-                  未开启间隔控制：将按高并发提交任务（同时发布）。如需节奏控制，请开启开关并选择一种排布方式。
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
       </div>
 
       {/* Material Picker Dialog */}
@@ -1472,68 +1504,339 @@ export default function PublishPage() {
       </Dialog>
 
       {/* Material Metadata Editor */}
-      {editingMaterialId && (() => {
-        const material = materials.find(m => String(m.id) === editingMaterialId)
-        if (!material) return null
+      {
+        editingMaterialId && (() => {
+          const material = materials.find(m => String(m.id) === editingMaterialId)
+          if (!material) return null
 
-        return (
-          <MaterialMetadataEditor
-            material={{
-              ...material,
-              title: material.title || material.filename,
-              cover_image: material.cover_image || undefined
-            }}
-            metadata={materialMetadata[editingMaterialId] || {}}
-            selectedPlatforms={plan.platforms}  // 传递选中的平台
-            onSave={async (metadata) => {
-              // 更新本地状态
-              setMaterialMetadata(prev => ({
-                ...prev,
-                [editingMaterialId]: metadata
-              }))
+          return (
+            <MaterialMetadataEditor
+              material={{
+                ...material,
+                title: material.title || material.filename,
+                cover_image: material.cover_image || undefined
+              }}
+              metadata={materialMetadata[editingMaterialId] || {}}
+              selectedPlatforms={plan.platforms}  // 传递选中的平台
+              onSave={async (metadata) => {
+                // 更新本地状态
+                setMaterialMetadata(prev => ({
+                  ...prev,
+                  [editingMaterialId]: metadata
+                }))
 
-              // 保存到后端数据库（与“素材管理”同一张表字段，保证互通）
-              try {
-                const payload: Record<string, any> = {}
-                if ("title" in metadata) payload.title = metadata.title
-                if ("description" in metadata) payload.description = metadata.description
-                if ("tags" in metadata) payload.tags = (metadata.tags || []).join(" ")
-                if ("cover_image" in metadata || "coverPath" in metadata) {
-                  payload.cover_image = metadata.cover_image ?? metadata.coverPath ?? null
+                // 保存到后端数据库（与“素材管理”同一张表字段，保证互通）
+                try {
+                  const payload: Record<string, any> = {}
+                  if ("title" in metadata) payload.title = metadata.title
+                  if ("description" in metadata) payload.description = metadata.description
+                  if ("tags" in metadata) payload.tags = (metadata.tags || []).join(" ")
+                  if ("cover_image" in metadata || "coverPath" in metadata) {
+                    payload.cover_image = metadata.cover_image ?? metadata.coverPath ?? null
+                  }
+
+                  const response = await fetch(`/api/files/${editingMaterialId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                  })
+
+                  const data = await response.json()
+
+                  if (data.success === false) {
+                    throw new Error(data.message || "保存失败")
+                  }
+
+                  queryClient.invalidateQueries({ queryKey: ["materials"] })
+
+                  toast({
+                    title: "保存成功",
+                    description: "素材元数据已保存到数据库"
+                  })
+                } catch (error: any) {
+                  console.error("Failed to save metadata:", error)
+                  toast({
+                    title: "保存失败",
+                    description: error.message,
+                    variant: "destructive"
+                  })
                 }
+              }}
+              onClose={() => setEditingMaterialId(null)}
+              onAIGenerate={handleSingleAIGenerate}
+            />
+          )
+        })()}
 
-                const response = await fetch(`/api/files/${editingMaterialId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload)
-                })
+      {/* Account Selection Drawer */}
+      <Sheet open={accountDrawerOpen} onOpenChange={setAccountDrawerOpen}>
+        <SheetContent
+          side="right"
+          className="w-[95vw] sm:w-[90vw] lg:w-[80vw] xl:w-[1400px] sm:max-w-none max-w-[1500px] bg-neutral-900 border-white/10 text-white overflow-y-auto"
+        >
+          <SheetHeader>
+            <SheetTitle className="text-white">选择账号</SheetTitle>
+            <SheetDescription className="text-white/60">
+              从 {filteredAccounts.length} 个可用账号中选择发布账号
+            </SheetDescription>
+          </SheetHeader>
 
-                const data = await response.json()
+          <div className="mt-6 space-y-4">
+            {/* 账号来源切换和搜索 */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-1">
+                <Button
+                  size="sm"
+                  variant={accountSource === "internal" ? "secondary" : "ghost"}
+                  className={cn(
+                    "h-7 text-xs",
+                    accountSource === "internal" ? "bg-white text-black" : "text-white/70 hover:text-white"
+                  )}
+                  onClick={() => {
+                    setAccountSource("internal")
+                    setAccountDrawerPage(1)
+                  }}
+                >
+                  内部账号
+                </Button>
+                <Button
+                  size="sm"
+                  variant={accountSource === "dispatch" ? "secondary" : "ghost"}
+                  className={cn(
+                    "h-7 text-xs",
+                    accountSource === "dispatch" ? "bg-white text-black" : "text-white/70 hover:text-white"
+                  )}
+                  onClick={() => {
+                    setAccountSource("dispatch")
+                    setAccountDrawerPage(1)
+                  }}
+                >
+                  派发账号
+                </Button>
+              </div>
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                <Input
+                  placeholder="搜索账号名称或ID..."
+                  className="pl-9 bg-black/20 border-white/10 text-white placeholder:text-white/40"
+                  value={accountSearchKeyword}
+                  onChange={(e) => {
+                    setAccountSearchKeyword(e.target.value)
+                    setAccountDrawerPage(1)
+                  }}
+                />
+              </div>
+            </div>
 
-                if (data.success === false) {
-                  throw new Error(data.message || "保存失败")
-                }
+            {/* 已选账号统计 */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="text-sm text-white/80">
+                已选择 <span className="font-semibold text-primary">{plan.accounts.length}</span> 个账号
+              </div>
+              {plan.accounts.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  onClick={() => setPlan(prev => ({ ...prev, accounts: [] }))}
+                >
+                  全部取消
+                </Button>
+              )}
+            </div>
 
-                queryClient.invalidateQueries({ queryKey: ["materials"] })
+            {/* 账号表格 */}
+            <div className="border border-white/10 rounded-lg overflow-hidden">
+              <div className="bg-black/40">
+                <div className="grid grid-cols-[40px_60px_1fr_150px_100px_80px_60px] gap-3 px-4 py-3 text-xs font-medium text-white/60 border-b border-white/10">
+                  <div className="text-center">#</div>
+                  <div>头像</div>
+                  <div>账号名称</div>
+                  <div>账号ID</div>
+                  <div>平台</div>
+                  <div className="text-center">状态</div>
+                  <div className="text-center">选择</div>
+                </div>
+              </div>
 
-                toast({
-                  title: "保存成功",
-                  description: "素材元数据已保存到数据库"
-                })
-              } catch (error: any) {
-                console.error("Failed to save metadata:", error)
-                toast({
-                  title: "保存失败",
-                  description: error.message,
-                  variant: "destructive"
-                })
-              }
-            }}
-            onClose={() => setEditingMaterialId(null)}
-            onAIGenerate={handleSingleAIGenerate}
-          />
-        )
-      })()}
+              {drawerPaginatedAccounts.length > 0 ? (
+                <div className="divide-y divide-white/10">
+                  {drawerPaginatedAccounts.map((account, index) => {
+                    const isSelected = plan.accounts.includes(account.id)
+                    const displayName = getAccountDisplayName(account)
+                    const globalIndex = (accountDrawerPage - 1) * accountDrawerPerPage + index + 1
+
+                    // 根据 login_status 判断账号是否异常
+                    const loginStatus = (account as any).login_status || "unknown"
+                    const platform = account.platform
+
+                    // B站特殊处理：无论 login_status 是什么，都默认视为正常（因为使用biliup库）
+                    let isValidStatus: boolean
+                    let statusText: string
+                    let statusVariant: "outline" | "destructive"
+
+                    if (platform === "bilibili") {
+                      // B站账号始终显示为正常
+                      isValidStatus = true
+                      statusText = "正常"
+                      statusVariant = "outline"
+                    } else {
+                      // 其他平台根据 login_status 判断
+                      if (loginStatus === "logged_in") {
+                        isValidStatus = true
+                        statusText = "正常"
+                        statusVariant = "outline"
+                      } else if (loginStatus === "session_expired") {
+                        isValidStatus = false
+                        statusText = "掉线"
+                        statusVariant = "destructive"
+                      } else {
+                        isValidStatus = false
+                        statusText = "待检测"
+                        statusVariant = "outline"
+                      }
+                    }
+
+                    const isExpired = !isValidStatus
+
+                    return (
+                      <div
+                        key={account.id}
+                        className={cn(
+                          "grid grid-cols-[40px_60px_1fr_150px_100px_80px_60px] gap-3 px-4 py-3 items-center hover:bg-white/5 transition-colors cursor-pointer",
+                          isSelected && "bg-primary/10",
+                          isExpired && "opacity-60"
+                        )}
+                        onClick={() => toggleAccount(account.id)}
+                      >
+                        <div className="text-center text-xs text-white/40">
+                          {globalIndex}
+                        </div>
+                        <div className="relative w-10 h-10">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center border overflow-hidden",
+                            isExpired ? "border-red-500/30" : "border-white/10"
+                          )}>
+                            {account.avatar ? (
+                              <img
+                                src={account.avatar}
+                                alt={displayName || "Avatar"}
+                                className="object-cover w-full h-full"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <span className="text-sm font-medium">{(displayName || "U").slice(0, 1)}</span>
+                            )}
+                          </div>
+                          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center p-0.5">
+                            <Image
+                              src={PLATFORMS.find(p => p.key === (account.platform as any))?.icon ?? "/Tiktok.svg"}
+                              alt={account.platform ?? "平台"}
+                              width={12}
+                              height={12}
+                              className="object-contain"
+                            />
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className={cn(
+                            "text-sm font-medium truncate",
+                            isSelected ? "text-primary" : isExpired ? "text-white/60" : "text-white"
+                          )}>
+                            {displayName}
+                          </div>
+                        </div>
+                        <div className={cn("text-xs truncate", isExpired ? "text-white/30" : "text-white/50")}>
+                          {account.user_id || "未知"}
+                        </div>
+                        <div className={cn("text-xs truncate", isExpired ? "text-white/40" : "text-white/60")}>
+                          {PLATFORMS.find(p => p.key === account.platform)?.label || account.platform}
+                        </div>
+                        <div className="flex justify-center">
+                          <Badge
+                            variant={statusVariant}
+                            className={cn(
+                              "text-[10px] h-5 px-1.5",
+                              statusVariant === "outline" && "bg-green-500/10 border-green-500/30 text-green-400"
+                            )}
+                          >
+                            {statusText}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-center">
+                          <div
+                            className={cn(
+                              "w-5 h-5 rounded border flex items-center justify-center transition-all",
+                              isSelected
+                                ? "bg-primary border-primary"
+                                : "border-white/30 hover:border-white/50"
+                            )}
+                          >
+                            {isSelected && <Check className="w-3 h-3 text-black" />}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-white/40 text-sm">
+                  {accountSearchKeyword ? "没有找到匹配的账号" : "暂无可用账号"}
+                </div>
+              )}
+            </div>
+
+            {/* 分页控件 */}
+            {totalDrawerPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <div className="text-xs text-white/50">
+                  显示 {(accountDrawerPage - 1) * accountDrawerPerPage + 1} - {Math.min(accountDrawerPage * accountDrawerPerPage, drawerFilteredAccounts.length)} / 共 {drawerFilteredAccounts.length} 个账号
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAccountDrawerPage(p => Math.max(1, p - 1))}
+                    disabled={accountDrawerPage === 1}
+                    className="h-7 text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                  >
+                    上一页
+                  </Button>
+                  <div className="text-xs text-white/60">
+                    {accountDrawerPage} / {totalDrawerPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAccountDrawerPage(p => Math.min(totalDrawerPages, p + 1))}
+                    disabled={accountDrawerPage === totalDrawerPages}
+                    className="h-7 text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                  >
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 底部操作按钮 */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+              <Button
+                variant="ghost"
+                onClick={() => setAccountDrawerOpen(false)}
+                className="text-white/70 hover:text-white"
+              >
+                取消
+              </Button>
+              <Button
+                onClick={() => setAccountDrawerOpen(false)}
+                className="bg-primary text-black hover:bg-primary/90"
+              >
+                确定 ({plan.accounts.length})
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

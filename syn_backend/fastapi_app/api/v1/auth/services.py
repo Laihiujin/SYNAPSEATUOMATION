@@ -177,7 +177,7 @@ class XiaohongshuLoginService:
         session_id = str(uuid.uuid4())
         page = await PlaywrightLoginManager.create_browser(session_id)
         try:
-            await page.goto("https://creator.xiaohongshu.com/creator/home", timeout=60000)
+            await page.goto("https://creator.xiaohongshu.com/new/home", timeout=60000)
             await asyncio.sleep(2)
             # 尝试切换到扫码
             try:
@@ -203,7 +203,7 @@ class XiaohongshuLoginService:
                     if img:
                         src = await img.get_attribute("src")
                         if src:
-                            return session_id, "https://creator.xiaohongshu.com/creator/home", src
+                            return session_id, "https://creator.xiaohongshu.com/new/home", src
                 except Exception:
                     continue
 
@@ -212,7 +212,7 @@ class XiaohongshuLoginService:
                 box = await page.query_selector(".login-box-container") or await page.query_selector("body")
                 if box:
                     png = await box.screenshot(type="png")
-                    return session_id, "https://creator.xiaohongshu.com/creator/home", _b64_png_from_buffer(png)
+                    return session_id, "https://creator.xiaohongshu.com/new/home", _b64_png_from_buffer(png)
             except Exception:
                 pass
             raise Exception("No QR code found for XHS")
@@ -533,26 +533,43 @@ class DouyinLoginService:
 
     @staticmethod
     async def get_user_info_from_page(page: Any, cookies_list: list = None) -> Dict[str, Any]:
-        """从页面提取抖音用户信息（参考fetch_user_info_service的DOM抓取逻辑）"""
+        """Extract Douyin user info from DOM + JS."""
         try:
             await asyncio.sleep(1)
             user_info = {"name": "", "user_id": "", "avatar": ""}
 
-            # ⚠️ 方法1: 从页面显示的"抖音号"文本提取（最可靠！）
+            # Method 1: DOM text (preferred)
             try:
-                # text=/抖音号[:：]?\s*\d+/
                 import re
-                elem = await page.wait_for_selector('text=/抖音号[:：]?\\s*\\d+/', timeout=3000)
-                if elem:
-                    text = await elem.inner_text()
-                    match = re.search(r'抖音号[:：]?\s*(\d+)', text)
+                # New UI sometimes exposes a unique_id-* node without label.
+                try:
+                    id_node = await page.wait_for_selector(
+                        "div[class^='unique_id-'], div[class*='unique_id-']",
+                        timeout=2000
+                    )
+                    if id_node:
+                        raw_text = (await id_node.inner_text()) or ""
+                        raw_text = raw_text.strip()
+                        if raw_text:
+                            match = re.search(r"(\\u6296\\u97f3\\u53f7|\\u6296\\u97f3ID|\\u6296\\u97f3id)[:\\uff1a]?\\s*([A-Za-z0-9_.-]+)", raw_text)
+                            if match:
+                                user_info["user_id"] = match.group(2)
+                            else:
+                                raw_match = re.search(r"[A-Za-z0-9_.-]+", raw_text)
+                                user_info["user_id"] = raw_match.group(0) if raw_match else raw_text
+                except Exception:
+                    pass
+
+                if not user_info.get("user_id"):
+                    body_text = await page.inner_text("body")
+                    match = re.search(r"(\\u6296\\u97f3\\u53f7|\\u6296\\u97f3ID|\\u6296\\u97f3id)[:\\uff1a]?\\s*([A-Za-z0-9_.-]+)", body_text)
                     if match:
-                        user_info["user_id"] = match.group(1)
+                        user_info["user_id"] = match.group(2)
                         logger.info(f"[Douyin] Extracted user_id from DOM text: {user_info['user_id']}")
             except Exception as e:
                 logger.warning(f"[Douyin] DOM text extraction failed: {e}")
 
-            # 方法2: 从JS提取（作为兜底）
+            # Method 2: JS fallback
             if not user_info.get("user_id"):
                 try:
                     js_info = await page.evaluate("""() => {
@@ -567,12 +584,17 @@ class DouyinLoginService:
                     }""")
                     logger.info(f"[Douyin] JS evaluated user data: {js_info}")
                     if js_info and isinstance(js_info, dict):
-                        user_info["user_id"] = js_info.get("userId", "")
+                        user_info["user_id"] = (
+                            js_info.get("uniqueId")
+                            or js_info.get("unique_id")
+                            or js_info.get("userId")
+                            or ""
+                        )
                         logger.info(f"[Douyin] Fallback to JS userId: {user_info['user_id']}")
                 except Exception as e:
                     logger.error(f"[Douyin] JS extraction failed: {e}")
 
-            # 提取name
+            # name
             try:
                 name_selectors = ['xpath=//div[@class="name-_lSSDc"]', 'div[class*="name-_lSSDc"]', 'div[class*="header-right-name"]', '.header-right-name']
                 for selector in name_selectors:
@@ -581,14 +603,14 @@ class DouyinLoginService:
                         if elem:
                             text = await elem.inner_text()
                             if text:
-                                user_info["name"] = text.strip().split('\n')[0]
+                                user_info["name"] = text.strip().split("\n")[0]
                                 break
-                    except:
+                    except Exception:
                         continue
             except Exception as e:
                 logger.warning(f"[Douyin] name extraction failed: {e}")
 
-            # 提取avatar
+            # avatar
             try:
                 avatar_selectors = ["div[class*='avatar-'] img", ".semi-avatar img", "img[src*='aweme-avatar']"]
                 for selector in avatar_selectors:
@@ -599,7 +621,7 @@ class DouyinLoginService:
                             if src:
                                 user_info["avatar"] = src
                                 break
-                    except:
+                    except Exception:
                         continue
             except Exception:
                 pass
@@ -607,7 +629,7 @@ class DouyinLoginService:
             logger.info(f"[Douyin] Final extracted user_info: {user_info}")
             return user_info
         except Exception as e:
-            logger.error(f"获取抖音用户信息失败: {e}")
+            logger.error(f"??????????: {e}")
             return {"name": "", "user_id": "", "avatar": ""}
 
     @staticmethod

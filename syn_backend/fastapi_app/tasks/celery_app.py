@@ -23,8 +23,9 @@ celery_app.conf.update(
     # Ensure non-default task modules are loaded by the worker.
     include=["fastapi_app.tasks.publish_tasks"],
     # Worker pool configuration for Windows
-    worker_pool="solo",  # Use solo pool to avoid Windows multiprocessing issues
+    # Use threads to enable concurrency on Windows (solo forces serial execution).
+    worker_pool="threads",
     worker_pool_restarts=True,
-    worker_prefetch_multiplier=1,  # Disable prefetching for solo pool
+    worker_prefetch_multiplier=1,  # Keep prefetch low to avoid task hoarding
     worker_max_tasks_per_child=1000,  # Restart worker after 1000 tasks to prevent memory leaks
 )

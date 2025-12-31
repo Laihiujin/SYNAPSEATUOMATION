@@ -30,10 +30,37 @@ class CookieManager:
     def __init__(self, storage_path: Optional[Path] = None):
         self.db_path = Path(storage_path) if storage_path else Path(BASE_DIR) / "db" / "cookie_store.db"
         self.cookies_dir = Path(BASE_DIR) / "cookiesFile"
+        self.frontend_snapshot_path = Path(BASE_DIR) / "db" / "frontend_accounts_snapshot.json"
         self.cookies_dir.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
         self._ensure_database()
         self._migrate_legacy_json()
+
+    def _resolve_cookie_path(self, cookie_file: str) -> Path:
+        if not cookie_file:
+            return self.cookies_dir / ""
+        raw = Path(cookie_file)
+        if raw.is_absolute() and raw.exists():
+            return raw
+        candidate = self.cookies_dir / cookie_file
+        if candidate.exists():
+            return candidate
+        return self.cookies_dir / raw.name
+
+    def _normalize_cookie_ref(self, cookie_file: str) -> str:
+        if not cookie_file:
+            return ""
+        raw = Path(cookie_file)
+        if raw.is_absolute():
+            try:
+                return raw.relative_to(self.cookies_dir).as_posix()
+            except Exception:
+                return raw.name
+        cookie_str = str(cookie_file).replace("\\", "/")
+        marker = "/cookiesFile/"
+        if marker in cookie_str:
+            return cookie_str.split(marker, 1)[1]
+        return cookie_str
 
     def _migrate_schema(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -47,6 +74,8 @@ class CookieManager:
                 conn.execute("ALTER TABLE cookie_accounts ADD COLUMN note TEXT")
             if "user_id" not in columns:
                 conn.execute("ALTER TABLE cookie_accounts ADD COLUMN user_id TEXT")
+            if "login_status" not in columns:
+                conn.execute("ALTER TABLE cookie_accounts ADD COLUMN login_status TEXT DEFAULT 'unknown'")
 
     def _ensure_database(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +199,18 @@ class CookieManager:
                 cookies_list = cookie_data
 
             # 根据平台提取对应的user_id字段(注意:抖音的uid_tt是加密字符串,不使用)
+            # Channels: try localStorage finder_username first
+            if platform == 'channels' and isinstance(cookie_data, dict):
+                for origin in cookie_data.get('origins', []) or []:
+                    if not isinstance(origin, dict):
+                        continue
+                    local_storage = origin.get('localStorage') or []
+                    for item in local_storage:
+                        if not isinstance(item, dict):
+                            continue
+                        if item.get('name') == 'finder_username' and item.get('value'):
+                            return str(item.get('value'))
+
             platform_id_map = {
                 'kuaishou': ['userId', 'bUserId'],  # 快手 - userId优先
                 'douyin': [],  # 抖音 - 不从cookie提取,只用user_info.user_id
@@ -229,6 +270,14 @@ class CookieManager:
                 for key in ["user_id", "finder_username", "mid", "redId", "red_id"]:
                     if not info["user_id"] and tokens.get(key):
                         info["user_id"] = str(tokens.get(key))
+                if platform == "douyin" and not info["user_id"] and isinstance(user_info, dict):
+                    for key in ["unique_id", "short_id", "douyin_id", "douyinId"]:
+                        value = user_info.get(key)
+                        if value:
+                            info["user_id"] = str(value)
+                            break
+                    if not info["user_id"] and user_info.get("sec_uid"):
+                        info["user_id"] = str(user_info.get("sec_uid"))
                 # name
                 for key in ["name", "username", "finder_username", "finderUsername", "user_id", "redId", "red_id"]:
                     if not info["name"] and user_info.get(key):
@@ -354,15 +403,25 @@ class CookieManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(
-                    "SELECT account_id, note, cookie_file FROM cookie_accounts WHERE platform = ? AND user_id = ?",
+                    "SELECT account_id, note, cookie_file, last_checked FROM cookie_accounts WHERE platform = ? AND user_id = ? ORDER BY last_checked DESC",
                     (normalized_platform, user_id)
                 )
-                row = cursor.fetchone()
-                if row:
+                rows = cursor.fetchall()
+                if rows:
+                    row = rows[0]
                     existing_account_id = row['account_id']
                     existing_note = row['note']
                     existing_cookie_file = row['cookie_file']
                     logger.info(f"[CookieManager] 检测到已存在的账号: {existing_account_id} (UserID: {user_id}, Note: {existing_note})")
+                    if len(rows) > 1:
+                        remove_ids = [r["account_id"] for r in rows[1:] if r.get("account_id")]
+                        if remove_ids:
+                            conn.execute(
+                                f"DELETE FROM cookie_accounts WHERE account_id IN ({','.join(['?'] * len(remove_ids))})",
+                                remove_ids,
+                            )
+                            conn.commit()
+                            logger.info(f"[CookieManager] 清理重复账号: {remove_ids}")
 
         # 智能备注更新逻辑
         new_note = account_details.get("note") or "-"  # 默认备注为 "-"
@@ -434,6 +493,46 @@ class CookieManager:
         if (not account_details.get("name") or not account_details.get("user_id") or not account_details.get("avatar")):
             self._enrich_with_fast_validator(normalized_platform, cookie_file, account_details)
 
+        # 若通过补全拿到了 user_id，确保 cookie 文件名与 user_id 对齐
+        if account_details.get("user_id"):
+            expected_filename = f"{normalized_platform}_{account_details['user_id']}.json"
+            if cookie_file != expected_filename:
+                old_path = self.cookies_dir / cookie_file
+                new_path = self.cookies_dir / expected_filename
+                if old_path.exists() and not new_path.exists():
+                    try:
+                        import shutil
+                        shutil.move(str(old_path), str(new_path))
+                    except Exception:
+                        pass
+                cookie_file = expected_filename
+
+        # 二次去重：若补全后有 user_id，清理同平台同 user_id 的旧记录
+        if account_details.get("user_id"):
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.execute(
+                        "SELECT account_id, cookie_file FROM cookie_accounts WHERE platform = ? AND user_id = ?",
+                        (normalized_platform, account_details.get("user_id")),
+                    )
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        if row["account_id"] == account_id:
+                            continue
+                        drop_cookie = row.get("cookie_file")
+                        if drop_cookie:
+                            drop_path = self._resolve_cookie_path(drop_cookie)
+                            if drop_path.exists():
+                                try:
+                                    drop_path.unlink()
+                                except Exception:
+                                    pass
+                        conn.execute("DELETE FROM cookie_accounts WHERE account_id = ?", (row["account_id"],))
+                    conn.commit()
+            except Exception:
+                pass
+
         # 最终使用补全后的字段
         account_name = account_details.get("name") or account_details.get("userName") or account_id
         # 如果是覆盖已有账号（重新登录），强制设置status为valid
@@ -497,6 +596,7 @@ class CookieManager:
                 "original_name": row["original_name"] if "original_name" in row.keys() else None,
                 "note": row["note"] if "note" in row.keys() else None,
                 "user_id": row["user_id"] if "user_id" in row.keys() else None,
+                "login_status": row["login_status"] if "login_status" in row.keys() else None,
             }
             grouped.setdefault(row["platform"], []).append(account)
         return [{"name": name, "accounts": accounts} for name, accounts in grouped.items()]
@@ -505,7 +605,7 @@ class CookieManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT account_id, platform, platform_code, name, status, cookie_file, last_checked, avatar, original_name, note, user_id FROM cookie_accounts "
+                "SELECT account_id, platform, platform_code, name, status, cookie_file, last_checked, avatar, original_name, note, user_id, login_status FROM cookie_accounts "
                 "ORDER BY platform, name"
             ).fetchall()
         return self._group_accounts(rows)
@@ -514,10 +614,143 @@ class CookieManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT account_id, platform, platform_code, name, status, cookie_file, last_checked, avatar, original_name, note, user_id FROM cookie_accounts "
+                "SELECT account_id, platform, platform_code, name, status, cookie_file, last_checked, avatar, original_name, note, user_id, login_status FROM cookie_accounts "
                 "ORDER BY platform, name"
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def cleanup_duplicate_accounts(self) -> Dict[str, int]:
+        """Remove duplicated accounts with same platform + user_id, keep the latest one."""
+        removed = 0
+        kept = 0
+        groups = 0
+
+        def _parse_dt(raw: Optional[str]) -> float:
+            if not raw:
+                return 0.0
+            try:
+                return datetime.fromisoformat(raw).timestamp()
+            except Exception:
+                return 0.0
+
+        with self.lock, sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT account_id, platform, user_id, last_checked, cookie_file FROM cookie_accounts "
+                "WHERE user_id IS NOT NULL AND user_id != ''"
+            ).fetchall()
+
+            grouped: Dict[tuple, List[Dict[str, Any]]] = {}
+            for row in rows:
+                item = dict(row)
+                key = (item.get("platform"), item.get("user_id"))
+                grouped.setdefault(key, []).append(item)
+
+            for key, items in grouped.items():
+                if len(items) <= 1:
+                    continue
+                groups += 1
+                items_sorted = sorted(
+                    items,
+                    key=lambda item: (_parse_dt(item.get("last_checked")), item.get("account_id") or ""),
+                    reverse=True,
+                )
+                kept += 1
+                for drop in items_sorted[1:]:
+                    cookie_file = drop.get("cookie_file")
+                    if cookie_file:
+                        file_path = self.cookies_dir / cookie_file
+                        if file_path.exists():
+                            file_path.unlink()
+                    conn.execute("DELETE FROM cookie_accounts WHERE account_id = ?", (drop.get("account_id"),))
+                    removed += 1
+            conn.commit()
+
+        return {"groups": groups, "kept": kept, "removed": removed}
+
+    def cleanup_orphan_cookie_files(self) -> Dict[str, int]:
+        """Remove cookie files that do not exist in DB accounts."""
+        removed = 0
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT cookie_file FROM cookie_accounts").fetchall()
+        db_files = {self._normalize_cookie_ref(row["cookie_file"]) for row in rows if row["cookie_file"]}
+
+        for file_path in self.cookies_dir.rglob("*.json"):
+            if not file_path.is_file():
+                continue
+            rel_path = file_path.relative_to(self.cookies_dir).as_posix()
+            if rel_path not in db_files:
+                try:
+                    file_path.unlink()
+                    removed += 1
+                except Exception as e:
+                    logger.warning(f"[CookieManager] Failed to remove orphan cookie file: {file_path} ({e})")
+
+        return {"removed": removed}
+
+    def save_frontend_snapshot(self, accounts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Persist frontend account snapshot for later cleanup."""
+        payload = {
+            "updated_at": datetime.utcnow().isoformat(),
+            "accounts": accounts,
+        }
+        try:
+            self.frontend_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            self.frontend_snapshot_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+            return {"success": True, "count": len(accounts)}
+        except Exception as e:
+            logger.error(f"[CookieManager] Save frontend snapshot failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    def load_frontend_snapshot(self) -> List[Dict[str, Any]]:
+        if not self.frontend_snapshot_path.exists():
+            return []
+        try:
+            payload = json.loads(self.frontend_snapshot_path.read_text(encoding="utf-8"))
+            accounts = payload.get("accounts") if isinstance(payload, dict) else []
+            return accounts if isinstance(accounts, list) else []
+        except Exception:
+            return []
+
+    def prune_accounts_not_in_frontend(self, accounts: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Remove cookie accounts not present in frontend snapshot."""
+        normalized = []
+        for acc in accounts:
+            account_id = acc.get("account_id") or acc.get("id")
+            platform = acc.get("platform")
+            if account_id and platform:
+                normalized.append({"account_id": str(account_id), "platform": str(platform)})
+
+        if not normalized:
+            return {"removed": 0, "skipped": 1}
+
+        allowed = {(acc["platform"], acc["account_id"]) for acc in normalized}
+        removed = 0
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT account_id, platform, cookie_file FROM cookie_accounts"
+            ).fetchall()
+            for row in rows:
+                key = (row["platform"], row["account_id"])
+                if key in allowed:
+                    continue
+                conn.execute("DELETE FROM cookie_accounts WHERE account_id = ?", (row["account_id"],))
+                removed += 1
+                cookie_path = self._resolve_cookie_path(row["cookie_file"] or "")
+                if cookie_path.exists():
+                    try:
+                        cookie_path.unlink()
+                    except Exception:
+                        pass
+
+        return {"removed": removed}
+
+    def prune_accounts_from_snapshot(self) -> Dict[str, int]:
+        accounts = self.load_frontend_snapshot()
+        return self.prune_accounts_not_in_frontend(accounts)
 
     def get_account_by_id(self, account_id: str) -> Optional[Dict[str, Any]]:
         with sqlite3.connect(self.db_path) as conn:

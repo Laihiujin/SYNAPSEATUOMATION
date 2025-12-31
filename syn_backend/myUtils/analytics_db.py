@@ -67,7 +67,12 @@ def ensure_analytics_schema(db_path: Path):
         conn.commit()
 
 
-def get_analytics_summary(db_path: Path, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict:
+def get_analytics_summary(
+    db_path: Path,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    platform: Optional[str] = None,
+) -> Dict:
     """Get analytics summary statistics"""
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
@@ -110,7 +115,13 @@ def get_analytics_summary(db_path: Path, start_date: Optional[str] = None, end_d
         }
 
 
-def get_analytics_videos(db_path: Path, start_date: Optional[str] = None, end_date: Optional[str] = None, limit: int = 100, platform: Optional[str] = None) -> List[Dict]:
+def get_analytics_videos(
+    db_path: Path,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100,
+    platform: Optional[str] = None,
+) -> List[Dict]:
     """Get video analytics data"""
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
@@ -119,6 +130,9 @@ def get_analytics_videos(db_path: Path, start_date: Optional[str] = None, end_da
         where_clause = "WHERE 1=1"
         params = []
         
+        if platform and platform.lower() != "all":
+            where_clause += " AND platform = ?"
+            params.append(platform.lower())
         if start_date:
             where_clause += " AND publish_date >= ?"
             params.append(start_date)
@@ -129,16 +143,24 @@ def get_analytics_videos(db_path: Path, start_date: Optional[str] = None, end_da
         cursor.execute(f"""
             SELECT 
                 id,
+                account_id as accountId,
                 video_id as videoId,
                 title,
                 platform,
                 thumbnail,
+                cover_url as coverUrl,
                 video_url as videoUrl,
                 publish_date as publishDate,
+                publish_time as publishTime,
+                duration,
                 play_count as playCount,
                 like_count as likeCount,
                 comment_count as commentCount,
                 collect_count as collectCount,
+                share_count as shareCount,
+                status,
+                collected_at as collectedAt,
+                raw_data as rawData,
                 last_updated as lastUpdated
             FROM video_analytics
             {where_clause}

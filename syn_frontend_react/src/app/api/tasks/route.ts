@@ -137,11 +137,29 @@ const formatTaskQueueRow = (row: any, accountMap: Map<string, string>, materialM
 
 const fetchTaskQueueRecords = async (accountMap: Map<string, string>, materialMap: Map<string, string>) => {
   try {
+    console.log("[fetchTaskQueueRecords] Fetching from:", `${backendBaseUrl}/api/v1/tasks/`)
     const response = await fetch(`${backendBaseUrl}/api/v1/tasks/`, { cache: "no-store" })
-    if (!response.ok) return null
+    console.log("[fetchTaskQueueRecords] Response status:", response.status, response.ok)
+
+    if (!response.ok) {
+      console.log("[fetchTaskQueueRecords] Response not ok, returning null")
+      return null
+    }
+
     const payload = await response.json().catch(() => ({}))
+    console.log("[fetchTaskQueueRecords] Raw payload:", JSON.stringify(payload).slice(0, 500))
+    console.log("[fetchTaskQueueRecords] Payload keys:", Object.keys(payload))
+    console.log("[fetchTaskQueueRecords] payload.data type:", Array.isArray(payload?.data), "length:", payload?.data?.length)
+
     const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
+    console.log("[fetchTaskQueueRecords] Rows count:", rows.length)
+
+    if (rows.length > 0) {
+      console.log("[fetchTaskQueueRecords] First row sample:", JSON.stringify(rows[0]).slice(0, 300))
+    }
+
     const tasks = rows.map(row => formatTaskQueueRow(row, accountMap, materialMap))
+    console.log("[fetchTaskQueueRecords] Formatted tasks count:", tasks.length)
 
     const rawSummary = payload?.summary
     const summary = rawSummary ? {
@@ -152,6 +170,7 @@ const fetchTaskQueueRecords = async (accountMap: Map<string, string>, materialMa
       total: rawSummary.total ?? tasks.length
     } : buildSummaryFromTasks(tasks)
 
+    console.log("[fetchTaskQueueRecords] Final summary:", summary)
     return { tasks, summary }
   } catch (error) {
     console.error("Failed to load task queue records", error)
@@ -199,24 +218,34 @@ const fetchPublishTasks = async (accountMap: Map<string, string>, materialMap: M
 
 export async function GET() {
   try {
-    console.log("[/api/tasks] Start fetching tasks...")
+    console.log("[/api/tasks] ========== START ==========")
+    console.log("[/api/tasks] Backend URL:", backendBaseUrl)
 
     // 并行获取辅助数据
     const [accountMap, materialMap] = await Promise.all([
       fetchAccountsMap(),
       fetchMaterialsMap()
     ])
+    console.log("[/api/tasks] AccountMap size:", accountMap.size)
+    console.log("[/api/tasks] MaterialMap size:", materialMap.size)
 
     const queueData = await fetchTaskQueueRecords(accountMap, materialMap)
     console.log("[/api/tasks] Queue data fetched:", queueData ? "success" : "failed")
+    if (queueData) {
+      console.log("[/api/tasks] Queue data tasks count:", queueData.tasks.length)
+    }
 
     const publishData = queueData ?? (await fetchPublishTasks(accountMap, materialMap))
     console.log("[/api/tasks] Publish data fetched:", publishData ? "success" : "failed")
+    if (publishData) {
+      console.log("[/api/tasks] Publish data tasks count:", publishData.tasks.length)
+    }
 
     const tasks = publishData?.tasks ?? []
     const finalSummary = publishData?.summary ?? buildSummaryFromTasks(tasks)
 
-    console.log(`[/api/tasks] 返回 ${tasks.length} 个任务`)
+    console.log(`[/api/tasks] ========== 返回 ${tasks.length} 个任务 ==========`)
+    console.log(`[/api/tasks] Final summary:`, finalSummary)
 
     return NextResponse.json({
       code: 200,
@@ -227,7 +256,7 @@ export async function GET() {
       updatedAt: Date.now(),
     })
   } catch (error) {
-    console.error("[/api/tasks] 加载任务失败:", error)
+    console.error("[/api/tasks] ========== ERROR ==========", error)
     return NextResponse.json({ code: 500, msg: "failed to load tasks", data: [] }, { status: 500 })
   }
 }

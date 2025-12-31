@@ -144,6 +144,45 @@ def _ensure_account_persisted(platform_name: str, account_id: str, account_detai
         from myUtils.cookie_manager import cookie_manager
         if cookie_manager.get_account_by_id(account_id):
             return
+        user_id = account_details.get("user_id")
+        if user_id:
+            try:
+                with sqlite3.connect(cookie_manager.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute(
+                        "SELECT account_id FROM cookie_accounts WHERE platform = ? AND user_id = ?",
+                        (platform_name, user_id),
+                    ).fetchone()
+                    if row:
+                        name = account_details.get("name") or user_id
+                        status = account_details.get("status") or "valid"
+                        last_checked = account_details.get("last_checked") or datetime.now(timezone.utc).isoformat()
+                        avatar = account_details.get("avatar")
+                        original_name = account_details.get("original_name")
+                        note = account_details.get("note") or "-"
+                        conn.execute(
+                            """
+                            UPDATE cookie_accounts
+                            SET name = ?, status = ?, cookie_file = ?, last_checked = ?, avatar = ?, original_name = ?, note = ?, user_id = ?
+                            WHERE account_id = ?
+                            """,
+                            (
+                                name,
+                                status,
+                                cookie_file.name,
+                                last_checked,
+                                avatar,
+                                original_name,
+                                note,
+                                user_id,
+                                row["account_id"],
+                            ),
+                        )
+                        conn.commit()
+                        logger.info(f"[Login] Fallback DB update ok: {platform_name} {row['account_id']}")
+                        return
+            except Exception:
+                pass
         platform_code = cookie_manager._resolve_platform(platform_name)
         name = account_details.get("name") or account_details.get("user_id") or account_id
         status = account_details.get("status") or "valid"
@@ -151,7 +190,6 @@ def _ensure_account_persisted(platform_name: str, account_id: str, account_detai
         avatar = account_details.get("avatar")
         original_name = account_details.get("original_name")
         note = account_details.get("note") or "-"
-        user_id = account_details.get("user_id")
 
         with sqlite3.connect(cookie_manager.db_path) as conn:
             conn.execute(
@@ -360,8 +398,61 @@ async def poll_login_status(session_id: str = Query(..., description="登录会�
                     data["user_info"] = user_info
                 else:
                     logger.info(f"[Login] 信息已完整，跳过enrich_account调用: user_id={user_info.get('user_id')}, name={user_info.get('name')}")
+
+                if (
+                    _is_blank(user_info.get('user_id'))
+                    or _should_replace_name(user_info.get('name'), user_info.get('user_id'))
+                    or _is_blank(user_info.get('avatar'))
+                ):
+                    try:
+                        from myUtils.fast_cookie_validator import FastCookieValidator
+
+                        cookie_data = data.get('full_state') or {"cookies": data.get('cookies', []), "user_info": user_info}
+                        validator = FastCookieValidator()
+                        fast_result = await validator.validate_cookie_fast(
+                            platform.value.lower(),
+                            cookie_data=cookie_data,
+                            fallback=False,
+                        )
+                        if fast_result.get('status') == 'valid':
+                            if _is_blank(user_info.get('user_id')) and fast_result.get('user_id'):
+                                user_info['user_id'] = fast_result.get('user_id')
+                            if _should_replace_name(user_info.get('name'), user_info.get('user_id')) and fast_result.get('name'):
+                                user_info['name'] = fast_result.get('name')
+                            if _is_blank(user_info.get('avatar')) and fast_result.get('avatar'):
+                                user_info['avatar'] = fast_result.get('avatar')
+                            data['user_info'] = user_info
+                            logger.info(
+                                f"[Login] Fast validator补全: user_id={user_info.get('user_id')}, name={user_info.get('name')}"
+                            )
+                    except Exception as fast_error:
+                        logger.warning(f"[Login] Fast validator enrich failed (ignored): {fast_error}")
             except Exception as e:
                 logger.warning(f"[Login] Worker enrich failed (ignored): {e}")
+                try:
+                    from myUtils.fast_cookie_validator import FastCookieValidator
+
+                    cookie_data = data.get("full_state") or {"cookies": data.get("cookies", []), "user_info": user_info}
+                    validator = FastCookieValidator()
+                    fast_result = await validator.validate_cookie_fast(
+                        platform.value.lower(),
+                        cookie_data=cookie_data,
+                        fallback=False,
+                    )
+                    if fast_result.get("status") == "valid":
+                        if _is_blank(user_info.get("user_id")) and fast_result.get("user_id"):
+                            user_info["user_id"] = fast_result.get("user_id")
+                        if _should_replace_name(user_info.get("name"), user_info.get("user_id")) and fast_result.get("name"):
+                            user_info["name"] = fast_result.get("name")
+                        if _is_blank(user_info.get("avatar")) and fast_result.get("avatar"):
+                            user_info["avatar"] = fast_result.get("avatar")
+                        data["user_info"] = user_info
+                        logger.info(
+                            f"[Login] Fast validator??: user_id={user_info.get('user_id')}, name={user_info.get('name')}"
+                        )
+                except Exception as fast_error:
+                    logger.warning(f"[Login] Fast validator enrich failed (ignored): {fast_error}")
+
 
             # 保存登录信息
             if platform == PlatformType.BILIBILI:
@@ -448,6 +539,20 @@ async def _save_bilibili_login(session: dict, login_data: dict):
         with open(account_file, 'w', encoding='utf-8') as f:
             json.dump(cookie_data, f, ensure_ascii=False, indent=2)
 
+        final_user_id = user_info.get("user_id") or ""
+        if final_user_id:
+            final_file = cookies_dir / f"bilibili_{final_user_id}.json"
+        else:
+            final_file = account_file
+        if final_file != account_file:
+            try:
+                if final_file.exists():
+                    final_file.unlink()
+                account_file.replace(final_file)
+            except Exception:
+                pass
+            account_file = final_file
+
         logger.info(f"[Login] Bilibili login saved: account={account_id} file={account_file.name}")
 
         account_details = {
@@ -502,8 +607,24 @@ async def _save_xiaohongshu_login(session: dict, login_data: dict):
 
         user_info = _fill_user_info_from_cookie("xiaohongshu", cookie_data, user_info)
 
+        # Use user_id filename when available to avoid duplicate account_id cookies
+        final_user_id = user_info.get("user_id") or ""
+        if final_user_id:
+            final_file = cookies_dir / f"xiaohongshu_{final_user_id}.json"
+        else:
+            final_file = account_file
+
         with open(account_file, 'w', encoding='utf-8') as f:
             json.dump(cookie_data, f, ensure_ascii=False, indent=2)
+
+        if final_file != account_file:
+            try:
+                if final_file.exists():
+                    final_file.unlink()
+                account_file.replace(final_file)
+            except Exception:
+                pass
+            account_file = final_file
 
         logger.info(f"小红书登录成功，Cookie已保存: {account_file}")
 
@@ -650,10 +771,9 @@ async def _save_tencent_login(session: dict, login_data: dict):
         user_info = login_data.get("user_info", {}) or {}
         full_state = login_data.get("full_state")
 
-        # 保存到文件
+        # 保存到文件（优先用 user_id 命名，避免生成 tencent_account_* 临时文件）
         cookies_dir = Path(BASE_DIR) / "cookiesFile"
         cookies_dir.mkdir(parents=True, exist_ok=True)
-        account_file = cookies_dir / f"tencent_{account_id}.json"
 
         if full_state:
             cookie_data = full_state
@@ -666,9 +786,20 @@ async def _save_tencent_login(session: dict, login_data: dict):
             }
 
         user_info = _fill_user_info_from_cookie("channels", cookie_data, user_info)
+        final_user_id = user_info.get("finder_username") or user_info.get("user_id") or ""
+        temp_file = cookies_dir / f"tencent_{account_id}.json"
+        if final_user_id:
+            account_file = cookies_dir / f"channels_{final_user_id}.json"
+        else:
+            account_file = temp_file
 
         with open(account_file, 'w', encoding='utf-8') as f:
             json.dump(cookie_data, f, ensure_ascii=False, indent=2)
+        if final_user_id and temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
             
         account_details = {
             'id': account_id,
@@ -685,6 +816,8 @@ async def _save_tencent_login(session: dict, login_data: dict):
         try:
             from myUtils.cookie_manager import cookie_manager
             cookie_manager.add_account(platform_name='channels', account_details=account_details)
+            cookie_manager.cleanup_duplicate_accounts()
+            cookie_manager.cleanup_orphan_cookie_files()
         except Exception as e:
             logger.warning(f"更新cookie管理器失败: {e}")
         _ensure_account_persisted("channels", account_id, account_details, account_file)

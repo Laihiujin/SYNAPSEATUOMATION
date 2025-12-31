@@ -2,19 +2,19 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, BarChart3, PieChart, Activity } from "lucide-react"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 export default function TrendsPage() {
     return (
-        <div className="space-y-6 p-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-white">数据趋势</h1>
-                <p className="text-white/60 mt-1">分析视频数据趋势和表现</p>
-            </div>
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="数据趋势"
+                description="分析视频数据趋势和表现"
+            />
 
             {/* Coming Soon */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <TrendingUp className="h-5 w-5 text-primary" />
@@ -31,7 +31,7 @@ export default function TrendsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <BarChart3 className="h-5 w-5 text-primary" />
@@ -48,7 +48,7 @@ export default function TrendsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <PieChart className="h-5 w-5 text-primary" />
@@ -65,7 +65,7 @@ export default function TrendsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <Activity className="h-5 w-5 text-primary" />
@@ -82,7 +82,7 @@ export default function TrendsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <TrendingUp className="h-5 w-5 text-primary" />
@@ -99,7 +99,7 @@ export default function TrendsPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="bg-white/5 border-white/10">
+                <Card className="bg-black/40 border-black">
                     <CardHeader>
                         <div className="flex items-center gap-2">
                             <BarChart3 className="h-5 w-5 text-primary" />

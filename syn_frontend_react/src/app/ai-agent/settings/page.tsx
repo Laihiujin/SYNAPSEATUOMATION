@@ -12,6 +12,7 @@ import { ArrowLeft, Save, Loader2, Key, Sparkles, Wand2, Code, CheckCircle2, Mic
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { API_ENDPOINTS } from "@/lib/env"
+import { PageHeader } from "@/components/layout/page-scaffold"
 import { FunctionCallingTester } from "@/components/function-calling-tester"
 
 interface AIModelConfig {
@@ -254,23 +255,24 @@ export default function AISettingsPage() {
     }
 
     return (
-        <div className="min-h-screen  text-white p-6">
-            <div className="max-w-5xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="flex items-center gap-4">
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="AI 模型配置"
+                description="统一管理所有 AI 服务的 API 密钥和配置"
+                actions={
                     <Button
                         variant="ghost"
-                        size="icon"
+                        size="sm"
                         onClick={() => router.push("/ai-agent")}
-                        className="text-white/70 hover:text-white"
+                        className="text-white/70 hover:text-white rounded-xl border border-white/10"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        返回
                     </Button>
-                    <div>
-                        <h1 className="text-3xl font-bold">AI 模型配置</h1>
-                        <p className="text-white/60 mt-1">统一管理所有 AI 服务的 API 密钥和配置</p>
-                    </div>
-                </div>
+                }
+            />
+
+            <div className="max-w-5xl mx-auto space-y-6">
 
                 {/* Tabs */}
                 <Tabs defaultValue="chat" className="w-full">

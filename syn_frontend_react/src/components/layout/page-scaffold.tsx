@@ -18,27 +18,25 @@ export function PageHeader({
   align = "start",
 }: PageHeaderProps) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-black px-5 py-4 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)]">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className={cn("space-y-2", align === "center" && "text-center w-full")}>
-          {eyebrow && (
-            <p className="text-[11px] uppercase tracking-[0.26em] text-white/50">
-              {eyebrow}
-            </p>
-          )}
-          <h1 className="text-2xl font-semibold leading-tight text-white">{title}</h1>
-          {description && (
-            <p className="max-w-3xl text-sm text-white/60">
-              {description}
-            </p>
-          )}
-        </div>
-        {actions && (
-          <div className="flex flex-wrap items-center gap-2">
-            {actions}
-          </div>
+    <div className="flex flex-wrap items-center justify-between gap-6 px-1">
+      <div className={cn("space-y-2", align === "center" && "text-center w-full")}>
+        {eyebrow && (
+          <p className="text-sm uppercase tracking-[0.3em] text-white/50">
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="text-3xl font-semibold leading-tight text-white">{title}</h1>
+        {description && (
+          <p className="text-sm text-white/60">
+            {description}
+          </p>
         )}
       </div>
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   )
 }

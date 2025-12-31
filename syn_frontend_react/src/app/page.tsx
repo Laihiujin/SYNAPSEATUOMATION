@@ -40,6 +40,7 @@ import {
 import { formatBeijingDateTime } from "@/lib/time"
 import { AccountActivityLog } from "@/components/account-activity-log"
 import { PublishOtpDialog } from "@/components/publish/publish-otp-dialog"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 type SystemFeedResponse = {
   tasks: Array<{
@@ -101,7 +102,7 @@ export default function DashboardPage() {
 
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ["accounts-lite"],
-    queryFn: () => fetcher("/api/accounts", accountsResponseSchema),
+    queryFn: () => fetcher("/api/accounts?limit=1000", accountsResponseSchema),
     refetchInterval: 30000,
   })
 
@@ -197,16 +198,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
-      <div className="flex flex-wrap items-center gap-6">
-        <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-white/50">Synapse Engine</p>
-          <h1 className="mt-2 text-3xl font-semibold">矩阵投放仪表盘</h1>
-          <p className="mt-2 text-sm text-white/60">快手、抖音、视频号、小红书统一监控</p>
-        </div>
-        {isRefreshing && (
-          <Badge className="rounded-2xl border-white/10 bg-white/10 text-xs text-white/80">数据刷新中...</Badge>
-        )}
-      </div>
+      <PageHeader
+        title="矩阵投放仪表盘"
+        // description="快手、抖音、视频号、小红书统一监控"
+        actions={
+          isRefreshing && (
+            <Badge className="rounded-2xl border-white/10 bg-white/10 text-xs text-white/80">
+              数据刷新中...
+            </Badge>
+          )
+        }
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => {

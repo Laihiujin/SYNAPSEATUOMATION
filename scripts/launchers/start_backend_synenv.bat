@@ -99,6 +99,9 @@ echo.
 
 
 
+REM Celery will be started by main launcher, skip here
+set "START_CELERY=0"
+
 echo [5/7] Checking Redis connectivity...
 set "REDIS_CHECK=FAIL"
 for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "try { $r = Test-NetConnection -ComputerName localhost -Port 6379 -WarningAction SilentlyContinue; if ($r.TcpTestSucceeded) { 'OK' } else { 'FAIL' } } catch { 'FAIL' }"`) do set "REDIS_CHECK=%%A"

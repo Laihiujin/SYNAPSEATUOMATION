@@ -9,13 +9,23 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const res = await fetch(`${backendBaseUrl}/api/v1/files/${encodeURIComponent(id)}`, {
+    console.log(`[Next.js API] DELETE /api/files/${id} - 开始转发到后端`)
+
+    const backendUrl = `${backendBaseUrl}/api/v1/files/${encodeURIComponent(id)}`
+    console.log(`[Next.js API] 后端URL: ${backendUrl}`)
+
+    const res = await fetch(backendUrl, {
       method: "DELETE",
     })
+
+    console.log(`[Next.js API] 后端响应: ${res.status} ${res.statusText}`)
+
     const payload = await res.json().catch(() => ({}))
+    console.log(`[Next.js API] 后端响应体:`, payload)
+
     return NextResponse.json(payload, { status: res.status })
   } catch (error) {
-    console.error("Failed to delete file:", error)
+    console.error("[Next.js API] DELETE 失败:", error)
     return NextResponse.json(
       { success: false, message: "delete failed" },
       { status: 502 }

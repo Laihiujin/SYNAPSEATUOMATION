@@ -1182,7 +1182,9 @@ class FileService:
         return True
 
     async def delete_file(self, db, file_id: int) -> bool:
-        """Delete file and record (atomic operation)"""
+        """Delete file and record (use path resolution to avoid blocking)"""
+        logger.info(f"[FileService] Starting delete: file_id={file_id}")
+
         if mysql_enabled():
             warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
             with sa_connection() as conn:
@@ -1191,16 +1193,30 @@ class FileService:
                     {"id": file_id},
                 ).mappings().first()
                 if not row:
+                    logger.warning(f"[FileService] File not found: file_id={file_id}")
                     return False
-                file_path = row.get("file_path")
-                conn.execute(text("DELETE FROM file_records WHERE id = :id"), {"id": file_id})
+                stored_path = row.get("file_path")
+                logger.info(f"[FileService] Found file record: stored_path={stored_path}")
 
-            try:
-                if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
-            except Exception:
-                pass
-            logger.info(f"File record deleted (MySQL): ID {file_id}")
+                # Delete database record first
+                conn.execute(text("DELETE FROM file_records WHERE id = :id"), {"id": file_id})
+                conn.commit()
+                logger.info(f"[FileService] Database record deleted: file_id={file_id}")
+
+            # Then delete physical file (non-blocking, with proper path resolution)
+            if stored_path:
+                try:
+                    resolved_path = self._resolve_video_path(stored_path)
+                    logger.info(f"[FileService] Resolved path: {resolved_path}")
+                    if resolved_path and Path(resolved_path).exists():
+                        os.remove(resolved_path)
+                        logger.info(f"[FileService] Physical file deleted: {resolved_path}")
+                    else:
+                        logger.warning(f"[FileService] File not found on disk (skipped): {stored_path}")
+                except Exception as e:
+                    logger.warning(f"[FileService] Failed to delete physical file (ID {file_id}): {e}", exc_info=True)
+
+            logger.info(f"[FileService] Delete completed (MySQL): file_id={file_id}")
             return True
 
         cursor = db.cursor()
@@ -1210,27 +1226,160 @@ class FileService:
         row = cursor.fetchone()
 
         if not row:
+            logger.warning(f"[FileService] File not found: file_id={file_id}")
             return False
 
-        file_path = row['file_path']
+        stored_path = row['file_path']
+        logger.info(f"[FileService] Found file record: stored_path={stored_path}")
 
-        try:
-            # Delete from database
-            cursor.execute("DELETE FROM file_records WHERE id = ?", (file_id,))
+        # Delete database record first
+        cursor.execute("DELETE FROM file_records WHERE id = ?", (file_id,))
+        db.commit()
+        logger.info(f"[FileService] Database record deleted: file_id={file_id}")
+
+        # Then delete physical file (non-blocking, with proper path resolution)
+        if stored_path:
+            try:
+                resolved_path = self._resolve_video_path(stored_path)
+                logger.info(f"[FileService] Resolved path: {resolved_path}")
+                if resolved_path and Path(resolved_path).exists():
+                    os.remove(resolved_path)
+                    logger.info(f"[FileService] Physical file deleted: {resolved_path}")
+                else:
+                    logger.warning(f"[FileService] File not found on disk (skipped): {stored_path}")
+            except Exception as e:
+                logger.warning(f"[FileService] Failed to delete physical file (ID {file_id}): {e}", exc_info=True)
+
+        logger.info(f"[FileService] Delete completed: file_id={file_id}")
+        return True
+
+    async def batch_delete_files(self, db, file_ids: list[int]) -> dict:
+        """
+        批量删除文件（高性能版本）
+
+        优势：
+        - 单次数据库查询获取所有文件路径
+        - 批量删除数据库记录
+        - 批量删除物理文件
+        - 支持部分成功，返回失败列表
+
+        Args:
+            db: 数据库连接
+            file_ids: 要删除的文件ID列表
+
+        Returns:
+            dict: {
+                "success_count": 成功数量,
+                "failed_count": 失败数量,
+                "failed_ids": 失败的文件ID列表
+            }
+        """
+        logger.info(f"[FileService] Starting batch delete: {len(file_ids)} files")
+
+        success_count = 0
+        failed_count = 0
+        failed_ids = []
+
+        if mysql_enabled():
+            warnings.warn("SQLite file_records path is deprecated; using MySQL via DATABASE_URL", DeprecationWarning)
+            with sa_connection() as conn:
+                # 批量查询所有文件路径
+                placeholders = ", ".join([":id" + str(i) for i in range(len(file_ids))])
+                params = {f"id{i}": file_id for i, file_id in enumerate(file_ids)}
+                query = f"SELECT id, file_path FROM file_records WHERE id IN ({placeholders})"
+                rows = conn.execute(text(query), params).mappings().fetchall()
+
+                # 构建路径映射
+                file_path_map = {row["id"]: row["file_path"] for row in rows}
+                logger.info(f"[FileService] Found {len(file_path_map)} files to delete")
+
+                # 批量删除数据库记录
+                if file_path_map:
+                    delete_query = f"DELETE FROM file_records WHERE id IN ({placeholders})"
+                    conn.execute(text(delete_query), params)
+                    conn.commit()
+                    logger.info(f"[FileService] Database records deleted: {len(file_path_map)} files")
+
+            # 批量删除物理文件
+            for file_id, stored_path in file_path_map.items():
+                if stored_path:
+                    try:
+                        resolved_path = self._resolve_video_path(stored_path)
+                        if resolved_path and Path(resolved_path).exists():
+                            os.remove(resolved_path)
+                            success_count += 1
+                            logger.debug(f"[FileService] Deleted file {file_id}: {resolved_path}")
+                        else:
+                            logger.warning(f"[FileService] File not found on disk: {stored_path}")
+                            success_count += 1  # 记录已删除，文件不存在也算成功
+                    except Exception as e:
+                        logger.warning(f"[FileService] Failed to delete file {file_id}: {e}")
+                        failed_count += 1
+                        failed_ids.append(file_id)
+                else:
+                    success_count += 1
+
+            # 统计未找到的文件ID
+            missing_ids = set(file_ids) - set(file_path_map.keys())
+            failed_count += len(missing_ids)
+            failed_ids.extend(missing_ids)
+
+            logger.info(f"[FileService] Batch delete completed (MySQL): success={success_count}, failed={failed_count}")
+            return {
+                "success_count": success_count,
+                "failed_count": failed_count,
+                "failed_ids": failed_ids
+            }
+
+        cursor = db.cursor()
+
+        # 批量查询所有文件路径
+        placeholders = ", ".join(["?"] * len(file_ids))
+        query = f"SELECT id, file_path FROM file_records WHERE id IN ({placeholders})"
+        cursor.execute(query, file_ids)
+        rows = cursor.fetchall()
+
+        # 构建路径映射
+        file_path_map = {row["id"]: row["file_path"] for row in rows}
+        logger.info(f"[FileService] Found {len(file_path_map)} files to delete")
+
+        # 批量删除数据库记录
+        if file_path_map:
+            delete_query = f"DELETE FROM file_records WHERE id IN ({placeholders})"
+            cursor.execute(delete_query, list(file_path_map.keys()))
             db.commit()
+            logger.info(f"[FileService] Database records deleted: {len(file_path_map)} files")
 
-            # Delete file from disk
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                logger.info(f"File deleted from disk: {file_path}")
+        # 批量删除物理文件
+        for file_id, stored_path in file_path_map.items():
+            if stored_path:
+                try:
+                    resolved_path = self._resolve_video_path(stored_path)
+                    if resolved_path and Path(resolved_path).exists():
+                        os.remove(resolved_path)
+                        success_count += 1
+                        logger.debug(f"[FileService] Deleted file {file_id}: {resolved_path}")
+                    else:
+                        logger.warning(f"[FileService] File not found on disk: {stored_path}")
+                        success_count += 1  # 记录已删除，文件不存在也算成功
+                except Exception as e:
+                    logger.warning(f"[FileService] Failed to delete file {file_id}: {e}")
+                    failed_count += 1
+                    failed_ids.append(file_id)
+            else:
+                success_count += 1
 
-            logger.info(f"File record deleted: ID {file_id}")
-            return True
+        # 统计未找到的文件ID
+        missing_ids = set(file_ids) - set(file_path_map.keys())
+        failed_count += len(missing_ids)
+        failed_ids.extend(missing_ids)
 
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error deleting file {file_id}: {e}")
-            raise BadRequestException(f"Failed to delete file: {str(e)}")
+        logger.info(f"[FileService] Batch delete completed: success={success_count}, failed={failed_count}")
+        return {
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "failed_ids": failed_ids
+        }
 
     async def get_stats(self, db) -> FileStatsResponse:
         """Get file statistics"""

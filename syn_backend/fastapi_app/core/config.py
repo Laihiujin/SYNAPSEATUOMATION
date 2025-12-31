@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     DOUYIN_TIKTOK_API_ENABLED: bool = True
     DOUYIN_TIKTOK_API_PREFIX: str = "/api/v1/douyin-tiktok"
 
+    # Optional: MediaCrawler API integration
+    MEDIACRAWLER_API_ENABLED: bool = True
+    MEDIACRAWLER_API_PREFIX: str = "/api/v1/mediacrawler"
+
     class Config:
         # Load `syn_backend/.env` first, then repo-root `.env` as fallback.
         env_file = (".env", "../.env")

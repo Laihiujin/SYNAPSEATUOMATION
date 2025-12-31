@@ -41,6 +41,8 @@ from .manus_tools import (
     ExecutePythonScriptTool
 )
 
+# 扩展工具将在 initialize() 方法中延迟导入
+
 
 class ManusAgentWrapper:
     """OpenManus Agent 包装器"""
@@ -216,6 +218,18 @@ temperature = 0.6
             except Exception as e:
                 manus_logger.warning(f"移除 ask_human 工具失败（可忽略）: {e}")
 
+            # 导入扩展工具（必须在 OpenManus 初始化之后）
+            from .manus_tools_extended import (
+                MediaCrawlerTool,
+                WechatChannelsCrawlerTool,
+                IPPoolTool,
+                PlatformLoginTool,
+                CheckLoginStatusTool,
+                DataAnalyticsTool,
+                RunScriptTool,
+                CookieManagerTool
+            )
+
             # 添加自定义工具
             custom_tools = ToolCollection(
                 # 通用API工具
@@ -248,7 +262,25 @@ temperature = 0.6
                 # 系统工具
                 GetSystemContextTool(),
                 GetDashboardStatsTool(),
-                ExecutePythonScriptTool()
+                ExecutePythonScriptTool(),
+
+                # 扩展工具 - 数据采集
+                MediaCrawlerTool(),
+                WechatChannelsCrawlerTool(),
+
+                # 扩展工具 - 基础设施
+                IPPoolTool(),
+                CookieManagerTool(),
+
+                # 扩展工具 - 平台操作
+                PlatformLoginTool(),
+                CheckLoginStatusTool(),
+
+                # 扩展工具 - 数据分析
+                DataAnalyticsTool(),
+
+                # 扩展工具 - 脚本执行
+                RunScriptTool()
             )
 
             # 将自定义工具添加到 agent
@@ -355,7 +387,12 @@ _manus_agent_instance: Optional[ManusAgentWrapper] = None
 
 
 async def get_manus_agent() -> ManusAgentWrapper:
-    """获取全局 OpenManus Agent 实例"""
+    """
+    获取全局 OpenManus Agent 实例
+
+    NOTE: 应该在应用启动时(main.py startup_event)预先初始化,
+    避免首次请求时的延迟。
+    """
     global _manus_agent_instance
 
     if _manus_agent_instance is None:

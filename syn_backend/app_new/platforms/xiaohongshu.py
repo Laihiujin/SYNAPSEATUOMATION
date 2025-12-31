@@ -29,7 +29,7 @@ class XiaohongshuAdapter(PlatformAdapter):
         """
         生成小红书登录二维码
 
-        访问: https://creator.xiaohongshu.com/creator/home
+        访问: https://creator.xiaohongshu.com/new/home
         提取二维码图片
         """
         session_id = str(uuid.uuid4())
@@ -56,7 +56,7 @@ class XiaohongshuAdapter(PlatformAdapter):
             })
 
             # 访问小红书创作者中心
-            await page.goto("https://creator.xiaohongshu.com/creator/home", timeout=60000)
+            await page.goto("https://creator.xiaohongshu.com/new/home", timeout=60000)
             await asyncio.sleep(2)
 
             # 尝试切换到扫码登录
@@ -88,7 +88,7 @@ class XiaohongshuAdapter(PlatformAdapter):
                             logger.info(f"[XHS] QR code extracted: session={session_id[:8]}")
                             return QRCodeData(
                                 session_id=session_id,
-                                qr_url="https://creator.xiaohongshu.com/creator/home",
+                                qr_url="https://creator.xiaohongshu.com/new/home",
                                 qr_image=src,
                                 expires_in=300
                             )
@@ -105,7 +105,7 @@ class XiaohongshuAdapter(PlatformAdapter):
                     logger.warning(f"[XHS] QR not found, using screenshot: session={session_id[:8]}")
                     return QRCodeData(
                         session_id=session_id,
-                        qr_url="https://creator.xiaohongshu.com/creator/home",
+                        qr_url="https://creator.xiaohongshu.com/new/home",
                         qr_image=f"data:image/png;base64,{b64}",
                         expires_in=300
                     )

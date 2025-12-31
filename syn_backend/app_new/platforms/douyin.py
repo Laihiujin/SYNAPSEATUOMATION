@@ -224,26 +224,43 @@ class DouyinAdapter(PlatformAdapter):
     # ========== Helper Methods ==========
 
     async def _extract_user_info(self, page: Page, cookies_list: list) -> UserInfo:
-        """从页面提取用户信息（参考fetch_user_info_service的逻辑）"""
+        """Extract user info from page (DOM + JS)."""
         try:
             await asyncio.sleep(1)
             user_info = UserInfo()
 
-            # ⚠️ 方法1: 优先从DOM文本提取抖音号（最可靠！）
+            # Method 1: DOM text
             try:
                 import re
-                # text=/抖音号[:：]?\s*\d+/
-                elem = await page.wait_for_selector('text=/抖音号[:：]?\\s*\\d+/', timeout=3000)
-                if elem:
-                    text = await elem.inner_text()
-                    match = re.search(r'抖音号[:：]?\s*(\d+)', text)
+                # New UI sometimes exposes a unique_id-* node without label.
+                try:
+                    id_node = await page.wait_for_selector(
+                        "div[class^='unique_id-'], div[class*='unique_id-']",
+                        timeout=2000
+                    )
+                    if id_node:
+                        raw_text = (await id_node.inner_text()) or ""
+                        raw_text = raw_text.strip()
+                        if raw_text:
+                            match = re.search(r"(\\u6296\\u97f3\\u53f7|\\u6296\\u97f3ID|\\u6296\\u97f3id)[:\\uff1a]?\\s*([A-Za-z0-9_.-]+)", raw_text)
+                            if match:
+                                user_info.user_id = match.group(2)
+                            else:
+                                raw_match = re.search(r"[A-Za-z0-9_.-]+", raw_text)
+                                user_info.user_id = raw_match.group(0) if raw_match else raw_text
+                except Exception:
+                    pass
+
+                if not user_info.user_id:
+                    body_text = await page.inner_text("body")
+                    match = re.search(r"(\\u6296\\u97f3\\u53f7|\\u6296\\u97f3ID|\\u6296\\u97f3id)[:\\uff1a]?\\s*([A-Za-z0-9_.-]+)", body_text)
                     if match:
-                        user_info.user_id = match.group(1)
+                        user_info.user_id = match.group(2)
                         logger.info(f"[Douyin] Extracted user_id from DOM text: {user_info.user_id}")
             except Exception as e:
                 logger.warning(f"[Douyin] DOM text extraction failed: {e}")
 
-            # 方法2: 从JS全局变量提取（兜底）
+            # Method 2: JS fallback
             if not user_info.user_id:
                 try:
                     js_info = await page.evaluate("""() => {
@@ -256,18 +273,18 @@ class DouyinAdapter(PlatformAdapter):
                         if (window.userData) return window.userData;
                         return null;
                     }""")
-
                     if js_info and isinstance(js_info, dict):
-                        # ⚠️ 与旧版 services.py 保持一致：JS 仅兜底拿 userId，不用 uid（加密），
-                        # name/avatar 交给 DOM 选择器（更稳定，避免拿到空/错误字段）
-                        user_info.user_id = js_info.get("userId", "")
+                        user_info.user_id = (
+                            js_info.get("uniqueId")
+                            or js_info.get("unique_id")
+                            or js_info.get("userId")
+                            or ""
+                        )
                         logger.info(f"[Douyin] Fallback to JS userId: {user_info.user_id}")
                 except Exception as e:
                     logger.warning(f"[Douyin] JS user info failed: {e}")
 
-            # ⚠️ 抖音不从cookie提取user_id（所有cookie字段都是加密的，如odin_tt/uid_tt等）
-
-            # 提取name（DOM兜底）
+            # name
             if not user_info.name:
                 try:
                     name_selectors = ['xpath=//div[@class="name-_lSSDc"]', 'div[class*="name-_lSSDc"]', 'div[class*="header-right-name"]', '.header-right-name']
@@ -277,14 +294,14 @@ class DouyinAdapter(PlatformAdapter):
                             if elem:
                                 text = await elem.inner_text()
                                 if text:
-                                    user_info.name = text.strip().split('\n')[0]
+                                    user_info.name = text.strip().split("\n")[0]
                                     break
-                        except:
+                        except Exception:
                             continue
                 except Exception as e:
                     logger.warning(f"[Douyin] name extraction failed: {e}")
 
-            # 从DOM提取头像
+            # avatar
             if not user_info.avatar:
                 try:
                     for sel in ["div[class*='avatar-'] img", ".semi-avatar img", "img[src*='aweme-avatar']"]:
@@ -303,3 +320,4 @@ class DouyinAdapter(PlatformAdapter):
         except Exception as e:
             logger.error(f"[Douyin] Extract user info failed: {e}")
             return UserInfo()
+

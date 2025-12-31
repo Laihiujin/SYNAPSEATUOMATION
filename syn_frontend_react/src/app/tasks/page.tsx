@@ -16,13 +16,14 @@ import { backendBaseUrl } from "@/lib/env"
 import { tasksResponseSchema, type TasksResponse } from "@/lib/schemas"
 import { formatBeijingDateTime } from "@/lib/time"
 import { useToast } from "@/components/ui/use-toast"
+import { PageHeader } from "@/components/layout/page-scaffold"
 
 const statusTabs = [
   { label: "全部", value: "all" },
   { label: "待执行", value: "pending" },
   { label: "定时", value: "scheduled" },
   { label: "运行中", value: "running" },
-  { label: "被取消", value: "cancelled" },
+  // { label: "被取消", value: "cancelled" },
   { label: "成功", value: "success" },
   { label: "失败", value: "error" },
 ]
@@ -50,7 +51,7 @@ export default function TasksPage() {
     refetch,
   } = useQuery({
     queryKey: ["tasks"],
-    queryFn: () => fetcher<TasksResponse>(`${backendBaseUrl}/api/v1/tasks`, tasksResponseSchema),
+    queryFn: () => fetcher<TasksResponse>(`/api/tasks`, tasksResponseSchema),
   })
 
   // 获取人工任务
@@ -435,137 +436,129 @@ export default function TasksPage() {
   }, [activeTab])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <h1 className="mt-2 text-3xl font-semibold">任务中心</h1>
-        </div>
-        <div className="ml-auto flex gap-3">
-          {selectedTaskIds.length > 0 && activeTab === "auto" && (
-            <>
-              <Button
-                variant="outline"
-                className="rounded-2xl border-orange-500/50 bg-orange-500/10 text-orange-200 hover:bg-orange-500/20"
-                onClick={() => {
-                  console.log("[Tasks] Batch cancel button clicked", selectedTaskIds)
-                  batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: false })
-                }}
-                disabled={batchCancelMutation.isPending}
-              >
-                <Ban className="h-4 w-4 mr-2" />
-                取消任务 ({selectedTaskIds.length})
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                onClick={() => {
-                  console.log("[Tasks] Batch force cancel button clicked", selectedTaskIds)
-                  batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: true })
-                }}
-                disabled={batchCancelMutation.isPending}
-              >
-                <Ban className="h-4 w-4 mr-2" />
-                强制取消 ({selectedTaskIds.length})
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-2xl border-blue-500/50 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
-                onClick={() => {
-                  console.log("[Tasks] Batch retry button clicked", selectedTaskIds)
-                  batchRetryMutation.mutate(selectedTaskIds)
-                }}
-                disabled={batchRetryMutation.isPending}
-              >
-                <RefreshCcw className="h-4 w-4 mr-2" />
-                重试选中 ({selectedTaskIds.length})
-              </Button>
+    <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+      <PageHeader
+        title="任务中心"
+        actions={
+          <div className="ml-auto flex flex-wrap gap-3">
+            {selectedTaskIds.length > 0 && activeTab === "auto" && (
+              <>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl border-orange-500/50 bg-orange-500/10 text-orange-200 hover:bg-orange-500/20"
+                  onClick={() => {
+                    console.log("[Tasks] Batch cancel button clicked", selectedTaskIds)
+                    batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: false })
+                  }}
+                  disabled={batchCancelMutation.isPending}
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  取消任务 ({selectedTaskIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                  onClick={() => {
+                    console.log("[Tasks] Batch force cancel button clicked", selectedTaskIds)
+                    batchCancelMutation.mutate({ taskIds: selectedTaskIds, force: true })
+                  }}
+                  disabled={batchCancelMutation.isPending}
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  强制取消 ({selectedTaskIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl border-blue-500/50 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20"
+                  onClick={() => {
+                    console.log("[Tasks] Batch retry button clicked", selectedTaskIds)
+                    batchRetryMutation.mutate(selectedTaskIds)
+                  }}
+                  disabled={batchRetryMutation.isPending}
+                >
+                  <RefreshCcw className="h-4 w-4 mr-2" />
+                  重试选中 ({selectedTaskIds.length})
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="rounded-2xl"
+                  onClick={() => {
+                    console.log("[Tasks] Batch delete button clicked", selectedTaskIds)
+                    batchDeleteMutation.mutate(selectedTaskIds)
+                  }}
+                  disabled={batchDeleteMutation.isPending}
+                >
+                  <Trash className="h-4 w-4 mr-2" />
+                  删除选中 ({selectedTaskIds.length})
+                </Button>
+              </>
+            )}
+            {activeTab === "auto" && selectedTaskIds.length === 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                  onClick={() => {
+                    console.log("[Tasks] Clear failed button clicked")
+                    try {
+                      clearTasksMutation.mutate('failed')
+                    } catch (err) {
+                      console.error("[Tasks] Error:", err)
+                    }
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  清理失败
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl border-green-500/50 bg-green-500/10 text-green-200 hover:bg-green-500/20"
+                  onClick={() => {
+                    console.log("[Tasks] Clear success button clicked")
+                    try {
+                      clearTasksMutation.mutate('success')
+                    } catch (err) {
+                      console.error("[Tasks] Error:", err)
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  清理成功
+                </Button>
+              </>
+            )}
+            {selectedManualIds.length > 0 && activeTab === "manual" && (
               <Button
                 variant="destructive"
                 className="rounded-2xl"
                 onClick={() => {
-                  console.log("[Tasks] Batch delete button clicked", selectedTaskIds)
-                  batchDeleteMutation.mutate(selectedTaskIds)
+                  console.log("[Tasks] Manual batch delete clicked", selectedManualIds)
+                  manualBatchDeleteMutation.mutate(selectedManualIds)
                 }}
-                disabled={batchDeleteMutation.isPending}
+                disabled={manualBatchDeleteMutation.isPending}
               >
                 <Trash className="h-4 w-4 mr-2" />
-                删除选中 ({selectedTaskIds.length})
+                删除选中 ({selectedManualIds.length})
               </Button>
-            </>
-          )}
-          {activeTab === "auto" && selectedTaskIds.length === 0 && (
-            <>
-              <Button
-                variant="outline"
-                className="rounded-2xl border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                onClick={() => {
-                  console.log("[Tasks] Clear failed button clicked")
-                  console.log("[Tasks] clearTasksMutation:", clearTasksMutation)
-                  console.log("[Tasks] Calling clearTasksMutation('failed') - NO CONFIRM")
-                  try {
-                    clearTasksMutation.mutate('failed')
-                    console.log("[Tasks] clearTasksMutation.mutate called")
-                  } catch (err) {
-                    console.error("[Tasks] Error:", err)
-                  }
-                }}
-                disabled={false}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                清理失败
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-2xl border-green-500/50 bg-green-500/10 text-green-200 hover:bg-green-500/20"
-                onClick={() => {
-                  console.log("[Tasks] Clear success button clicked")
-                  console.log("[Tasks] clearTasksMutation:", clearTasksMutation)
-                  console.log("[Tasks] Calling clearTasksMutation('success') - NO CONFIRM")
-                  try {
-                    clearTasksMutation.mutate('success')
-                    console.log("[Tasks] clearTasksMutation.mutate called")
-                  } catch (err) {
-                    console.error("[Tasks] Error:", err)
-                  }
-                }}
-                disabled={false}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                清理成功
-              </Button>
-            </>
-          )}
-          {selectedManualIds.length > 0 && activeTab === "manual" && (
+            )}
             <Button
-              variant="destructive"
-              className="rounded-2xl"
+              variant="ghost"
+              className="rounded-2xl border border-white/10 bg-white/5"
               onClick={() => {
-                console.log("[Tasks] Manual batch delete clicked", selectedManualIds)
-                manualBatchDeleteMutation.mutate(selectedManualIds)
+                refetch()
+                queryClient.invalidateQueries({ queryKey: ["manual-tasks"] })
+                queryClient.invalidateQueries({ queryKey: ["manual-tasks-stats"] })
+                setSelectedTaskIds([])
+                setSelectedManualIds([])
               }}
-              disabled={manualBatchDeleteMutation.isPending}
+              disabled={isFetching}
             >
-              <Trash className="h-4 w-4 mr-2" />
-              删除选中 ({selectedManualIds.length})
+              <RefreshCcw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              {isFetching ? "刷新中..." : "刷新数据"}
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            className="rounded-2xl border border-white/10 bg-white/5"
-            onClick={() => {
-              refetch()
-              queryClient.invalidateQueries({ queryKey: ["manual-tasks"] })
-              queryClient.invalidateQueries({ queryKey: ["manual-tasks-stats"] })
-              setSelectedTaskIds([])
-              setSelectedManualIds([])
-            }}
-            disabled={isFetching}
-          >
-            <RefreshCcw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            {isFetching ? "刷新中..." : "刷新数据"}
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-black border-white/10">

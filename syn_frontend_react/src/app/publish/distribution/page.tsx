@@ -29,6 +29,8 @@ import type { Material } from "@/lib/mock-data"
 import { TaskDrawer } from "./components/task-drawer"
 import { Progress } from "@/components/ui/progress"
 import { PublishOtpDialog } from "@/components/publish/publish-otp-dialog"
+import { PageHeader } from "@/components/layout/page-scaffold"
+import { cn } from "@/lib/utils"
 
 interface DistributionTask {
     task_id: number
@@ -223,150 +225,153 @@ export default function DistributionPage() {
     }
 
     return (
-        <div className="space-y-6 p-6">
-            <div className="flex flex-wrap items-center gap-4">
-                <div>
-                    <p className="text-sm uppercase tracking-[0.3em] text-white/50">任务分发</p>
-                    <h1 className="mt-2 text-3xl font-semibold">扫码派发管理</h1>
-                    <p className="text-sm text-white/60">管理二维码扫码领视频任务，监控库存与分发状态</p>
-                </div>
-                <div className="ml-auto flex gap-3">
-                    <Button variant="ghost" onClick={() => refetch()} disabled={isLoading}>
-                        <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-                        刷新
-                    </Button>
+        <div className="space-y-8 px-4 py-4 md:px-6 md:py-6">
+            <PageHeader
+                title="扫码派发管理"
+                actions={
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            className="rounded-xl border-white/10 bg-white/5 hover:bg-white/10"
+                            onClick={() => refetch()}
+                            disabled={isLoading}
+                        >
+                            <RefreshCcw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
+                            刷新
+                        </Button>
 
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                创建派发任务
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[600px]">
-                            <DialogHeader>
-                                <DialogTitle>创建新派发任务</DialogTitle>
-                                <DialogDescription>
-                                    配置任务基本信息，并选择要分发的视频素材。
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="platform" className="text-right">
-                                        平台
-                                    </Label>
-                                    <Select
-                                        value={formData.platform}
-                                        onValueChange={(v) => setFormData({ ...formData, platform: v })}
-                                    >
-                                        <SelectTrigger className="col-span-3">
-                                            <SelectValue placeholder="选择平台" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="douyin">抖音</SelectItem>
-                                            <SelectItem value="kuaishou">快手</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="title" className="text-right">
-                                        标题模板
-                                    </Label>
-                                    <Input
-                                        id="title"
-                                        value={formData.title_template}
-                                        onChange={(e) => setFormData({ ...formData, title_template: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="例如：今天去{poi}打卡了！"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="poi" className="text-right">
-                                        POI 位置
-                                    </Label>
-                                    <Input
-                                        id="poi"
-                                        value={formData.poi_location}
-                                        onChange={(e) => setFormData({ ...formData, poi_location: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="可选，例如：某某餐厅"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <div className="col-span-4">
-                                        <NaturalDatePicker
-                                            value={formData.expire_time}
-                                            onChange={(v) => setFormData({ ...formData, expire_time: v })}
-                                            label="过期时间"
-                                            placeholder="明天 或 下周"
+                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20">
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    创建派发任务
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[600px]">
+                                <DialogHeader>
+                                    <DialogTitle>创建新派发任务</DialogTitle>
+                                    <DialogDescription>
+                                        配置任务基本信息，并选择要分发的视频素材。
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="platform" className="text-right">
+                                            平台
+                                        </Label>
+                                        <Select
+                                            value={formData.platform}
+                                            onValueChange={(v) => setFormData({ ...formData, platform: v })}
+                                        >
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="选择平台" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="douyin">抖音</SelectItem>
+                                                <SelectItem value="kuaishou">快手</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="title" className="text-right">
+                                            标题模板
+                                        </Label>
+                                        <Input
+                                            id="title"
+                                            value={formData.title_template}
+                                            onChange={(e) => setFormData({ ...formData, title_template: e.target.value })}
+                                            className="col-span-3"
+                                            placeholder="例如：今天去{poi}打卡了！"
                                         />
                                     </div>
-                                </div>
-
-                                <div className="grid grid-cols-4 gap-4">
-                                    <Label className="text-right pt-2">
-                                        选择素材
-                                        <span className="block text-xs text-white/50 mt-1">
-                                            已选: {formData.video_files.length} / 1
-                                        </span>
-                                    </Label>
-                                    <div className="col-span-3 border border-white/10 rounded-md h-[200px] overflow-y-auto p-2 space-y-1">
-                                        {materials.length === 0 ? (
-                                            <p className="text-sm text-white/50 text-center py-4">暂无素材，请先上传</p>
-                                        ) : (
-                                            materials.map((file) => {
-                                                const fileKey = file.storageKey || file.fileUrl
-                                                if (!fileKey) return null
-                                                const checked = formData.video_files.includes(fileKey)
-                                                return (
-                                                    <div
-                                                        key={file.id}
-                                                        className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm ${checked
-                                                            ? "bg-primary/20 text-primary"
-                                                            : "hover:bg-white/5"
-                                                            }`}
-                                                        onClick={() => toggleMaterial(fileKey)}
-                                                    >
-                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${checked
-                                                            ? "border-primary bg-primary text-primary-foreground"
-                                                            : "border-white/30"
-                                                            }`}>
-                                                            {checked && <Plus className="w-3 h-3" />}
-                                                        </div>
-                                                        <span className="truncate flex-1">{file.filename}</span>
-                                                    </div>
-                                                )
-                                            })
-                                        )}
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="poi" className="text-right">
+                                            POI 位置
+                                        </Label>
+                                        <Input
+                                            id="poi"
+                                            value={formData.poi_location}
+                                            onChange={(e) => setFormData({ ...formData, poi_location: e.target.value })}
+                                            className="col-span-3"
+                                            placeholder="可选，例如：某某餐厅"
+                                        />
                                     </div>
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                {isCreating && (
-                                    <div className="w-full space-y-2 mb-4">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-white/60">创建进度</span>
-                                            <span className="text-white">{createProgress}%</span>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <div className="col-span-4">
+                                            <NaturalDatePicker
+                                                value={formData.expire_time}
+                                                onChange={(v) => setFormData({ ...formData, expire_time: v })}
+                                                label="过期时间"
+                                                placeholder="明天 或 下周"
+                                            />
                                         </div>
-                                        <Progress value={createProgress} className="h-2" />
-                                        <p className="text-xs text-white/50 text-center">
-                                            {createProgress < 30 && "正在准备..."}
-                                            {createProgress >= 30 && createProgress < 60 && "正在创建任务..."}
-                                            {createProgress >= 60 && createProgress < 90 && "正在配置素材..."}
-                                            {createProgress >= 90 && createProgress < 100 && "即将完成..."}
-                                            {createProgress === 100 && "创建成功！"}
-                                        </p>
                                     </div>
-                                )}
-                                <Button type="submit" onClick={handleCreate} disabled={createMutation.isPending}>
-                                    {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    创建任务
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </div>
+
+                                    <div className="grid grid-cols-4 gap-4">
+                                        <Label className="text-right pt-2">
+                                            选择素材
+                                            <span className="block text-xs text-white/50 mt-1">
+                                                已选: {formData.video_files.length} / 1
+                                            </span>
+                                        </Label>
+                                        <div className="col-span-3 border border-white/10 rounded-md h-[200px] overflow-y-auto p-2 space-y-1">
+                                            {materials.length === 0 ? (
+                                                <p className="text-sm text-white/50 text-center py-4">暂无素材，请先上传</p>
+                                            ) : (
+                                                materials.map((file) => {
+                                                    const fileKey = file.storageKey || file.fileUrl
+                                                    if (!fileKey) return null
+                                                    const checked = formData.video_files.includes(fileKey)
+                                                    return (
+                                                        <div
+                                                            key={file.id}
+                                                            className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm ${checked
+                                                                ? "bg-primary/20 text-primary"
+                                                                : "hover:bg-white/5"
+                                                                }`}
+                                                            onClick={() => toggleMaterial(fileKey)}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${checked
+                                                                ? "border-primary bg-primary text-primary-foreground"
+                                                                : "border-white/30"
+                                                                }`}>
+                                                                {checked && <Plus className="w-3 h-3" />}
+                                                            </div>
+                                                            <span className="truncate flex-1">{file.filename}</span>
+                                                        </div>
+                                                    )
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    {isCreating && (
+                                        <div className="w-full space-y-2 mb-4">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-white/60">创建进度</span>
+                                                <span className="text-white">{createProgress}%</span>
+                                            </div>
+                                            <Progress value={createProgress} className="h-2" />
+                                            <p className="text-xs text-white/50 text-center">
+                                                {createProgress < 30 && "正在准备..."}
+                                                {createProgress >= 30 && createProgress < 60 && "正在创建任务..."}
+                                                {createProgress >= 60 && createProgress < 90 && "正在配置素材..."}
+                                                {createProgress >= 90 && createProgress < 100 && "即将完成..."}
+                                                {createProgress === 100 && "创建成功！"}
+                                            </p>
+                                        </div>
+                                    )}
+                                    <Button type="submit" onClick={handleCreate} disabled={createMutation.isPending}>
+                                        {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        创建任务
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                }
+            />
 
             <Card className="border-white/10 bg-black">
                 <CardHeader>
