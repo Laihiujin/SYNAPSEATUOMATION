@@ -29,6 +29,12 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# Add OpenManus-worker to Python path (必须在导入 main.py 之前)
+openmanus_path = project_root / "OpenManus-worker"
+if openmanus_path.exists() and str(openmanus_path) not in sys.path:
+    sys.path.insert(0, str(openmanus_path))
+    print(f"[OPENMANUS] Added to sys.path: {openmanus_path}")
+
 if __name__ == "__main__":
     import uvicorn
     from fastapi_app.core.config import settings

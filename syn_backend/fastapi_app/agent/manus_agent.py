@@ -123,12 +123,28 @@ temperature = 0.6
 
                     # 同步 browser.headless（让 OpenManus 的可视/无头跟随全局设置）
                     desired_headless = "true" if PLAYWRIGHT_HEADLESS else "false"
+
+                    # 配置浏览器路径（使用项目本地的 browsers 目录）
+                    browsers_root = OPENMANUS_PATH.parent.parent / "browsers"
+                    chromium_path = browsers_root / "chromium"
+                    firefox_path = browsers_root / "firefox"
+
                     # NOTE: TOML 不允许重复声明同一个 table（例如 [browser] 出现两次会直接报错）。
                     # 这里采用幂等写法：先移除所有现存的 [browser] block，然后把规范化 block 放到安全位置：
-                    # - 若存在 [browser.xxx] 子表，则必须把 [browser] 放到它们之前（避免“父表在子表之后声明”导致 TOML 解析失败）
+                    # - 若存在 [browser.xxx] 子表，则必须把 [browser] 放到它们之前（避免"父表在子表之后声明"导致 TOML 解析失败）
                     # - 否则追加到末尾即可
                     content_without_browser = _remove_table_block(content_without_llm, "browser")
-                    browser_block = f"[browser]\nheadless = {desired_headless}\n"
+                    browser_block = f"""[browser]
+headless = {desired_headless}
+# 使用项目本地浏览器（避免下载到系统缓存）
+chromium_channel = "chromium"
+# Playwright browsers path (指向 chromium 文件夹)
+# 注意: OpenManus 会在此路径下查找 chromium
+"""
+                    # 通过环境变量传递浏览器路径（Playwright 使用）
+                    if chromium_path.exists():
+                        os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(chromium_path.parent)
+                        manus_logger.info(f"设置 PLAYWRIGHT_BROWSERS_PATH={chromium_path.parent}")
 
                     subtable_match = re.search(r"(?m)^\[browser\.[^\]]+\]\s*$", content_without_browser)
                     if subtable_match:

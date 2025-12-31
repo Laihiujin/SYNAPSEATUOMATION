@@ -410,6 +410,42 @@ async def stream_manus_execution(
             }
 
             yield _sse({"type": "final_result", "result": final_payload})
+
+            # 保存任务结果到数据库（避免刷新后丢失）
+            if thread_id:
+                try:
+                    conn = sqlite3.connect(settings.DATABASE_PATH)
+                    cursor = conn.cursor()
+
+                    # 保存 assistant 的最终回复
+                    if last_assistant:
+                        cursor.execute(
+                            """
+                            INSERT INTO ai_messages (thread_id, role, content, created_at)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (thread_id, "assistant", last_assistant, datetime.now().isoformat())
+                        )
+
+                    # 保存工具调用步骤（以 JSON 格式）
+                    if steps:
+                        steps_summary = f"执行了 {len(steps)} 个工具调用:\n" + "\n".join(
+                            f"- {s.get('tool', 'unknown')}" for s in steps
+                        )
+                        cursor.execute(
+                            """
+                            INSERT INTO ai_messages (thread_id, role, content, created_at)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (thread_id, "tool", json.dumps(steps, ensure_ascii=False), datetime.now().isoformat())
+                        )
+
+                    conn.commit()
+                    conn.close()
+                    logger.info(f"已保存 OpenManus 任务结果到数据库: thread_id={thread_id}")
+                except Exception as e:
+                    logger.warning(f"保存 OpenManus 任务记录失败: {e}")
+
             yield _sse({"type": "done"})
 
     except Exception as e:
