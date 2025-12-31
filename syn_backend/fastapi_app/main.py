@@ -22,6 +22,11 @@ if sys.platform == "win32":
 # 添加父目录到路径以导入现有模块
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# 添加 OpenManus-worker 到路径（必须在导入 manus_agent 之前）
+OPENMANUS_PATH = Path(__file__).parent.parent / "OpenManus-worker"
+if OPENMANUS_PATH.exists() and str(OPENMANUS_PATH) not in sys.path:
+    sys.path.insert(0, str(OPENMANUS_PATH))
+
 from .core import settings, logger, setup_logging, AppException
 from .schemas.common import ErrorResponse, HealthResponse
 from .api.v1.router import api_router
